@@ -5,46 +5,51 @@ import { comparePasswords, generateToken, getUserByEmail } from "@/lib/auth"
 export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
-  // Headers CORS para produção
+  console.log('🚀 === LOGIN API START ===');
+  console.log('🌍 Environment:', process.env.NODE_ENV);
+  console.log('📡 Supabase URL configured:', !!process.env.NEXT_PUBLIC_SUPABASE_URL);
+  console.log('🔑 JWT Secret configured:', !!process.env.JWT_SECRET);
+  
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Content-Type': 'application/json'
   };
 
   try {
-    console.log('🚀 POST /api/auth/login - INÍCIO');
-    console.log('🌍 Environment:', process.env.NODE_ENV);
-    console.log('📡 Supabase URL configured:', !!process.env.NEXT_PUBLIC_SUPABASE_URL);
-    
     // Validar Content-Type
     const contentType = request.headers.get('content-type');
+    console.log('📋 Content-Type:', contentType);
+    
     if (!contentType?.includes('application/json')) {
+      console.log('❌ Content-Type inválido');
       return NextResponse.json(
         { error: "Content-Type deve ser application/json" }, 
         { status: 400, headers }
       );
     }
 
+    // Parse do body
     let body;
     try {
       body = await request.json();
+      console.log('📥 Body parsed successfully');
     } catch (parseError) {
-      console.error('❌ Erro ao fazer parse do JSON:', parseError);
+      console.error('❌ JSON parse error:', parseError);
       return NextResponse.json(
         { error: "JSON inválido no corpo da requisição" }, 
         { status: 400, headers }
       );
     }
     
-    console.log('📥 Login attempt for email:', body.email);
+    console.log('📧 Login attempt for email:', body.email);
     
     const { email, password } = body;
 
     // Validação rigorosa de entrada
     if (!email || typeof email !== 'string' || !email.trim()) {
-      console.log('❌ Validation failed: email inválido');
+      console.log('❌ Email validation failed');
       return NextResponse.json(
         { error: "Email é obrigatório e deve ser uma string válida" }, 
         { status: 400, headers }
@@ -52,14 +57,14 @@ export async function POST(request: NextRequest) {
     }
 
     if (!password || typeof password !== 'string') {
-      console.log('❌ Validation failed: senha inválida');
+      console.log('❌ Password validation failed');
       return NextResponse.json(
         { error: "Senha é obrigatória e deve ser uma string válida" }, 
         { status: 400, headers }
       );
     }
 
-    console.log('🔍 Searching for user with email:', email);
+    console.log('🔍 Searching for user...');
     
     // Buscar usuário por email
     const user = await getUserByEmail(email);
@@ -119,7 +124,7 @@ export async function POST(request: NextRequest) {
     };
     
     console.log('🎉 Login successful for user:', user.email);
-    console.log('🏁 POST /api/auth/login - FIM');
+    console.log('🏁 === LOGIN API END ===');
 
     return NextResponse.json(response, { headers });
     
@@ -149,12 +154,25 @@ export async function POST(request: NextRequest) {
 
 // Handler para OPTIONS (CORS preflight)
 export async function OPTIONS(request: NextRequest) {
+  console.log('🔄 OPTIONS request received');
   return new NextResponse(null, {
     status: 200,
     headers: {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     },
+  });
+}
+
+// Handler para GET (para debug)
+export async function GET() {
+  console.log('🔍 GET request received');
+  return NextResponse.json({
+    message: "Login endpoint is working",
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV,
+    hasSupabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+    hasJwtSecret: !!process.env.JWT_SECRET
   });
 }
