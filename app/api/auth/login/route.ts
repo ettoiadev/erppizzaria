@@ -3,7 +3,6 @@ import { comparePasswords, generateToken, getUserByEmail } from "@/lib/auth"
 
 // Forçar renderização dinâmica para Vercel
 export const dynamic = 'force-dynamic'
-export const runtime = 'nodejs'
 
 export async function POST(request: NextRequest) {
   // Headers CORS para produção

@@ -53,16 +53,6 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  // Configurações específicas para Vercel
-  experimental: {
-    serverComponentsExternalPackages: ['@supabase/supabase-js'],
-  },
-  // Garantir que as rotas de API usem Node.js runtime
-  api: {
-    bodyParser: {
-      sizeLimit: '1mb',
-    },
-  },
 }
 
 module.exports = nextConfig

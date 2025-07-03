@@ -3,7 +3,6 @@ import { testConnection } from '@/lib/db'
 
 // Configurações para Vercel
 export const dynamic = 'force-dynamic'
-export const runtime = 'nodejs'
 
 export async function GET() {
   const headers = {
