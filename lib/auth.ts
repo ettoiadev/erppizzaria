@@ -20,22 +20,14 @@ export async function createUser({ email, password, full_name, role = 'customer'
 }) {
   const hashedPassword = await hashPassword(password);
   
-  // Criar usuário na tabela auth.users
-  const userResult = await query(
-    'INSERT INTO auth.users (email) VALUES ($1) RETURNING id',
-    [email.toLowerCase()]
-  );
-  
-  const userId = userResult.rows[0].id;
-  
-  // Criar perfil do usuário
-  await query(
-    'INSERT INTO profiles (id, email, full_name, role, password_hash) VALUES ($1, $2, $3, $4, $5)',
-    [userId, email.toLowerCase(), full_name, role, hashedPassword]
+  // Criar perfil do usuário diretamente na tabela profiles
+  const result = await query(
+    'INSERT INTO profiles (email, full_name, role, password_hash) VALUES ($1, $2, $3, $4) RETURNING *',
+    [email.toLowerCase(), full_name, role, hashedPassword]
   );
   
   return {
-    id: userId,
+    id: result.rows[0].id,
     email: email.toLowerCase(),
     full_name,
     role
@@ -63,12 +55,17 @@ export async function verifyToken(token: string) {
 }
 
 export async function getUserByEmail(email: string) {
-  const result = await query(
-    'SELECT u.id, u.email, p.full_name, p.role, p.password_hash FROM auth.users u JOIN profiles p ON u.id = p.id WHERE u.email = $1',
-    [email.toLowerCase()]
-  );
-  
-  return result.rows[0];
+  try {
+    const result = await query(
+      'SELECT id, email, full_name, role, password_hash FROM profiles WHERE email = $1',
+      [email.toLowerCase()]
+    );
+    
+    return result.rows[0];
+  } catch (error) {
+    console.error('Error getting user by email:', error);
+    return null;
+  }
 }
 
 export async function verifyAdmin(token: string) {
