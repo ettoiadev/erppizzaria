@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { sign, verify } from 'jsonwebtoken';
 import { getUserByEmail, createUserProfile, UserProfile } from './supabase-integration';
+import { supabaseAdmin } from './supabase';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'william-disk-pizza-jwt-secret-2024-production';
 
@@ -27,6 +28,30 @@ export async function createUser({
     console.log('🔐 Criando usuário:', email);
     
     const hashedPassword = await hashPassword(password);
+    let supabaseUserId: string | null = null;
+
+    // Se for admin, criar também no Supabase Auth
+    if (role === 'admin') {
+      console.log('👤 Criando admin no Supabase Auth...');
+      
+      const { data, error } = await supabaseAdmin.auth.admin.createUser({
+        email: email.toLowerCase(),
+        password,
+        email_confirm: true,
+        user_metadata: { 
+          nome: full_name,
+          role: 'admin'
+        }
+      });
+
+      if (error) {
+        console.error('❌ Erro ao criar usuário no Supabase Auth:', error);
+        throw new Error('Falha ao criar usuário no sistema de autenticação');
+      }
+
+      supabaseUserId = data.user?.id || null;
+      console.log('✅ Usuário criado no Supabase Auth:', supabaseUserId);
+    }
     
     const user = await createUserProfile({
       email: email.toLowerCase(),
@@ -37,6 +62,22 @@ export async function createUser({
 
     if (!user) {
       throw new Error('Falha ao criar usuário');
+    }
+
+    // Se criamos no Supabase Auth, sincronizar o user_id
+    if (supabaseUserId && role === 'admin') {
+      console.log('🔄 Sincronizando user_id...');
+      
+      const { error: updateError } = await supabaseAdmin
+        .from('profiles')
+        .update({ user_id: supabaseUserId })
+        .eq('email', email.toLowerCase());
+
+      if (updateError) {
+        console.error('⚠️ Erro ao sincronizar user_id:', updateError);
+      } else {
+        console.log('✅ user_id sincronizado com sucesso!');
+      }
     }
 
     console.log('✅ Usuário criado com sucesso:', user.email);
