@@ -1,11 +1,28 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
-    domains: ["localhost"],
+    domains: ["localhost", "ewoihxpitbbypqylhdkm.supabase.co"],
     unoptimized: true,
   },
   async headers() {
     return [
+      {
+        source: "/api/:path*",
+        headers: [
+          {
+            key: "Access-Control-Allow-Origin",
+            value: "*",
+          },
+          {
+            key: "Access-Control-Allow-Methods",
+            value: "GET, POST, PUT, DELETE, OPTIONS",
+          },
+          {
+            key: "Access-Control-Allow-Headers",
+            value: "Content-Type, Authorization",
+          },
+        ],
+      },
       {
         source: "/manifest.json",
         headers: [
@@ -35,6 +52,16 @@ const nextConfig = {
   },
   typescript: {
     ignoreBuildErrors: true,
+  },
+  // Configurações específicas para Vercel
+  experimental: {
+    serverComponentsExternalPackages: ['@supabase/supabase-js'],
+  },
+  // Garantir que as rotas de API usem Node.js runtime
+  api: {
+    bodyParser: {
+      sizeLimit: '1mb',
+    },
   },
 }
 
