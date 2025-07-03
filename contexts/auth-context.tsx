@@ -57,6 +57,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setIsLoading(true)
 
+      console.log('🔄 Fazendo login para:', email);
+
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: {
@@ -65,11 +67,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         body: JSON.stringify({ email, password }),
       })
 
-      const data = await response.json()
+      console.log('📡 Response status:', response.status);
+      console.log('📡 Response ok:', response.ok);
+      console.log('📡 Response headers:', response.headers);
 
       if (!response.ok) {
-        throw new Error(data.error || "Failed to login")
+        console.error('❌ Response not ok:', response.status, response.statusText);
+        
+        // Tentar ler o texto da resposta para debug
+        const text = await response.text();
+        console.error('❌ Response text:', text);
+        
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch (e) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        throw new Error(data.error || "Failed to login");
       }
+
+      const data = await response.json();
 
       // Check if required role matches
       if (requiredRole === "admin" && data.user.role !== "admin") {
