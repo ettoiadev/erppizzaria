@@ -5,6 +5,12 @@ export interface Customer {
   phone: string
   address: string
   complement?: string
+  street?: string
+  number?: string
+  neighborhood?: string
+  city?: string
+  state?: string
+  zip_code?: string
   createdAt: string
   lastOrderAt?: string
   totalOrders: number

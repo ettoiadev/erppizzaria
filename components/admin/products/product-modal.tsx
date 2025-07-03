@@ -1,13 +1,14 @@
 "use client"
 
-import type React from "react"
+
 
 import { useState, useEffect } from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { CurrencyInput } from "@/components/ui/currency-input"
 import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Plus, Trash2, Upload, X, AlertCircle } from "lucide-react"
@@ -30,7 +31,7 @@ export function ProductModal({ open, onOpenChange, product, categories, onSave }
     image: "",
     categoryId: "",
     available: true,
-    showImage: true,
+    showImage: false,
     sizes: [] as ProductSize[],
     toppings: [] as ProductTopping[],
   })
@@ -42,17 +43,17 @@ export function ProductModal({ open, onOpenChange, product, categories, onSave }
   useEffect(() => {
     if (product) {
       setFormData({
-        name: product.name,
-        description: product.description,
-        price: product.price,
-        image: product.image,
-        categoryId: product.categoryId,
-        available: product.available,
-        showImage: product.showImage ?? true,
+        name: product.name || "",
+        description: product.description || "",
+        price: product.price || 0,
+        image: product.image || "",
+        categoryId: product.categoryId || "",
+        available: Boolean(product.available),
+        showImage: Boolean(product.showImage ?? false),
         sizes: product.sizes || [],
         toppings: product.toppings || [],
       })
-      setImagePreview(product.image)
+      setImagePreview(product.image || "")
       setUploadedImage(null)
     } else {
       setFormData({
@@ -62,7 +63,7 @@ export function ProductModal({ open, onOpenChange, product, categories, onSave }
         image: "",
         categoryId: "",
         available: true,
-        showImage: true,
+        showImage: false,
         sizes: [],
         toppings: [],
       })
@@ -90,16 +91,16 @@ export function ProductModal({ open, onOpenChange, product, categories, onSave }
       img.onload = () => {
         // Set canvas size to target dimensions
         canvas.width = 433
-        canvas.height = 433
+        canvas.height = 150
 
         // Calculate scaling and cropping
-        const scale = Math.max(433 / img.width, 433 / img.height)
+        const scale = Math.max(433 / img.width, 150 / img.height)
         const scaledWidth = img.width * scale
         const scaledHeight = img.height * scale
 
         // Calculate crop position (center crop)
         const cropX = (scaledWidth - 433) / 2
-        const cropY = (scaledHeight - 433) / 2
+        const cropY = (scaledHeight - 150) / 2
 
         // Draw the image
         ctx?.drawImage(img, -cropX, -cropY, scaledWidth, scaledHeight)
@@ -262,7 +263,7 @@ export function ProductModal({ open, onOpenChange, product, categories, onSave }
           throw new Error("No URL returned from upload")
         }
 
-        finalImageUrl = uploadResult.url // Use the permanent URL from Supabase Storage
+        finalImageUrl = uploadResult.url // Use the permanent URL from upload service
         console.log("Final image URL:", finalImageUrl)
       }
 
@@ -334,9 +335,12 @@ export function ProductModal({ open, onOpenChange, product, categories, onSave }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" aria-describedby="product-modal-description">
         <DialogHeader>
           <DialogTitle>{product ? "Editar Produto" : "Novo Produto"}</DialogTitle>
+          <DialogDescription id="product-modal-description">
+            {product ? "Edite as informações do produto selecionado." : "Preencha as informações para criar um novo produto."}
+          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -379,13 +383,10 @@ export function ProductModal({ open, onOpenChange, product, categories, onSave }
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="price">Preço Base (R$) *</Label>
-                <Input
+                <CurrencyInput
                   id="price"
-                  type="number"
-                  step="0.01"
-                  min="0"
                   value={formData.price}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, price: Number.parseFloat(e.target.value) || 0 }))}
+                  onChange={(value) => setFormData((prev) => ({ ...prev, price: value }))}
                   required
                 />
               </div>
@@ -412,16 +413,6 @@ export function ProductModal({ open, onOpenChange, product, categories, onSave }
             </div>
 
             <div>
-              <Label htmlFor="image">URL da Imagem</Label>
-              <Input
-                id="image"
-                value={formData.image}
-                onChange={(e) => setFormData((prev) => ({ ...prev, image: e.target.value }))}
-                placeholder="https://exemplo.com/imagem.jpg"
-              />
-            </div>
-
-            <div>
               <Label>Upload de Imagem</Label>
               <div className="space-y-2">
                 {imagePreview ? (
@@ -435,6 +426,7 @@ export function ProductModal({ open, onOpenChange, product, categories, onSave }
                       type="button"
                       onClick={removeImage}
                       className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600"
+                      aria-label="Remover imagem"
                     >
                       <X className="w-4 h-4" />
                     </button>
@@ -454,6 +446,7 @@ export function ProductModal({ open, onOpenChange, product, categories, onSave }
                     className="hidden"
                     id="product-image-upload"
                     disabled={isProcessing}
+                    aria-label="Selecionar arquivo de imagem"
                   />
                   <Button
                     type="button"
@@ -468,7 +461,7 @@ export function ProductModal({ open, onOpenChange, product, categories, onSave }
                 </div>
 
                 <p className="text-xs text-gray-500">
-                  Tamanho recomendado: 433x433 pixels • Máximo: 5MB
+                  Tamanho recomendado: 433x150 pixels • Máximo: 5MB
                   <br />
                   Formatos aceitos: JPG, PNG, WebP
                   <br />
@@ -479,18 +472,28 @@ export function ProductModal({ open, onOpenChange, product, categories, onSave }
 
             <div className="flex items-center space-x-2">
               <Switch
-                checked={formData.available}
-                onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, available: checked }))}
+                id="product-available"
+                checked={Boolean(formData.available)}
+                onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, available: Boolean(checked) }))}
+                aria-describedby="product-available-description"
               />
-              <Label>Produto disponível</Label>
+              <Label htmlFor="product-available">Produto disponível</Label>
+              <span id="product-available-description" className="sr-only">
+                Marque para tornar o produto disponível para venda
+              </span>
             </div>
 
             <div className="flex items-center space-x-2">
               <Switch
-                checked={formData.showImage}
-                onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, showImage: checked }))}
+                id="product-show-image"
+                checked={Boolean(formData.showImage)}
+                onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, showImage: Boolean(checked) }))}
+                aria-describedby="product-show-image-description"
               />
-              <Label>Exibir imagem do produto</Label>
+              <Label htmlFor="product-show-image">Exibir imagem do produto</Label>
+              <span id="product-show-image-description" className="sr-only">
+                Marque para exibir a imagem do produto no cardápio
+              </span>
             </div>
           </div>
 
@@ -516,12 +519,9 @@ export function ProductModal({ open, onOpenChange, product, categories, onSave }
                 </div>
                 <div className="flex-1">
                   <Label>Preço (R$)</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0"
+                  <CurrencyInput
                     value={size.price}
-                    onChange={(e) => updateSize(index, "price", Number.parseFloat(e.target.value) || 0)}
+                    onChange={(value) => updateSize(index, "price", value)}
                   />
                 </div>
                 <Button type="button" variant="outline" size="sm" onClick={() => removeSize(index)}>
@@ -553,12 +553,9 @@ export function ProductModal({ open, onOpenChange, product, categories, onSave }
                 </div>
                 <div className="flex-1">
                   <Label>Preço (R$)</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0"
+                  <CurrencyInput
                     value={topping.price}
-                    onChange={(e) => updateTopping(index, "price", Number.parseFloat(e.target.value) || 0)}
+                    onChange={(value) => updateTopping(index, "price", value)}
                   />
                 </div>
                 <Button type="button" variant="outline" size="sm" onClick={() => removeTopping(index)}>

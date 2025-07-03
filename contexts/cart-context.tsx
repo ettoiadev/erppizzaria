@@ -1,16 +1,7 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
-
-interface CartItem {
-  id: string
-  name: string
-  price: number
-  quantity: number
-  image: string
-  size?: string
-  toppings?: string[]
-}
+import type { CartItem } from "@/types"
 
 interface CartContextType {
   items: CartItem[]
@@ -18,7 +9,10 @@ interface CartContextType {
   itemCount: number
   addItem: (item: CartItem) => void
   removeItem: (id: string) => void
+  removeItemByIndex: (index: number) => void
   updateQuantity: (id: string, quantity: number) => void
+  updateQuantityByIndex: (index: number, quantity: number) => void
+  updateItemByIndex: (index: number, newItem: CartItem) => void
   clearCart: () => void
 }
 
@@ -49,7 +43,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
         (item) =>
           item.id === newItem.id &&
           item.size === newItem.size &&
-          JSON.stringify(item.toppings) === JSON.stringify(newItem.toppings),
+          JSON.stringify(item.toppings) === JSON.stringify(newItem.toppings) &&
+          item.isHalfAndHalf === newItem.isHalfAndHalf &&
+          JSON.stringify(item.halfAndHalf) === JSON.stringify(newItem.halfAndHalf)
       )
 
       if (existingItem) {
@@ -66,6 +62,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setItems((currentItems) => currentItems.filter((item) => item.id !== id))
   }
 
+  const removeItemByIndex = (index: number) => {
+    setItems((currentItems) => currentItems.filter((_, i) => i !== index))
+  }
+
   const updateQuantity = (id: string, quantity: number) => {
     if (quantity <= 0) {
       removeItem(id)
@@ -73,6 +73,19 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
 
     setItems((currentItems) => currentItems.map((item) => (item.id === id ? { ...item, quantity } : item)))
+  }
+
+  const updateQuantityByIndex = (index: number, quantity: number) => {
+    if (quantity <= 0) {
+      removeItemByIndex(index)
+      return
+    }
+
+    setItems((currentItems) => currentItems.map((item, i) => (i === index ? { ...item, quantity } : item)))
+  }
+
+  const updateItemByIndex = (index: number, newItem: CartItem) => {
+    setItems((currentItems) => currentItems.map((item, i) => (i === index ? newItem : item)))
   }
 
   const clearCart = () => {
@@ -87,7 +100,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
         itemCount,
         addItem,
         removeItem,
+        removeItemByIndex,
         updateQuantity,
+        updateQuantityByIndex,
+        updateItemByIndex,
         clearCart,
       }}
     >

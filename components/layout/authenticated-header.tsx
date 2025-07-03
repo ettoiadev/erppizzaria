@@ -19,6 +19,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { useCart } from "@/contexts/cart-context"
 import { useAuth } from "@/contexts/auth-context"
+import { useAppSettings } from "@/hooks/use-app-settings"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,6 +36,7 @@ export function AuthenticatedHeader({ onCartClick }: AuthenticatedHeaderProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const { itemCount, total } = useCart()
   const { user, logout, isLoading } = useAuth()
+  const { settings } = useAppSettings()
   const router = useRouter()
   const pathname = usePathname()
 
@@ -53,7 +55,7 @@ export function AuthenticatedHeader({ onCartClick }: AuthenticatedHeaderProps) {
 
   // Definir itens de navegação sempre disponíveis
   const navigationItems = [
-    { href: "/menu", label: "Cardápio", icon: UtensilsCrossed },
+    { href: "/cardapio", label: "Cardápio", icon: UtensilsCrossed },
     { href: "/pedidos", label: "Pedidos", icon: Package },
     { href: "/conta", label: "Dados da Conta", icon: UserCircle },
     { href: "/cupons", label: "Cupons", icon: Ticket },
@@ -73,11 +75,24 @@ export function AuthenticatedHeader({ onCartClick }: AuthenticatedHeaderProps) {
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
-            <Link href="/menu" className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
-                <span className="text-white font-bold text-sm">PE</span>
-              </div>
-              <span className="font-bold text-xl text-gray-900">Pizza Express</span>
+            <Link href="/cardapio" className="flex items-center space-x-2">
+              {settings.logo_url ? (
+                <img 
+                  src={settings.logo_url} 
+                  alt={settings.restaurant_name || "Logo"} 
+                  className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 object-contain rounded-lg"
+                  style={{ maxWidth: '150px', maxHeight: '150px' }}
+                />
+              ) : (
+                <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
+                  <span className="text-white font-bold text-sm">
+                    {(settings.restaurant_name || "WD").charAt(0)}
+                  </span>
+                </div>
+              )}
+              <span className="font-bold text-xl text-gray-900 hidden sm:block md:text-2xl">
+                {settings.restaurant_name || "William Disk Pizza"}
+              </span>
             </Link>
 
             {/* Loading skeleton */}
@@ -101,11 +116,24 @@ export function AuthenticatedHeader({ onCartClick }: AuthenticatedHeaderProps) {
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <Link href="/menu" className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
-              <span className="text-white font-bold text-sm">PE</span>
-            </div>
-            <span className="font-bold text-xl text-gray-900">Pizza Express</span>
+          <Link href="/cardapio" className="flex items-center space-x-2">
+            {settings.logo_url ? (
+              <img 
+                src={settings.logo_url} 
+                alt={settings.restaurant_name || "Logo"} 
+                className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 object-contain rounded-lg"
+                style={{ maxWidth: '150px', maxHeight: '150px' }}
+              />
+            ) : (
+              <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
+                <span className="text-white font-bold text-sm">
+                  {(settings.restaurant_name || "WD").charAt(0)}
+                </span>
+              </div>
+            )}
+            <span className="font-bold text-xl text-gray-900 hidden sm:block md:text-2xl">
+              {settings.restaurant_name || "William Disk Pizza"}
+            </span>
           </Link>
 
           {/* Desktop Actions */}
@@ -128,41 +156,54 @@ export function AuthenticatedHeader({ onCartClick }: AuthenticatedHeaderProps) {
             {/* User Profile Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="flex items-center space-x-2 p-2">
-                  <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
-                    <User className="w-4 h-4 text-gray-600" />
+                <Button 
+                  variant="ghost" 
+                  className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded-lg border border-transparent hover:border-gray-200 transition-all"
+                >
+                  <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                    <User className="w-4 h-4 text-white" />
                   </div>
-                  <span className="text-sm font-medium text-gray-900 max-w-[100px] truncate">
-                    {getShortName(user.name)}
-                  </span>
+                  <div className="flex flex-col items-start">
+                    <span className="text-sm font-medium text-gray-900 max-w-[100px] truncate">
+                      {getShortName(user.name)}
+                    </span>
+                    <span className="text-xs text-gray-500">Minha Conta</span>
+                  </div>
                   <ChevronDown className="w-4 h-4 text-gray-600" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <div className="px-3 py-2 border-b">
-                  <p className="text-sm font-medium text-gray-900">Olá, {getShortName(user.name)}</p>
-                  <p className="text-xs text-gray-500 truncate">{user.email}</p>
+              <DropdownMenuContent align="end" className="w-64 p-0 shadow-lg border-0 bg-white rounded-xl">
+                <div className="px-4 py-3 bg-gradient-to-r from-blue-50 to-purple-50 rounded-t-xl border-b">
+                  <p className="text-sm font-semibold text-gray-900">Olá, {getShortName(user.name)}! 👋</p>
+                  <p className="text-xs text-gray-600 truncate">{user.email}</p>
                 </div>
-                {navigationItems.map((item) => {
-                  const Icon = item.icon
-                  return (
-                    <DropdownMenuItem key={item.href} asChild>
-                      <Link
-                        href={item.href}
-                        className={`flex items-center space-x-3 px-3 py-2 cursor-pointer ${
-                          pathname === item.href ? "bg-primary/10 text-primary" : ""
-                        }`}
-                      >
-                        <Icon className="w-4 h-4" />
-                        <span>{item.label}</span>
-                      </Link>
-                    </DropdownMenuItem>
-                  )
-                })}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleLogout} className="text-red-600 px-3 py-2 cursor-pointer">
-                  <span>Sair</span>
-                </DropdownMenuItem>
+                <div className="py-2">
+                  {navigationItems.map((item) => {
+                    const Icon = item.icon
+                    return (
+                      <DropdownMenuItem key={item.href} asChild className="p-0">
+                        <Link
+                          href={item.href}
+                          className={`flex items-center space-x-3 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors ${
+                            pathname === item.href ? "bg-blue-50 text-blue-700 border-r-2 border-blue-500" : "text-gray-700"
+                          }`}
+                        >
+                          <Icon className={`w-5 h-5 ${pathname === item.href ? "text-blue-600" : "text-gray-500"}`} />
+                          <span className="font-medium">{item.label}</span>
+                        </Link>
+                      </DropdownMenuItem>
+                    )
+                  })}
+                </div>
+                <DropdownMenuSeparator className="my-1" />
+                <div className="py-2">
+                  <DropdownMenuItem 
+                    onClick={handleLogout} 
+                    className="text-red-600 px-4 py-3 cursor-pointer hover:bg-red-50 transition-colors font-medium"
+                  >
+                    <span>🚪 Sair da Conta</span>
+                  </DropdownMenuItem>
+                </div>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>

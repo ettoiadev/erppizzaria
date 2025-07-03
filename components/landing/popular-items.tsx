@@ -3,6 +3,7 @@
 import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Star } from "lucide-react"
+import { formatCurrency } from "@/lib/utils"
 import Link from "next/link"
 
 const popularItems = [
@@ -76,7 +77,7 @@ export function PopularItems() {
                 </div>
                 <p className="text-gray-600 mb-4">{item.description}</p>
                 <div className="flex items-center justify-between">
-                  <span className="text-2xl font-bold text-primary">R$ {item.price.toFixed(2)}</span>
+                  <span className="text-2xl font-bold text-primary">{formatCurrency(item.price)}</span>
                   <Button size="sm">Pedir Agora</Button>
                 </div>
               </div>

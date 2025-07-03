@@ -127,7 +127,7 @@ export default function CouponsPage() {
             <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhum cupom disponível</h3>
             <p className="text-gray-600 mb-4">Você não possui cupons no momento.</p>
             <Button asChild>
-              <a href="/menu">Explorar Cardápio</a>
+              <a href="/cardapio">Explorar Cardápio</a>
             </Button>
           </div>
         )}

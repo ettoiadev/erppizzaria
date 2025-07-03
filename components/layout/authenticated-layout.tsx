@@ -4,7 +4,7 @@ import type React from "react"
 
 import { useAuth } from "@/contexts/auth-context"
 import { AuthenticatedHeader } from "./authenticated-header"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
 import { useEffect } from "react"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
 
@@ -16,20 +16,24 @@ interface AuthenticatedLayoutProps {
 export function AuthenticatedLayout({ children, onCartClick }: AuthenticatedLayoutProps) {
   const { user, isLoading } = useAuth()
   const router = useRouter()
+  const pathname = usePathname()
 
   useEffect(() => {
-    // Redirect non-authenticated users to home
+    // Redirect non-authenticated users to login with redirect parameter
     if (!user && !isLoading) {
-      console.log("AuthenticatedLayout: User not authenticated, redirecting to home")
-      router.push("/")
+      console.log("AuthenticatedLayout: User not authenticated, redirecting to login")
+      router.push("/login?redirect=" + encodeURIComponent(pathname))
     }
-  }, [user, isLoading, router])
+  }, [user, isLoading, router, pathname])
 
   // Show loading while checking authentication
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <LoadingSpinner />
+        <div className="text-center">
+          <LoadingSpinner />
+          <p className="mt-4 text-gray-600">Verificando autenticação...</p>
+        </div>
       </div>
     )
   }
@@ -38,7 +42,10 @@ export function AuthenticatedLayout({ children, onCartClick }: AuthenticatedLayo
   if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <LoadingSpinner />
+        <div className="text-center">
+          <LoadingSpinner />
+          <p className="mt-4 text-gray-600">Redirecionando para login...</p>
+        </div>
       </div>
     )
   }

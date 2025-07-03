@@ -35,9 +35,11 @@ export default function LoginPage() {
   // Redirecionar se já estiver logado
   useEffect(() => {
     if (user) {
-      router.push("/cardapio")
+      const redirectUrl = searchParams.get("redirect")
+      const targetUrl = redirectUrl ? decodeURIComponent(redirectUrl) : "/cardapio"
+      router.push(targetUrl)
     }
-  }, [user, router])
+  }, [user, router, searchParams])
 
   const validateForm = () => {
     if (!email.trim()) {
@@ -74,9 +76,12 @@ export default function LoginPage() {
 
       setSuccess("Login realizado com sucesso! Redirecionando...")
 
-      // Pequeno delay para mostrar mensagem de sucesso
+      // Pequeno delay para mostrar mensagem de sucesso, depois redirecionar
       setTimeout(() => {
-        router.push("/cardapio")
+        const redirectUrl = searchParams.get("redirect")
+        const targetUrl = redirectUrl ? decodeURIComponent(redirectUrl) : "/cardapio"
+        console.log("Redirecionando após login para:", targetUrl)
+        router.push(targetUrl)
       }, 1000)
     } catch (error: any) {
       console.error("Login error:", error)

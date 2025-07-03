@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Minus, Plus, Trash2 } from "lucide-react"
 import { useCart } from "@/contexts/cart-context"
 import { useRouter } from "next/navigation"
+import { formatCurrency } from "@/lib/utils"
 
 interface CartSidebarProps {
   isOpen: boolean
@@ -45,10 +46,39 @@ export function CartSidebar({ isOpen, onClose }: CartSidebarProps) {
                     />
                     <div className="flex-1">
                       <h4 className="font-semibold text-sm">{item.name}</h4>
-                      {item.size && <p className="text-xs text-gray-600">Tamanho: {item.size}</p>}
-                      {item.toppings && item.toppings.length > 0 && (
-                        <p className="text-xs text-gray-600">Adicionais: {item.toppings.join(", ")}</p>
+                      
+                      {/* Informações específicas para pizza meio a meio */}
+                      {item.isHalfAndHalf && item.halfAndHalf ? (
+                        <div className="text-xs text-gray-600 mt-1 space-y-1">
+                          <div className="bg-blue-50 p-2 rounded border">
+                            <p className="font-medium text-blue-800 mb-1">🍕 Pizza Meio a Meio:</p>
+                            <div className="space-y-1">
+                              <div>
+                                <span className="font-medium">1ª metade:</span> {item.halfAndHalf.firstHalf.productName}
+                                {item.halfAndHalf.firstHalf.toppings && item.halfAndHalf.firstHalf.toppings.length > 0 && (
+                                  <span className="text-gray-500"> + {item.halfAndHalf.firstHalf.toppings.join(", ")}</span>
+                                )}
+                              </div>
+                              <div>
+                                <span className="font-medium">2ª metade:</span> {item.halfAndHalf.secondHalf.productName}
+                                {item.halfAndHalf.secondHalf.toppings && item.halfAndHalf.secondHalf.toppings.length > 0 && (
+                                  <span className="text-gray-500"> + {item.halfAndHalf.secondHalf.toppings.join(", ")}</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          {item.size && <p className="text-xs text-gray-600 mt-1">Tamanho: {item.size}</p>}
+                        </div>
+                      ) : (
+                        /* Informações para produtos normais */
+                        <>
+                          {item.size && <p className="text-xs text-gray-600">Tamanho: {item.size}</p>}
+                          {item.toppings && item.toppings.length > 0 && (
+                            <p className="text-xs text-gray-600">Adicionais: {item.toppings.join(", ")}</p>
+                          )}
+                        </>
                       )}
+
                       <div className="flex items-center justify-between mt-2">
                         <div className="flex items-center space-x-1">
                           <Button
@@ -68,7 +98,7 @@ export function CartSidebar({ isOpen, onClose }: CartSidebarProps) {
                           </Button>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className="font-semibold text-sm">R$ {(item.price * item.quantity).toFixed(2)}</span>
+                          <span className="font-semibold text-sm">{formatCurrency(Number(item.price) * item.quantity)}</span>
                           <Button variant="ghost" size="sm" onClick={() => removeItem(item.id)}>
                             <Trash2 className="w-4 h-4 text-red-500" />
                           </Button>
@@ -85,7 +115,7 @@ export function CartSidebar({ isOpen, onClose }: CartSidebarProps) {
             <div className="border-t pt-4 space-y-4">
               <div className="flex justify-between items-center">
                 <span className="text-lg font-semibold">Total:</span>
-                <span className="text-xl font-bold text-primary">R$ {total.toFixed(2)}</span>
+                <span className="text-xl font-bold text-primary">{formatCurrency(total)}</span>
               </div>
               <Button onClick={handleCheckout} className="w-full" size="lg">
                 Finalizar Pedido

@@ -1,114 +1,171 @@
 "use client"
 
 import { useState } from "react"
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useMutation } from "@tanstack/react-query"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Clock, MapPin } from "lucide-react"
+import { Clock, MapPin, Package, RefreshCw } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
 
 interface AssignOrderModalProps {
   deliveryPersonId: string
   isOpen: boolean
   onClose: () => void
+  onAssign?: () => void
 }
 
-interface PendingOrder {
+interface Order {
   id: string
-  customer: {
-    name: string
-    address: string
-    phone: string
-  }
   total: number
-  items: Array<{
-    name: string
+  delivery_address: string
+  delivery_phone: string
+  created_at: string
+  profiles: {
+    full_name: string
+  }
+  order_items: Array<{
     quantity: number
+    products: {
+      name: string
+    }
   }>
-  createdAt: string
-  estimatedDistance: string
-  priority: "normal" | "urgent"
 }
 
-export function AssignOrderModal({ deliveryPersonId, isOpen, onClose }: AssignOrderModalProps) {
+export function AssignOrderModal({ deliveryPersonId, isOpen, onClose, onAssign }: AssignOrderModalProps) {
   const [selectedOrder, setSelectedOrder] = useState<string | null>(null)
+  const { toast } = useToast()
 
-  // Mock pending orders
-  const mockPendingOrders: PendingOrder[] = [
-    {
-      id: "1001",
-      customer: {
-        name: "João Silva",
-        address: "Rua das Flores, 123 - Centro",
-        phone: "(11) 99999-9999",
-      },
-      total: 45.9,
-      items: [
-        { name: "Pizza Margherita", quantity: 1 },
-        { name: "Coca-Cola 350ml", quantity: 2 },
-      ],
-      createdAt: "2024-01-21T18:30:00Z",
-      estimatedDistance: "2.5 km",
-      priority: "normal",
+  // Buscar pedidos que estão em preparo (prontos para entrega)
+  const {
+    data: orders = [],
+    isLoading,
+    error,
+    refetch
+  } = useQuery<Order[]>({
+    queryKey: ["preparing-orders"],
+    queryFn: async () => {
+      console.log("Buscando pedidos em preparo...")
+      
+      const response = await fetch('/api/orders?status=PREPARING')
+      
+      if (!response.ok) {
+        throw new Error(`Erro ${response.status}: ${response.statusText}`)
+      }
+      
+      const data = await response.json()
+      console.log("Pedidos em preparo encontrados:", data.orders?.length || 0)
+      
+      return data.orders || []
     },
-    {
-      id: "1002",
-      customer: {
-        name: "Maria Santos",
-        address: "Av. Paulista, 1000 - Bela Vista",
-        phone: "(11) 88888-8888",
-      },
-      total: 67.8,
-      items: [
-        { name: "Pizza Pepperoni", quantity: 1 },
-        { name: "Pizza Quatro Queijos", quantity: 1 },
-      ],
-      createdAt: "2024-01-21T18:45:00Z",
-      estimatedDistance: "1.8 km",
-      priority: "urgent",
-    },
-  ]
-
-  const { data: pendingOrders = mockPendingOrders } = useQuery({
-    queryKey: ["pending-orders"],
-    queryFn: async () => mockPendingOrders,
     enabled: isOpen,
+    refetchOnWindowFocus: false,
+  })
+
+  // Mutation para atribuir entregador ao pedido
+  const assignDriverMutation = useMutation({
+    mutationFn: async (orderId: string) => {
+      console.log("Atribuindo entregador:", { orderId, deliveryPersonId })
+      
+      const response = await fetch(`/api/orders/${orderId}/assign-driver`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ driverId: deliveryPersonId }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Erro ao atribuir entregador')
+      }
+
+      return response.json()
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Sucesso",
+        description: `Entregador atribuído ao pedido #${data.order.id.slice(-8)}`,
+      })
+      onAssign?.()
+      onClose()
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro",
+        description: error.message || "Erro ao atribuir entregador",
+        variant: "destructive",
+      })
+    },
   })
 
   const handleAssignOrder = () => {
     if (!selectedOrder) return
-
-    // In production, make API call to assign order
-    console.log(`Assigning order ${selectedOrder} to delivery person ${deliveryPersonId}`)
-    onClose()
+    assignDriverMutation.mutate(selectedOrder)
   }
 
-  const getPriorityColor = (priority: string) => {
-    return priority === "urgent" ? "bg-red-100 text-red-800" : "bg-blue-100 text-blue-800"
+  const formatDateTime = (dateString: string) => {
+    const date = new Date(dateString)
+    const now = new Date()
+    const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60))
+    
+    if (diffInMinutes < 60) {
+      return `${diffInMinutes} min atrás`
+    } else {
+      const hours = Math.floor(diffInMinutes / 60)
+      return `${hours}h ${diffInMinutes % 60}min atrás`
+    }
   }
 
-  const getPriorityLabel = (priority: string) => {
-    return priority === "urgent" ? "Urgente" : "Normal"
+  const getOrderItems = (orderItems: Order['order_items']) => {
+    return orderItems
+      .map(item => `${item.quantity}x ${item.products?.name || "Produto"}`)
+      .join(", ")
   }
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Atribuir Pedido</DialogTitle>
+          <DialogTitle>Atribuir Pedido ao Entregador</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
-          <p className="text-gray-600">Selecione um pedido para atribuir ao entregador:</p>
+          <div className="flex items-center justify-between">
+            <p className="text-gray-600">Selecione um pedido em preparo para atribuir:</p>
+            <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isLoading}>
+              <RefreshCw className={`w-4 h-4 mr-1 ${isLoading ? "animate-spin" : ""}`} />
+              Atualizar
+            </Button>
+          </div>
 
-          {pendingOrders.length === 0 ? (
+          {isLoading && (
             <div className="text-center py-8">
-              <p className="text-gray-500">Nenhum pedido pendente de entrega.</p>
+              <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-2 text-gray-400" />
+              <p className="text-gray-500">Carregando pedidos...</p>
             </div>
-          ) : (
+          )}
+
+          {error && (
+            <div className="text-center py-8">
+              <p className="text-red-600 mb-4">Erro ao carregar pedidos: {error.message}</p>
+              <Button variant="outline" onClick={() => refetch()}>
+                Tentar Novamente
+              </Button>
+            </div>
+          )}
+
+          {!isLoading && !error && orders.length === 0 && (
+            <div className="text-center py-8">
+              <Package className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+              <p className="text-gray-500">Nenhum pedido em preparo aguardando entregador.</p>
+            </div>
+          )}
+
+          {!isLoading && !error && orders.length > 0 && (
             <div className="space-y-3">
-              {pendingOrders.map((order) => (
+              {orders.map((order) => (
                 <Card
                   key={order.id}
                   className={`cursor-pointer transition-all ${
@@ -119,31 +176,38 @@ export function AssignOrderModal({ deliveryPersonId, isOpen, onClose }: AssignOr
                   <CardContent className="p-4">
                     <div className="flex justify-between items-start mb-3">
                       <div>
-                        <h3 className="font-semibold">Pedido #{order.id}</h3>
-                        <p className="text-sm text-gray-600">{order.customer.name}</p>
+                        <h3 className="font-semibold">Pedido #{order.id.slice(-8)}</h3>
+                        <p className="text-sm text-gray-600">{order.profiles?.full_name || "Cliente não identificado"}</p>
                       </div>
                       <div className="flex gap-2">
-                        <Badge className={getPriorityColor(order.priority)}>{getPriorityLabel(order.priority)}</Badge>
-                        <Badge variant="outline">R$ {order.total.toFixed(2)}</Badge>
+                        <Badge className="bg-blue-100 text-blue-800">Em Preparo</Badge>
+                        <Badge variant="outline">R$ {Number(order.total || 0).toFixed(2)}</Badge>
                       </div>
                     </div>
 
                     <div className="space-y-2 text-sm">
-                      <div className="flex items-center gap-2">
-                        <MapPin className="w-4 h-4 text-gray-500" />
-                        <span>{order.customer.address}</span>
-                        <span className="text-gray-400">•</span>
-                        <span className="text-blue-600">{order.estimatedDistance}</span>
+                      <div className="flex items-start gap-2">
+                        <MapPin className="w-4 h-4 text-gray-500 mt-0.5" />
+                        <div>
+                          <div>{order.delivery_address}</div>
+                          {order.delivery_phone && (
+                            <div className="text-gray-500">Tel: {order.delivery_phone}</div>
+                          )}
+                        </div>
                       </div>
                       <div className="flex items-center gap-2">
                         <Clock className="w-4 h-4 text-gray-500" />
-                        <span>Pedido feito às {new Date(order.createdAt).toLocaleTimeString("pt-BR")}</span>
+                        <span>Pedido feito {formatDateTime(order.created_at)}</span>
                       </div>
                     </div>
 
                     <div className="mt-3 pt-3 border-t">
                       <div className="text-sm text-gray-600">
-                        <strong>Itens:</strong> {order.items.map((item) => `${item.quantity}x ${item.name}`).join(", ")}
+                        <div className="flex items-center gap-1 mb-1">
+                          <Package className="w-4 h-4" />
+                          <strong>Itens:</strong>
+                        </div>
+                        <div className="text-gray-700">{getOrderItems(order.order_items)}</div>
                       </div>
                     </div>
                   </CardContent>
@@ -153,11 +217,21 @@ export function AssignOrderModal({ deliveryPersonId, isOpen, onClose }: AssignOr
           )}
 
           <div className="flex justify-end gap-3 pt-4">
-            <Button variant="outline" onClick={onClose}>
+            <Button variant="outline" onClick={onClose} disabled={assignDriverMutation.isPending}>
               Cancelar
             </Button>
-            <Button onClick={handleAssignOrder} disabled={!selectedOrder}>
-              Atribuir Pedido
+            <Button 
+              onClick={handleAssignOrder} 
+              disabled={!selectedOrder || assignDriverMutation.isPending}
+            >
+              {assignDriverMutation.isPending ? (
+                <>
+                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                  Atribuindo...
+                </>
+              ) : (
+                "Atribuir Pedido"
+              )}
             </Button>
           </div>
         </div>

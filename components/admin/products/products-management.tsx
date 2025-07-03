@@ -1,33 +1,39 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useQueryClient } from "@tanstack/react-query" // ADICIONAR ESTA IMPORTAÇÃO
+import { useQueryClient } from "@tanstack/react-query"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, Edit, Trash2, Search } from "lucide-react"
+import { Plus, Edit, Trash2, Search, ArrowUpDown } from "lucide-react"
 import { ProductModal } from "./product-modal"
 import { CategoryModal } from "./category-modal"
+import { CategorySortModal } from "./category-sort-modal"
 import { DeleteConfirmModal } from "./delete-confirm-modal"
+import { formatCurrency } from "@/lib/utils"
+import { logger } from "@/lib/debug-utils"
+import { useToast } from "@/hooks/use-toast"
 import type { Product, Category } from "@/types"
 
 export function ProductsManagement() {
-  const queryClient = useQueryClient() // ADICIONAR ESTA LINHA
+  const queryClient = useQueryClient()
+  const { toast } = useToast()
 
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [selectedCategory, setSelectedCategory] = useState("all")
   const [searchTerm, setSearchTerm] = useState("")
   const [loading, setLoading] = useState(true)
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false) // ADICIONAR ESTADO DE LOADING
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
 
   // Modal states
   const [productModalOpen, setProductModalOpen] = useState(false)
   const [categoryModalOpen, setCategoryModalOpen] = useState(false)
+  const [categorySortModalOpen, setCategorySortModalOpen] = useState(false)
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [editingCategory, setEditingCategory] = useState<Category | null>(null)
@@ -42,41 +48,65 @@ export function ProductsManagement() {
   }, [])
 
   const loadProducts = async () => {
-    setLoading(true);
-    setLoadError(null); // Reset error before loading
+    setLoading(true)
+    setLoadError(null)
     try {
-      const response = await fetch("/api/products");
-      if (!response.ok) { // Check for non-successful responses
-        throw new Error(`Failed to fetch products: ${response.status} ${response.statusText}`);
+      const response = await fetch("/api/products")
+      if (!response.ok) {
+        throw new Error(`Failed to fetch products: ${response.status} ${response.statusText}`)
       }
-      const data = await response.json();
-      setProducts(data);
+      const data = await response.json()
+      
+      const products = Array.isArray(data) ? data : (data.products || [])
+      const normalizedProducts = products.map((product: any) => ({
+        ...product,
+        name: product.name || "",
+        description: product.description || "",
+        categoryId: product.category_id || product.categoryId
+      }))
+      setProducts(normalizedProducts)
     } catch (error) {
-      console.error("Error loading products:", error);
-      setLoadError("Falha ao carregar produtos. Tente novamente mais tarde."); // Set user-friendly error message
+      logger.error("Error loading products:", error)
+      setLoadError("Falha ao carregar produtos. Tente novamente mais tarde.")
+      toast({
+        title: "Erro",
+        description: "Falha ao carregar produtos. Tente novamente mais tarde.",
+        variant: "destructive"
+      })
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   const loadCategories = async () => {
     try {
       const response = await fetch("/api/categories")
+      if (!response.ok) {
+        throw new Error(`Failed to fetch categories: ${response.status}`)
+      }
       const data = await response.json()
-      setCategories(data)
+      
+      // Filtrar apenas categorias ativas
+      const activeCategories = (data.categories || []).filter((cat: Category) => cat.active !== false)
+      setCategories(activeCategories)
     } catch (error) {
-      console.error("Error loading categories:", error)
+      logger.error("Error loading categories:", error)
+      toast({
+        title: "Erro",
+        description: "Falha ao carregar categorias.",
+        variant: "destructive"
+      })
     }
   }
 
   // Filter products
-  const filteredProducts = products.filter((product) => {
+  const filteredProducts = products?.filter((product) => {
     const matchesCategory = selectedCategory === "all" || product.categoryId === selectedCategory
     const matchesSearch =
-      product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.description.toLowerCase().includes(searchTerm.toLowerCase())
+      (product.name?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
+      (product.description?.toLowerCase() || "").includes(searchTerm.toLowerCase())
     return matchesCategory && matchesSearch
-  })
+  }) || []
 
   // Product actions
   const handleCreateProduct = () => {
@@ -94,9 +124,8 @@ export function ProductsManagement() {
     setDeleteModalOpen(true)
   }
 
-  // FUNÇÃO CORRIGIDA - Esta é a principal correção
   const handleSaveProduct = async (productData: Partial<Product>) => {
-    setSaving(true) // Definir loading
+    setSaving(true)
     try {
       const url = editingProduct ? `/api/products/${editingProduct.id}` : "/api/products"
       const method = editingProduct ? "PUT" : "POST"
@@ -108,35 +137,46 @@ export function ProductsManagement() {
       })
 
       if (response.ok) {
-        const savedProduct = await response.json()
+        const data = await response.json()
+        const savedProduct = data.product || data
 
-        // ATUALIZAÇÃO OTIMISTA DO ESTADO LOCAL
         if (editingProduct) {
-          // Editando produto existente
           setProducts((prevProducts) =>
             prevProducts.map((p) => (p.id === editingProduct.id ? { ...p, ...savedProduct } : p)),
           )
+          toast({
+            title: "Sucesso",
+            description: "Produto atualizado com sucesso!"
+          })
         } else {
-          // Criando novo produto
-          setProducts((prevProducts) => [...prevProducts, savedProduct])
+          const newProduct = {
+            ...savedProduct,
+            name: savedProduct.name || "",
+            description: savedProduct.description || "",
+            categoryId: savedProduct.category_id || savedProduct.categoryId
+          }
+          setProducts((prevProducts) => [...prevProducts, newProduct])
+          toast({
+            title: "Sucesso",
+            description: "Produto criado com sucesso!"
+          })
         }
 
-        // INVALIDAR CACHE DO REACT QUERY (se estiver usando)
         await queryClient.invalidateQueries({ queryKey: ["products"] })
         await queryClient.invalidateQueries({ queryKey: ["categories"] })
 
-        // Fechar modal
         setProductModalOpen(false)
-
-        // Opcional: Mostrar toast de sucesso
-        // toast.success(editingProduct ? 'Produto atualizado!' : 'Produto criado!')
       } else {
-        throw new Error("Falha ao salvar produto")
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Falha ao salvar produto")
       }
     } catch (error) {
-      console.error("Error saving product:", error)
-      // Opcional: Mostrar toast de erro
-      // toast.error('Erro ao salvar produto')
+      logger.error("Error saving product:", error)
+      toast({
+        title: "Erro",
+        description: error instanceof Error ? error.message : "Erro ao salvar produto",
+        variant: "destructive"
+      })
     } finally {
       setSaving(false)
     }
@@ -147,9 +187,6 @@ export function ProductsManagement() {
       const product = products.find((p) => p.id === productId)
       if (!product) return
 
-      console.log(`Alterando disponibilidade do produto ${product.name}: ${product.available} -> ${!product.available}`)
-
-      // Optimistically update the UI first
       setProducts((prevProducts) =>
         prevProducts.map((p) => (p.id === productId ? { ...p, available: !p.available } : p)),
       )
@@ -161,25 +198,34 @@ export function ProductsManagement() {
       })
 
       if (!response.ok) {
-        console.error("Failed to update product availability")
-        // Revert the optimistic update if the API call failed
         setProducts((prevProducts) =>
           prevProducts.map((p) => (p.id === productId ? { ...p, available: product.available } : p)),
         )
+        toast({
+          title: "Erro",
+          description: "Falha ao alterar disponibilidade do produto",
+          variant: "destructive"
+        })
       } else {
-        console.log(`Disponibilidade do produto ${product.name} atualizada com sucesso`)
-        // INVALIDAR CACHE APÓS ATUALIZAÇÃO BEM-SUCEDIDA
         await queryClient.invalidateQueries({ queryKey: ["products"] })
+        toast({
+          title: "Sucesso",
+          description: `Produto ${!product.available ? 'ativado' : 'desativado'} com sucesso!`
+        })
       }
     } catch (error) {
-      console.error("Error toggling product availability:", error)
-      // Revert the optimistic update on error
+      logger.error("Error toggling product availability:", error)
       const originalProduct = products.find((p) => p.id === productId)
       if (originalProduct) {
         setProducts((prevProducts) =>
           prevProducts.map((p) => (p.id === productId ? { ...p, available: originalProduct.available } : p)),
         )
       }
+      toast({
+        title: "Erro",
+        description: "Erro ao alterar disponibilidade do produto",
+        variant: "destructive"
+      })
     }
   }
 
@@ -199,11 +245,17 @@ export function ProductsManagement() {
     setDeleteModalOpen(true)
   }
 
-  // FUNÇÃO DE CATEGORIA TAMBÉM CORRIGIDA
+  const handleSortCategories = () => {
+    setCategorySortModalOpen(true)
+  }
+
   const handleSaveCategory = async (categoryData: Partial<Category>) => {
+    setSaving(true)
     try {
       const url = editingCategory ? `/api/categories/${editingCategory.id}` : "/api/categories"
       const method = editingCategory ? "PUT" : "POST"
+
+      console.log('Enviando requisição:', { url, method, data: categoryData })
 
       const response = await fetch(url, {
         method,
@@ -211,70 +263,138 @@ export function ProductsManagement() {
         body: JSON.stringify(categoryData),
       })
 
+      console.log('Resposta recebida:', response.status, response.statusText)
+
       if (response.ok) {
         const savedCategory = await response.json()
+        console.log('Dados salvos:', savedCategory)
+        
+        // Normalizar resposta (pode vir como objeto direto ou dentro de um wrapper)
+        const categoryData = savedCategory.category || savedCategory
 
-        // ATUALIZAÇÃO OTIMISTA DO ESTADO LOCAL
         if (editingCategory) {
           setCategories((prevCategories) =>
-            prevCategories.map((c) => (c.id === editingCategory.id ? { ...c, ...savedCategory } : c)),
+            prevCategories.map((c) => (c.id === editingCategory.id ? { ...c, ...categoryData } : c)),
           )
+          toast({
+            title: "Sucesso",
+            description: "Categoria atualizada com sucesso!"
+          })
         } else {
-          setCategories((prevCategories) => [...prevCategories, savedCategory])
+          setCategories((prevCategories) => [...prevCategories, categoryData])
+          toast({
+            title: "Sucesso", 
+            description: "Categoria criada com sucesso!"
+          })
         }
 
-        // INVALIDAR CACHE DO REACT QUERY
         await queryClient.invalidateQueries({ queryKey: ["categories"] })
         await queryClient.invalidateQueries({ queryKey: ["products"] })
 
         setCategoryModalOpen(false)
+      } else {
+        const errorData = await response.json()
+        console.error('Erro da API:', errorData)
+        throw new Error(errorData.error || "Falha ao salvar categoria")
       }
     } catch (error) {
-      console.error("Error saving category:", error)
+      logger.error("Error saving category:", error)
+      toast({
+        title: "Erro",
+        description: error instanceof Error ? error.message : "Erro ao salvar categoria",
+        variant: "destructive"
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleSaveCategoryOrder = async () => {
+    try {
+      await loadCategories()
+      await queryClient.invalidateQueries({ queryKey: ["categories"] })
+      toast({
+        title: "Sucesso",
+        description: "Ordem das categorias atualizada com sucesso!"
+      })
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Erro ao atualizar ordem das categorias",
+        variant: "destructive"
+      })
     }
   }
 
   const handleConfirmDelete = async () => {
-    if (!deletingItem) return;
+    if (!deletingItem) return
+
+    console.log('🗑️ Iniciando exclusão:', deletingItem)
 
     try {
-      const endpoint = deletingItem.type === "product" ? "products" : "categories";
-      
-      // GARANTE QUE O ID É O UUID CORRETO
-      const idToDelete = deletingItem.id;
+      const endpoint = deletingItem.type === "product" ? "products" : "categories"
+      const idToDelete = deletingItem.id
+
+      console.log(`📡 Fazendo DELETE para /api/${endpoint}/${idToDelete}`)
 
       const response = await fetch(`/api/${endpoint}/${idToDelete}`, {
         method: "DELETE",
-      });
+      })
+
+      console.log('📡 Resposta da API:', response.status, response.statusText)
 
       if (response.ok) {
-        // ATUALIZA A LISTA NA TELA IMEDIATAMENTE APÓS O SUCESSO
+        const responseData = await response.json()
+        console.log('📡 Dados da resposta:', responseData)
+
         if (deletingItem.type === "product") {
-            setProducts((prevProducts) => prevProducts.filter((p) => p.id !== idToDelete));
-            await queryClient.invalidateQueries({ queryKey: ["products"] }); // Invalidate cache
-            await loadProducts(); // Refetch products
-        } else { // Assuming deletingItem.type === "category"
-            setCategories((prevCategories) => prevCategories.filter((c) => c.id !== idToDelete));
-            if (selectedCategory === idToDelete) {
-                setSelectedCategory("all");
-            }
-            await queryClient.invalidateQueries({ queryKey: ["categories"] });
-            // Optionally, refetch products if category changes can affect them
-            // await loadProducts();
+          setProducts((prevProducts) => prevProducts.filter((p) => p.id !== idToDelete))
+          await queryClient.invalidateQueries({ queryKey: ["products"] })
+          toast({
+            title: "Sucesso",
+            description: "Produto excluído com sucesso!"
+          })
+        } else {
+          // Para categorias: atualizar estado local imediatamente
+          setCategories((prevCategories) => {
+            const updatedCategories = prevCategories.filter((c) => c.id !== idToDelete)
+            console.log('📊 Categorias após remoção local:', updatedCategories.length)
+            return updatedCategories
+          })
+          
+          if (selectedCategory === idToDelete) {
+            console.log('🎯 Resetando filtro de categoria selecionada')
+            setSelectedCategory("all")
+          }
+          
+          // Recarregar do servidor em background para garantir consistência
+          setTimeout(async () => {
+            await loadCategories()
+            await queryClient.invalidateQueries({ queryKey: ["categories"] })
+          }, 100)
+          
+          toast({
+            title: "Sucesso", 
+            description: "Categoria excluída com sucesso!"
+          })
         }
-        // toast.success("Item excluído com sucesso!"); // Example success message
       } else {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Erro ao excluir item");
+        const errorData = await response.json()
+        console.error('❌ Erro na API:', errorData)
+        throw new Error(errorData.error || "Erro ao excluir item")
       }
     } catch (error) {
-      console.error("Error deleting item:", error);
-      // Adicionar um toast de erro para o usuário aqui é uma boa prática
+      console.error("❌ Error deleting item:", error)
+      toast({
+        title: "Erro",
+        description: error instanceof Error ? error.message : "Erro ao excluir item",
+        variant: "destructive"
+      })
     } finally {
-      setDeleteModalOpen(false);
-      setDeletingItem(null);
+      setDeleteModalOpen(false)
+      setDeletingItem(null)
     }
-  };
+  }
 
   if (loading) {
     return (
@@ -308,7 +428,13 @@ export function ProductsManagement() {
       {/* Categories Management */}
       <Card>
         <CardHeader>
-          <h2 className="text-xl font-semibold">Categorias</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold">Categorias</h2>
+            <Button variant="outline" size="sm" onClick={handleSortCategories}>
+              <ArrowUpDown className="w-4 h-4 mr-2" />
+              Ordenar
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -323,6 +449,9 @@ export function ProductsManagement() {
                   <div>
                     <h3 className="font-medium">{category.name}</h3>
                     <p className="text-sm text-gray-600">{category.description}</p>
+                    {category.sort_order && (
+                      <p className="text-xs text-gray-500">Ordem: {category.sort_order}</p>
+                    )}
                   </div>
                 </div>
                 <div className="flex gap-1">
@@ -374,33 +503,41 @@ export function ProductsManagement() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredProducts.map((product) => (
           <Card key={product.id}>
-            <CardHeader className="p-0">
-              <div className="aspect-square overflow-hidden rounded-t-lg">
-                <img
-                  src={product.image || "/placeholder.svg"}
-                  alt={product.name}
-                  className="w-full h-full object-cover"
-                />
-              </div>
-            </CardHeader>
+            {product.showImage && (
+              <CardHeader className="p-0">
+                <div className="h-[150px] overflow-hidden rounded-t-lg bg-gray-100">
+                  <img
+                    src={product.image || "/placeholder.svg"}
+                    alt={product.name}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.src = "/placeholder.svg";
+                    }}
+                  />
+                </div>
+              </CardHeader>
+            )}
             <CardContent className="p-4">
               <div className="space-y-3">
                 <div className="flex justify-between items-start">
                   <div>
-                    <h3 className="font-semibold text-lg">{product.name}</h3>
+                    <h3 className="font-semibold text-lg">
+                      {product.productNumber ? `${product.productNumber} - ${product.name}` : product.name}
+                    </h3>
                     <p className="text-gray-600 text-sm line-clamp-2">{product.description}</p>
                   </div>
-                  <Badge variant={product.available ? "default" : "secondary"}>
-                    {product.available ? "Disponível" : "Indisponível"}
+                  <Badge variant={Boolean(product.available) ? "default" : "secondary"}>
+                    {Boolean(product.available) ? "Disponível" : "Indisponível"}
                   </Badge>
                 </div>
 
-                <div className="text-xl font-bold text-primary">R$ {product.price.toFixed(2)}</div>
+                <div className="text-xl font-bold text-primary">{formatCurrency(product.price)}</div>
 
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
                     <Switch
-                      checked={product.available}
+                      checked={Boolean(product.available)}
                       onCheckedChange={() => toggleProductAvailability(product.id)}
                       disabled={loading}
                     />
@@ -444,6 +581,13 @@ export function ProductsManagement() {
         onSave={handleSaveCategory}
       />
 
+      <CategorySortModal
+        open={categorySortModalOpen}
+        onOpenChange={setCategorySortModalOpen}
+        categories={categories}
+        onSave={handleSaveCategoryOrder}
+      />
+
       <DeleteConfirmModal
         open={deleteModalOpen}
         onOpenChange={setDeleteModalOpen}
@@ -453,4 +597,4 @@ export function ProductsManagement() {
       />
     </div>
   )
-}
+} 

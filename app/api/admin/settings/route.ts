@@ -1,162 +1,159 @@
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
-import { cookies } from "next/headers"
-import { type NextRequest, NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
+import jwt from "jsonwebtoken"
+import { query } from "@/lib/db"
+import { verifyToken } from "@/lib/auth"
+import { JwtPayload } from "jsonwebtoken"
 
-export async function GET(request: NextRequest) {
+const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret"
+
+interface DecodedToken {
+  id: string
+  email: string
+  role: string
+}
+
+interface CustomJwtPayload extends JwtPayload {
+  role?: string;
+}
+
+async function verifyAdminToken(request: NextRequest) {
+  const authHeader = request.headers.get("authorization")
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return null
+  }
+
   try {
-    const supabase = createRouteHandlerClient({ cookies })
-
-    // Get current user session
-    const {
-      data: { session },
-      error: sessionError,
-    } = await supabase.auth.getSession()
-
-    if (sessionError || !session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    const token = authHeader.substring(7)
+    const decoded = jwt.verify(token, JWT_SECRET) as DecodedToken
+    if (!decoded || typeof decoded === 'string' || decoded.role !== "admin") {
+      return null
     }
-
-    // Get settings from database
-    const { data: settings, error: settingsError } = await supabase
-      .from("app_settings")
-      .select("*")
-      .order("created_at", { ascending: false })
-
-    if (settingsError) {
-      console.error("Settings fetch error:", settingsError)
-      // Return default settings if table doesn't exist or is empty
-      return NextResponse.json(getDefaultSettings())
-    }
-
-    // Convert array of settings to object
-    const settingsObject = settings.reduce((acc, setting) => {
-      acc[setting.key] = setting.value
-      return acc
-    }, {})
-
-    // Merge with defaults for any missing settings
-    const completeSettings = { ...getDefaultSettings(), ...settingsObject }
-
-    return NextResponse.json(completeSettings)
+    return decoded
   } catch (error) {
-    console.error("Settings API error:", error)
-    return NextResponse.json(getDefaultSettings())
+    return null
   }
 }
 
-export async function PUT(request: NextRequest) {
+// Force dynamic rendering for this route
+export const dynamic = 'force-dynamic'
+
+// GET - Fetch admin settings
+export async function GET(request: Request) {
   try {
-    const settingsData = await request.json()
-
-    const supabase = createRouteHandlerClient({ cookies })
-
-    // Get current user session
-    const {
-      data: { session },
-      error: sessionError,
-    } = await supabase.auth.getSession()
-
-    if (sessionError || !session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    console.log("[ADMIN_SETTINGS] Iniciando verificação de autenticação")
+    
+    const authHeader = request.headers.get("authorization")
+    if (!authHeader) {
+      console.log("[ADMIN_SETTINGS] Token não fornecido")
+      return NextResponse.json({ error: "Token não fornecido" }, { status: 401 })
     }
 
-    // Check if user is admin
-    const { data: profile } = await supabase.from("profiles").select("role").eq("id", session.user.id).single()
-
-    if (profile?.role !== "admin") {
-      return NextResponse.json({ error: "Forbidden - Admin access required" }, { status: 403 })
+    // Extrair token do header "Bearer <token>"
+    const token = authHeader.split(" ")[1]
+    if (!token) {
+      console.log("[ADMIN_SETTINGS] Formato de token inválido")
+      return NextResponse.json({ error: "Formato de token inválido" }, { status: 401 })
     }
 
-    // Prepare settings for upsert
-    const settingsArray = Object.entries(settingsData).map(([key, value]) => ({
-      key,
-      value: typeof value === "object" ? JSON.stringify(value) : String(value),
-      updated_by: session.user.id,
-      updated_at: new Date().toISOString(),
-    }))
+    console.log("[ADMIN_SETTINGS] Verificando token...")
+    const decoded = await verifyToken(token) as CustomJwtPayload
+    if (!decoded || typeof decoded === 'string' || decoded.role !== "admin") {
+      console.log("[ADMIN_SETTINGS] Token inválido ou usuário não é admin")
+      return NextResponse.json({ error: "Não autorizado - acesso apenas para administradores" }, { status: 401 })
+    }
 
-    // Upsert settings (insert or update)
-    const { error: upsertError } = await supabase.from("app_settings").upsert(settingsArray, {
-      onConflict: "key",
-      ignoreDuplicates: false,
+    console.log(`[ADMIN_SETTINGS] Acesso autorizado para admin: ${decoded.email}`)
+
+    // Verificar se tabela admin_settings existe
+    const tableCheck = await query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' AND table_name = 'admin_settings'
+      ) as table_exists
+    `)
+
+    if (!tableCheck.rows[0].table_exists) {
+      console.log("[ADMIN_SETTINGS] Tabela admin_settings não encontrada, retornando configurações vazias")
+      return NextResponse.json({ settings: {} })
+    }
+
+    const result = await query(`
+      SELECT setting_key, setting_value 
+      FROM admin_settings
+      ORDER BY setting_key
+    `)
+
+    const settings: Record<string, any> = {}
+    result.rows.forEach(row => {
+      try {
+        settings[row.setting_key] = JSON.parse(row.setting_value)
+      } catch {
+        settings[row.setting_key] = row.setting_value
+      }
     })
 
-    if (upsertError) {
-      console.error("Settings upsert error:", upsertError)
-      return NextResponse.json({ error: "Failed to save settings" }, { status: 500 })
-    }
-
-    console.log("Settings updated successfully")
-
-    return NextResponse.json({
-      message: "Settings updated successfully",
-      settings: settingsData,
-    })
+    console.log(`[ADMIN_SETTINGS] Retornando ${Object.keys(settings).length} configurações`)
+    return NextResponse.json({ settings })
   } catch (error) {
-    console.error("Settings update API error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    console.error("[ADMIN_SETTINGS] Erro interno:", error)
+    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
   }
 }
 
-function getDefaultSettings() {
-  return {
-    // Admin Registration Control (enabled by default for new environments)
-    allowAdminRegistration: true,
+// POST - Update admin settings
+export async function POST(request: Request) {
+  try {
+    console.log("[ADMIN_SETTINGS] Iniciando atualização de configurações")
+    
+    const authHeader = request.headers.get("authorization")
+    if (!authHeader) {
+      console.log("[ADMIN_SETTINGS] Token não fornecido para atualização")
+      return NextResponse.json({ error: "Token não fornecido" }, { status: 401 })
+    }
 
-    // General Settings
-    companyName: "Pizza Express",
-    description: "A melhor pizza da cidade, entregue na sua porta",
-    address: "Rua das Pizzas, 123 - Centro, São Paulo/SP",
-    phone: "(11) 99999-9999",
-    email: "contato@pizzaexpress.com",
-    website: "www.pizzaexpress.com",
-    openingHours: "18:00",
-    closingHours: "23:00",
-    isOpen: true,
-    acceptOrders: true,
-    minimumOrderValue: 25.0,
+    // Extrair token do header "Bearer <token>"
+    const token = authHeader.split(" ")[1]
+    if (!token) {
+      console.log("[ADMIN_SETTINGS] Formato de token inválido para atualização")
+      return NextResponse.json({ error: "Formato de token inválido" }, { status: 401 })
+    }
 
-    // Appearance Settings
-    primaryColor: "#ef4444",
-    secondaryColor: "#f97316",
-    theme: "light",
-    fontFamily: "Inter",
-    fontSize: "medium",
-    borderRadius: "medium",
-    showBranding: true,
+    console.log("[ADMIN_SETTINGS] Verificando token para atualização...")
+    const decoded = await verifyToken(token) as CustomJwtPayload
+    if (!decoded || typeof decoded === 'string' || decoded.role !== "admin") {
+      console.log("[ADMIN_SETTINGS] Token inválido ou usuário não é admin para atualização")
+      return NextResponse.json({ error: "Não autorizado - acesso apenas para administradores" }, { status: 401 })
+    }
 
-    // Delivery Settings
-    deliveryEnabled: true,
-    freeDeliveryMinimum: 50.0,
-    defaultDeliveryFee: 5.9,
-    maxDeliveryDistance: 10,
-    estimatedDeliveryTime: 30,
+    console.log(`[ADMIN_SETTINGS] Atualização autorizada para admin: ${decoded.email}`)
 
-    // Payment Settings
-    pixEnabled: true,
-    pixKey: "contato@pizzaexpress.com",
-    cashEnabled: true,
-    cardOnDeliveryEnabled: true,
+    const settings = await request.json()
+    console.log(`[ADMIN_SETTINGS] Atualizando ${Object.keys(settings).length} configurações`)
 
-    // Notification Settings
-    emailNotifications: true,
-    smsNotifications: false,
-    pushNotifications: true,
-    newOrderNotification: true,
-    orderStatusNotification: true,
+    // Verificar se tabela admin_settings existe, criar se não existir
+    await query(`
+      CREATE TABLE IF NOT EXISTS admin_settings (
+        setting_key VARCHAR(255) PRIMARY KEY,
+        setting_value TEXT NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      )
+    `)
 
-    // Security Settings
-    requireStrongPasswords: true,
-    sessionTimeout: 60,
-    twoFactorEnabled: false,
-    loginAttemptLimit: 5,
+    for (const [key, value] of Object.entries(settings)) {
+      const stringValue = typeof value === 'string' ? value : JSON.stringify(value)
+      await query(`
+        INSERT INTO admin_settings (setting_key, setting_value)
+        VALUES ($1, $2)
+        ON CONFLICT (setting_key)
+        DO UPDATE SET setting_value = $2, updated_at = NOW()
+      `, [key, stringValue])
+    }
 
-    // Feature Boxes
-    fastDeliveryEnabled: true,
-    fastDeliveryTitle: "Super Rápido",
-    fastDeliverySubtext: "Entrega expressa em até 30 minutos ou sua pizza é grátis",
-    freeDeliveryEnabled: true,
-    freeDeliveryTitle: "Frete Grátis",
-    freeDeliverySubtext: "Entrega gratuita para pedidos acima de R$ 50,00",
+    console.log("[ADMIN_SETTINGS] Configurações salvas com sucesso")
+    return NextResponse.json({ message: "Configurações salvas com sucesso" })
+  } catch (error) {
+    console.error("[ADMIN_SETTINGS] Erro ao salvar configurações:", error)
+    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
   }
 }

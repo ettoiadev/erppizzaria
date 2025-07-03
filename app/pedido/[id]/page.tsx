@@ -14,18 +14,20 @@ import { useEffect } from "react"
 export default function OrderPage() {
   const params = useParams()
   const router = useRouter()
-  const { user } = useAuth()
+  const { user, isLoading: authLoading } = useAuth()
   const orderId = params.id as string
 
   console.log("OrderPage - Order ID:", orderId)
   console.log("OrderPage - Current user:", user)
+  console.log("OrderPage - Auth loading:", authLoading)
 
-  // Redirecionar se não estiver logado
+  // Redirecionar se não estiver logado APENAS após terminar o carregamento
   useEffect(() => {
-    if (!user) {
-      router.push("/login")
+    if (!authLoading && !user) {
+      console.log("OrderPage - Redirecionando para login (usuário não autenticado)")
+      router.push("/login?redirect=" + encodeURIComponent(`/pedido/${orderId}`))
     }
-  }, [user, router])
+  }, [user, authLoading, router, orderId])
 
   const {
     data: order,
@@ -46,13 +48,29 @@ export default function OrderPage() {
       return data
     },
     refetchInterval: 30000, // Atualiza a cada 30 segundos
-    enabled: !!orderId && !!user, // Só executa se tiver ID e usuário
+    enabled: !!orderId && !!user && !authLoading, // Só executa se tiver ID, usuário E terminou carregamento
   })
 
+  // Mostrar loading enquanto a autenticação está carregando
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <LoadingSpinner />
+          <p className="mt-4 text-gray-600">Verificando autenticação...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Se não há usuário após carregar, o useEffect já vai redirecionar
   if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <LoadingSpinner />
+        <div className="text-center">
+          <LoadingSpinner />
+          <p className="mt-4 text-gray-600">Redirecionando...</p>
+        </div>
       </div>
     )
   }

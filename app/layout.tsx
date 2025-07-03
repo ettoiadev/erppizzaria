@@ -8,10 +8,37 @@ import { Toaster } from "@/components/ui/toaster"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Pizza Express - Delivery de Pizza",
+  title: "William Disk Pizza - Delivery de Pizza",
   description: "O melhor delivery de pizza da cidade. Peça já!",
   manifest: "/manifest.json",
   generator: "v0.dev",
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/favicon.ico", sizes: "16x16", type: "image/x-icon" },
+      { url: "/favicon.ico", sizes: "32x32", type: "image/x-icon" },
+      { url: "/favicon.ico", sizes: "48x48", type: "image/x-icon" },
+    ],
+    shortcut: "/favicon.ico",
+    apple: [
+      { url: "/favicon.ico", sizes: "180x180", type: "image/x-icon" },
+    ],
+    other: [
+      {
+        rel: "icon",
+        url: "/favicon.ico",
+        type: "image/x-icon",
+      },
+      {
+        rel: "shortcut icon",
+        url: "/favicon.ico",
+        type: "image/x-icon",
+      },
+    ],
+  },
+  other: {
+    "msapplication-TileColor": "#ef4444",
+  },
 }
 
 export const viewport: Viewport = {

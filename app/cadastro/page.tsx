@@ -1,9 +1,10 @@
 "use client"
 
 import React from "react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
+import { useAuth } from "@/contexts/auth-context"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -35,8 +36,16 @@ export default function RegisterPage() {
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const { register, user } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
+
+  // Redirecionar se já estiver logado
+  useEffect(() => {
+    if (user) {
+      router.push("/cardapio")
+    }
+  }, [user, router])
 
   // Mostrar mensagem de sucesso se vier da URL
   React.useEffect(() => {
@@ -142,7 +151,7 @@ export default function RegisterPage() {
     setSuccess("")
 
     try {
-      // Prepare payload for API
+      // Prepare payload for registration
       const payload = {
         email: formData.email.trim().toLowerCase(),
         password: formData.password,
@@ -151,35 +160,18 @@ export default function RegisterPage() {
 
       console.log("Registering user with payload:", { ...payload, password: "[HIDDEN]" })
 
-      // Call our registration API endpoint
-      const response = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      })
+      // Use AuthContext register method for automatic login and redirect
+      await register(payload)
 
-      const result = await response.json()
-
-      if (!response.ok) {
-        // Handle API errors
-        setError(result.error || "Erro ao criar conta. Tente novamente.")
-        return
-      }
-
-      console.log("Registration successful:", result)
-
-      // Show success message
-      setSuccess("Conta criada com sucesso! Redirecionando para o login...")
+      setSuccess("Conta criada com sucesso! Redirecionando para o cardápio...")
 
       // Wait a bit to show success message, then redirect
       setTimeout(() => {
-        router.push("/login?message=Conta criada com sucesso! Faça login para continuar.")
-      }, 2000)
-    } catch (error) {
+        router.push("/cardapio")
+      }, 1500)
+    } catch (error: any) {
       console.error("Registration error:", error)
-      setError("Erro ao criar conta. Verifique sua conexão e tente novamente.")
+      setError(error.message || "Erro ao criar conta. Tente novamente.")
     } finally {
       setIsLoading(false)
     }
@@ -250,10 +242,7 @@ export default function RegisterPage() {
                         id="phone"
                         type="tel"
                         value={formData.phone}
-                        onChange={(e) => {
-                          const formatted = formatPhone(e.target.value)
-                          handleInputChange("phone", formatted)
-                        }}
+                        onChange={(e) => handleInputChange("phone", formatPhone(e.target.value))}
                         placeholder="(11) 99999-9999"
                         required
                         disabled={isLoading}
@@ -303,9 +292,6 @@ export default function RegisterPage() {
                           )}
                         </Button>
                       </div>
-                      <p className="text-xs text-gray-500">
-                        Use pelo menos 6 caracteres com letras maiúsculas e minúsculas
-                      </p>
                     </div>
 
                     <div className="space-y-2">
@@ -316,7 +302,7 @@ export default function RegisterPage() {
                           type={showConfirmPassword ? "text" : "password"}
                           value={formData.confirmPassword}
                           onChange={(e) => handleInputChange("confirmPassword", e.target.value)}
-                          placeholder="Digite a senha novamente"
+                          placeholder="Confirme sua senha"
                           required
                           disabled={isLoading}
                         />
@@ -341,10 +327,8 @@ export default function RegisterPage() {
 
                 {/* Address Section */}
                 <div className="space-y-4">
-                  <div className="border-t pt-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Endereço de Entrega</h3>
-                    <AddressInput value={formData.address} onChange={handleAddressChange} required />
-                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900">Endereço de Entrega</h3>
+                  <AddressInput value={formData.address} onChange={handleAddressChange} required />
                 </div>
 
                 <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
@@ -355,17 +339,6 @@ export default function RegisterPage() {
                   Já tem uma conta?{" "}
                   <Link href="/login" className="text-primary hover:underline font-medium">
                     Faça login
-                  </Link>
-                </div>
-
-                <div className="text-xs text-gray-500 text-center">
-                  Ao criar uma conta, você concorda com nossos{" "}
-                  <Link href="/termos" className="text-primary hover:underline">
-                    Termos de Uso
-                  </Link>{" "}
-                  e{" "}
-                  <Link href="/privacidade" className="text-primary hover:underline">
-                    Política de Privacidade
                   </Link>
                 </div>
               </form>

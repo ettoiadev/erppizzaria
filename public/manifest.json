@@ -1,6 +1,6 @@
 {
-  "name": "Pizza Express - Delivery de Pizza",
-  "short_name": "Pizza Express",
+  "name": "William Disk Pizza - Delivery de Pizza",
+  "short_name": "William Disk Pizza",
   "description": "O melhor delivery de pizza da cidade",
   "start_url": "/",
   "display": "standalone",
@@ -9,16 +9,15 @@
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "/icon-192x192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "maskable"
+      "src": "/favicon.ico",
+      "sizes": "16x16 32x32 48x48",
+      "type": "image/x-icon"
     },
     {
-      "src": "/icon-512x512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
+      "src": "/favicon.ico",
+      "sizes": "any",
+      "type": "image/x-icon",
+      "purpose": "any maskable"
     }
   ],
   "categories": ["food", "delivery"],

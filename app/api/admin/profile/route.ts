@@ -1,102 +1,77 @@
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
-import { cookies } from "next/headers"
-import { type NextRequest, NextResponse } from "next/server"
+import { NextResponse, type NextRequest } from "next/server"
+import { query } from "@/lib/db"
+import { verifyAdmin } from "@/lib/auth"
+
+// Force dynamic rendering for this route
+export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
+    const authHeader = request.headers.get("authorization")
+    const token = authHeader?.split(" ")[1]
 
-    // Get current user session
-    const {
-      data: { session },
-      error: sessionError,
-    } = await supabase.auth.getSession()
-
-    if (sessionError || !session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    if (!token) {
+      return NextResponse.json({ error: "Token de acesso requerido" }, { status: 401 })
     }
 
-    // Get user profile from profiles table
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", session.user.id)
-      .single()
-
-    if (profileError) {
-      console.error("Profile fetch error:", profileError)
-      return NextResponse.json({ error: "Failed to fetch profile" }, { status: 500 })
+    // Verify admin access
+    const admin = await verifyAdmin(token)
+    if (!admin) {
+      return NextResponse.json({ error: "Acesso negado" }, { status: 403 })
     }
 
-    // Return profile data
-    return NextResponse.json({
-      id: session.user.id,
-      email: session.user.email,
-      full_name: profile?.full_name || null,
-      role: profile?.role || "cliente",
-      phone: profile?.phone || null,
-      created_at: profile?.created_at || session.user.created_at,
-      email_confirmed: !!session.user.email_confirmed_at,
-    })
+    // Get admin profile
+    const result = await query(
+      'SELECT id, email, full_name, phone, created_at, updated_at FROM profiles WHERE id = $1',
+      [admin.id]
+    )
+
+    if (result.rows.length === 0) {
+      return NextResponse.json({ error: "Perfil não encontrado" }, { status: 404 })
+    }
+
+    const profile = result.rows[0]
+    return NextResponse.json({ profile })
   } catch (error) {
-    console.error("Profile API error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    console.error("Error fetching admin profile:", error)
+    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
   }
 }
 
 export async function PUT(request: NextRequest) {
   try {
+    const authHeader = request.headers.get("authorization")
+    const token = authHeader?.split(" ")[1]
+
+    if (!token) {
+      return NextResponse.json({ error: "Token de acesso requerido" }, { status: 401 })
+    }
+
+    // Verify admin access
+    const admin = await verifyAdmin(token)
+    if (!admin) {
+      return NextResponse.json({ error: "Acesso negado" }, { status: 403 })
+    }
+
     const { full_name, phone } = await request.json()
 
-    // Validate required fields
-    if (!full_name) {
-      return NextResponse.json({ error: "Full name is required" }, { status: 400 })
+    // Update profile
+    const result = await query(
+      'UPDATE profiles SET full_name = $1, phone = $2, updated_at = NOW() WHERE id = $3 RETURNING id, email, full_name, phone, created_at, updated_at',
+      [full_name, phone, admin.id]
+    )
+
+    if (result.rows.length === 0) {
+      return NextResponse.json({ error: "Perfil não encontrado" }, { status: 404 })
     }
 
-    const supabase = createRouteHandlerClient({ cookies })
-
-    // Get current user session
-    const {
-      data: { session },
-      error: sessionError,
-    } = await supabase.auth.getSession()
-
-    if (sessionError || !session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    // Update profile in profiles table
-    const { data: profile, error: updateError } = await supabase
-      .from("profiles")
-      .update({
-        full_name,
-        phone,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", session.user.id)
-      .select()
-      .single()
-
-    if (updateError) {
-      console.error("Profile update error:", updateError)
-      return NextResponse.json({ error: "Failed to update profile" }, { status: 500 })
-    }
-
-    console.log("Profile updated successfully:", profile)
-
-    return NextResponse.json({
-      message: "Profile updated successfully",
-      profile: {
-        id: session.user.id,
-        email: session.user.email,
-        full_name: profile.full_name,
-        role: profile.role,
-        phone: profile.phone,
-        updated_at: profile.updated_at,
-      },
+    const updatedProfile = result.rows[0]
+    return NextResponse.json({ 
+      message: "Perfil atualizado com sucesso",
+      profile: updatedProfile 
     })
   } catch (error) {
-    console.error("Profile update API error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    console.error("Error updating admin profile:", error)
+    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
   }
 }

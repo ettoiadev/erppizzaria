@@ -8,9 +8,9 @@ import { cn } from "@/lib/utils"
 const navigation = [
   { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { name: "Pedidos", href: "/admin/pedidos", icon: ShoppingBag },
+  { name: "Entregadores", href: "/admin/entregadores", icon: Bike },
   { name: "Produtos", href: "/admin/produtos", icon: Package },
   { name: "Clientes", href: "/admin/clientes", icon: Users },
-  { name: "Entregadores", href: "/admin/entregadores", icon: Bike },
   { name: "Relatórios", href: "/admin/relatorios", icon: BarChart3 },
   { name: "Configurações", href: "/admin/configuracoes", icon: Settings },
 ]

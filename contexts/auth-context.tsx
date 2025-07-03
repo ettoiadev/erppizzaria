@@ -1,6 +1,7 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
+import { useRouter } from "next/navigation"
 
 interface User {
   id: string
@@ -33,21 +34,18 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const router = useRouter()
 
   useEffect(() => {
     // Check for stored auth token
     const token = localStorage.getItem("auth-token")
     const userData = localStorage.getItem("user-data")
 
-    console.log("AuthProvider: Checking stored auth data", { hasToken: !!token, hasUserData: !!userData })
-
     if (token && userData) {
       try {
         const parsedUser = JSON.parse(userData)
-        console.log("AuthProvider: Restored user from localStorage", parsedUser)
         setUser(parsedUser)
       } catch (error) {
-        console.error("AuthProvider: Error parsing user data:", error)
         localStorage.removeItem("auth-token")
         localStorage.removeItem("user-data")
       }
@@ -57,7 +55,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string, requiredRole?: string) => {
     try {
-      console.log("AuthProvider: Attempting login via API for:", email)
       setIsLoading(true)
 
       const response = await fetch("/api/auth/login", {
@@ -71,27 +68,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = await response.json()
 
       if (!response.ok) {
-        console.error("AuthProvider: Login API error:", data.error)
         throw new Error(data.error || "Failed to login")
       }
 
-      console.log("AuthProvider: Login successful:", data.user)
-
-      // Get user profile to check role
-      const profileResponse = await fetch("/api/admin/profile", {
-        headers: {
-          Authorization: `Bearer ${data.session.access_token}`,
-        },
-      })
-
-      let userRole = "CUSTOMER"
-      if (profileResponse.ok) {
-        const profileData = await profileResponse.json()
-        userRole = profileData.role === "admin" ? "ADMIN" : "CUSTOMER"
-      }
-
       // Check if required role matches
-      if (requiredRole === "admin" && userRole !== "ADMIN") {
+      if (requiredRole === "admin" && data.user.role !== "admin") {
         throw new Error("Acesso negado. Apenas administradores podem acessar esta área.")
       }
 
@@ -100,17 +81,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         id: data.user.id,
         name: data.user.full_name || data.user.email.split("@")[0],
         email: data.user.email,
-        role: userRole as "CUSTOMER" | "ADMIN" | "KITCHEN" | "DELIVERY",
+        role: data.user.role.toUpperCase() as "CUSTOMER" | "ADMIN" | "KITCHEN" | "DELIVERY",
       }
 
-      console.log("AuthProvider: Setting authenticated user:", authenticatedUser)
       setUser(authenticatedUser)
-      localStorage.setItem("auth-token", data.session.access_token)
+      localStorage.setItem("auth-token", data.token)
       localStorage.setItem("user-data", JSON.stringify(authenticatedUser))
-
-      console.log("AuthProvider: User authenticated and stored successfully")
     } catch (error) {
-      console.error("AuthProvider: Login error:", error)
       throw error
     } finally {
       setIsLoading(false)
@@ -118,31 +95,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const logout = () => {
-    console.log("AuthProvider: Logging out user")
     setUser(null)
     localStorage.removeItem("auth-token")
     localStorage.removeItem("user-data")
+    
+    // Redirecionar para a página inicial após logout
+    router.push("/")
   }
 
   const register = async (userData: any) => {
     try {
       setIsLoading(true)
-      // Simulate API call delay
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      const response = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(userData),
+      })
 
-      const mockUser = {
-        id: Date.now().toString(),
-        name: userData.name,
-        email: userData.email,
-        role: "CUSTOMER" as const,
-        phone: userData.phone,
-        address: userData.address,
-        addressData: userData.addressData,
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || "Erro ao criar conta")
       }
 
-      setUser(mockUser)
-      localStorage.setItem("auth-token", "mock-token")
-      localStorage.setItem("user-data", JSON.stringify(mockUser))
+      // Login automatically after registration
+      await login(userData.email, userData.password)
     } catch (error) {
       throw new Error("Erro ao criar conta")
     } finally {

@@ -1,7 +1,5 @@
 "use client"
 
-import type React from "react"
-
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -18,7 +16,7 @@ interface ProfileData {
   role: string
   phone?: string
   created_at: string
-  email_confirmed: boolean
+  email_confirmed?: boolean
 }
 
 export function AdminProfile() {
@@ -29,6 +27,11 @@ export function AdminProfile() {
   const { toast } = useToast()
 
   const [profileForm, setProfileForm] = useState({
+    full_name: "",
+    phone: "",
+  })
+
+  const [originalProfileForm, setOriginalProfileForm] = useState({
     full_name: "",
     phone: "",
   })
@@ -45,32 +48,52 @@ export function AdminProfile() {
     confirm: false,
   })
 
+  // Estados para validação
+  const [validationErrors, setValidationErrors] = useState({
+    phone: "",
+    password: "",
+  })
+
   useEffect(() => {
     loadProfile()
   }, [])
 
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem("auth-token")
+    return {
+      "Content-Type": "application/json",
+      ...(token && { Authorization: `Bearer ${token}` })
+    }
+  }
+
   const loadProfile = async () => {
     try {
-      const response = await fetch("/api/admin/profile")
+      setIsLoading(true)
+      const response = await fetch("/api/admin/profile", {
+        headers: getAuthHeaders()
+      })
+
       if (response.ok) {
         const data = await response.json()
-        setProfile(data)
-        setProfileForm({
-          full_name: data.full_name || "",
-          phone: data.phone || "",
-        })
+        setProfile(data.profile)
+        const formData = {
+          full_name: data.profile.full_name || "",
+          phone: data.profile.phone || "",
+        }
+        setProfileForm(formData)
+        setOriginalProfileForm(formData)
       } else {
+        const errorData = await response.json()
         toast({
           title: "Erro",
-          description: "Falha ao carregar perfil",
+          description: errorData.message || "Erro ao carregar perfil",
           variant: "destructive",
         })
       }
     } catch (error) {
-      console.error("Error loading profile:", error)
       toast({
         title: "Erro",
-        description: "Erro ao carregar perfil",
+        description: "Erro de conexão ao carregar perfil",
         variant: "destructive",
       })
     } finally {
@@ -78,39 +101,87 @@ export function AdminProfile() {
     }
   }
 
-  const handleProfileSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsSaving(true)
+  // Função para formatar telefone
+  const formatPhone = (value: string) => {
+    const numbers = value.replace(/\D/g, '')
+    if (numbers.length <= 11) {
+      return numbers
+        .replace(/(\d{2})(\d)/, '($1) $2')
+        .replace(/(\d{4,5})(\d{4})$/, '$1-$2')
+    }
+    return value
+  }
+
+  // Validação de telefone
+  const validatePhone = (phone: string) => {
+    const numbers = phone.replace(/\D/g, '')
+    if (phone && (numbers.length < 10 || numbers.length > 11)) {
+      return "Telefone deve ter 10 ou 11 dígitos"
+    }
+    return ""
+  }
+
+  const updateProfile = async () => {
+    // Validações antes de enviar
+    const phoneError = validatePhone(profileForm.phone)
+    
+    if (phoneError) {
+      setValidationErrors(prev => ({ ...prev, phone: phoneError }))
+      return
+    }
+
+    if (!profileForm.full_name.trim()) {
+      toast({
+        title: "Erro",
+        description: "Nome completo é obrigatório",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setValidationErrors(prev => ({ ...prev, phone: "" }))
 
     try {
+      setIsSaving(true)
+      // Limpar telefone antes de enviar (remover formatação)
+      const cleanPhone = profileForm.phone.replace(/\D/g, '')
+      
       const response = await fetch("/api/admin/profile", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(profileForm),
+        method: "PUT", // Corrigido para usar PUT conforme definido na API
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          full_name: profileForm.full_name.trim(),
+          phone: cleanPhone
+        }),
       })
 
-      const data = await response.json()
-
       if (response.ok) {
-        setProfile((prev) => (prev ? { ...prev, ...data.profile } : null))
+        const data = await response.json()
+        setProfile(data.profile)
+        // Atualizar dados originais após salvamento bem-sucedido
+        const newFormData = {
+          full_name: data.profile.full_name || "",
+          phone: data.profile.phone || "",
+        }
+        setOriginalProfileForm(newFormData)
+        setProfileForm(newFormData)
+        
         toast({
           title: "Sucesso",
           description: "Perfil atualizado com sucesso",
         })
       } else {
+        const errorData = await response.json()
         toast({
           title: "Erro",
-          description: data.error || "Falha ao atualizar perfil",
+          description: errorData.message || "Erro ao atualizar perfil",
           variant: "destructive",
         })
       }
     } catch (error) {
-      console.error("Error updating profile:", error)
       toast({
         title: "Erro",
-        description: "Erro ao atualizar perfil",
+        description: "Erro de conexão ao atualizar perfil",
         variant: "destructive",
       })
     } finally {
@@ -118,8 +189,25 @@ export function AdminProfile() {
     }
   }
 
-  const handlePasswordSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const updatePassword = async () => {
+    // Validações da senha
+    if (!passwordForm.currentPassword) {
+      toast({
+        title: "Erro",
+        description: "Senha atual é obrigatória",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (!passwordForm.newPassword) {
+      toast({
+        title: "Erro",
+        description: "Nova senha é obrigatória",
+        variant: "destructive",
+      })
+      return
+    }
 
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
       toast({
@@ -139,21 +227,16 @@ export function AdminProfile() {
       return
     }
 
-    setIsUpdatingPassword(true)
-
     try {
+      setIsUpdatingPassword(true)
       const response = await fetch("/api/admin/password", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        method: "PATCH",
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           currentPassword: passwordForm.currentPassword,
           newPassword: passwordForm.newPassword,
         }),
       })
-
-      const data = await response.json()
 
       if (response.ok) {
         setPasswordForm({
@@ -166,17 +249,17 @@ export function AdminProfile() {
           description: "Senha atualizada com sucesso",
         })
       } else {
+        const errorData = await response.json()
         toast({
           title: "Erro",
-          description: data.error || "Falha ao atualizar senha",
+          description: errorData.message || "Erro ao atualizar senha",
           variant: "destructive",
         })
       }
     } catch (error) {
-      console.error("Error updating password:", error)
       toast({
         title: "Erro",
-        description: "Erro ao atualizar senha",
+        description: "Erro de conexão ao atualizar senha",
         variant: "destructive",
       })
     } finally {
@@ -184,17 +267,43 @@ export function AdminProfile() {
     }
   }
 
+  const handleProfileInputChange = (field: string, value: string) => {
+    if (field === "phone") {
+      const formattedPhone = formatPhone(value)
+      setProfileForm(prev => ({ ...prev, [field]: formattedPhone }))
+      // Limpar erro de validação ao digitar
+      const error = validatePhone(formattedPhone)
+      setValidationErrors(prev => ({ ...prev, phone: error }))
+    } else {
+      setProfileForm(prev => ({ ...prev, [field]: value }))
+    }
+  }
+
+  const handlePasswordInputChange = (field: string, value: string) => {
+    setPasswordForm(prev => ({ ...prev, [field]: value }))
+  }
+
   const togglePasswordVisibility = (field: keyof typeof showPasswords) => {
-    setShowPasswords((prev) => ({ ...prev, [field]: !prev[field] }))
+    setShowPasswords(prev => ({ ...prev, [field]: !prev[field] }))
+  }
+
+  // Verificar se houve mudanças nos dados do perfil
+  const hasProfileChanges = () => {
+    return (
+      profileForm.full_name !== originalProfileForm.full_name ||
+      profileForm.phone !== originalProfileForm.phone
+    )
+  }
+
+  // Verificar se os dados da senha estão preenchidos
+  const hasPasswordData = () => {
+    return passwordForm.currentPassword && passwordForm.newPassword && passwordForm.confirmPassword
   }
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center p-8">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-2 text-gray-600">Carregando perfil...</p>
-        </div>
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     )
   }
@@ -209,59 +318,68 @@ export function AdminProfile() {
             Informações do Perfil
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <form onSubmit={handleProfileSubmit} className="space-y-4">
-            <div className="grid md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" value={profile?.email || ""} disabled className="bg-gray-50" />
-                <p className="text-xs text-gray-500">O email não pode ser alterado</p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="role">Função</Label>
-                <Input id="role" value={profile?.role || ""} disabled className="bg-gray-50 capitalize" />
-              </div>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="full_name">Nome Completo *</Label>
+              <Input
+                id="full_name"
+                value={profileForm.full_name}
+                onChange={(e) => handleProfileInputChange("full_name", e.target.value)}
+                disabled={isSaving}
+                className={!profileForm.full_name.trim() ? "border-red-300" : ""}
+              />
+              {!profileForm.full_name.trim() && (
+                <p className="text-sm text-red-600">Nome completo é obrigatório</p>
+              )}
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                value={profile?.email || ""}
+                disabled
+                className="bg-gray-50"
+              />
             </div>
 
-            <div className="grid md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="full_name">Nome Completo</Label>
-                <Input
-                  id="full_name"
-                  value={profileForm.full_name}
-                  onChange={(e) => setProfileForm((prev) => ({ ...prev, full_name: e.target.value }))}
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="phone">Telefone</Label>
-                <Input
-                  id="phone"
-                  value={profileForm.phone}
-                  onChange={(e) => setProfileForm((prev) => ({ ...prev, phone: e.target.value }))}
-                  placeholder="(11) 99999-9999"
-                />
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="phone">Telefone</Label>
+              <Input
+                id="phone"
+                value={profileForm.phone}
+                onChange={(e) => handleProfileInputChange("phone", e.target.value)}
+                disabled={isSaving}
+                placeholder="(11) 99999-9999"
+                className={validationErrors.phone ? "border-red-300" : ""}
+              />
+              {validationErrors.phone && (
+                <p className="text-sm text-red-600">{validationErrors.phone}</p>
+              )}
             </div>
 
-            <div className="flex items-center gap-4 text-sm text-gray-600">
-              <span>Conta criada em: {new Date(profile?.created_at || "").toLocaleDateString("pt-BR")}</span>
-              <span
-                className={`px-2 py-1 rounded-full text-xs ${
-                  profile?.email_confirmed ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"
-                }`}
-              >
-                {profile?.email_confirmed ? "Email Confirmado" : "Email Pendente"}
-              </span>
+            <div className="space-y-2">
+              <Label htmlFor="role">Função</Label>
+              <Input
+                id="role"
+                value={profile?.role || ""}
+                disabled
+                className="bg-gray-50"
+              />
             </div>
+          </div>
 
-            <Button type="submit" disabled={isSaving}>
-              <Save className="w-4 h-4 mr-2" />
-              {isSaving ? "Salvando..." : "Salvar Perfil"}
+          <div className="flex justify-end">
+            <Button 
+              onClick={updateProfile} 
+              disabled={isSaving || !hasProfileChanges() || !profileForm.full_name.trim() || !!validationErrors.phone}
+              className="flex items-center gap-2"
+            >
+              <Save className="w-4 h-4" />
+              {isSaving ? "Salvando..." : "Salvar Alterações"}
             </Button>
-          </form>
+          </div>
         </CardContent>
       </Card>
 
@@ -275,85 +393,104 @@ export function AdminProfile() {
             Alterar Senha
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <form onSubmit={handlePasswordSubmit} className="space-y-4">
+        <CardContent className="space-y-4">
+          <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="currentPassword">Senha Atual</Label>
+              <Label htmlFor="currentPassword">Senha Atual *</Label>
               <div className="relative">
                 <Input
                   id="currentPassword"
                   type={showPasswords.current ? "text" : "password"}
                   value={passwordForm.currentPassword}
-                  onChange={(e) => setPasswordForm((prev) => ({ ...prev, currentPassword: e.target.value }))}
-                  required
+                  onChange={(e) => handlePasswordInputChange("currentPassword", e.target.value)}
+                  disabled={isUpdatingPassword}
+                  className={!passwordForm.currentPassword && hasPasswordData() ? "border-red-300" : ""}
                 />
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="absolute right-0 top-0 h-full px-3"
+                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
                   onClick={() => togglePasswordVisibility("current")}
+                  disabled={isUpdatingPassword}
                 >
-                  {showPasswords.current ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showPasswords.current ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </Button>
               </div>
             </div>
 
-            <div className="grid md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="newPassword">Nova Senha</Label>
-                <div className="relative">
-                  <Input
-                    id="newPassword"
-                    type={showPasswords.new ? "text" : "password"}
-                    value={passwordForm.newPassword}
-                    onChange={(e) => setPasswordForm((prev) => ({ ...prev, newPassword: e.target.value }))}
-                    required
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-0 top-0 h-full px-3"
-                    onClick={() => togglePasswordVisibility("new")}
-                  >
-                    {showPasswords.new ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </Button>
-                </div>
+            <div className="space-y-2">
+              <Label htmlFor="newPassword">Nova Senha *</Label>
+              <div className="relative">
+                <Input
+                  id="newPassword"
+                  type={showPasswords.new ? "text" : "password"}
+                  value={passwordForm.newPassword}
+                  onChange={(e) => handlePasswordInputChange("newPassword", e.target.value)}
+                  disabled={isUpdatingPassword}
+                  className={passwordForm.newPassword && passwordForm.newPassword.length < 6 ? "border-red-300" : ""}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                  onClick={() => togglePasswordVisibility("new")}
+                  disabled={isUpdatingPassword}
+                >
+                  {showPasswords.new ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
               </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="confirmPassword">Confirmar Nova Senha</Label>
-                <div className="relative">
-                  <Input
-                    id="confirmPassword"
-                    type={showPasswords.confirm ? "text" : "password"}
-                    value={passwordForm.confirmPassword}
-                    onChange={(e) => setPasswordForm((prev) => ({ ...prev, confirmPassword: e.target.value }))}
-                    required
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-0 top-0 h-full px-3"
-                    onClick={() => togglePasswordVisibility("confirm")}
-                  >
-                    {showPasswords.confirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </Button>
-                </div>
-              </div>
+              {passwordForm.newPassword && passwordForm.newPassword.length < 6 && (
+                <p className="text-sm text-red-600">A senha deve ter pelo menos 6 caracteres</p>
+              )}
             </div>
 
-            <div className="text-sm text-gray-600">
-              <p>A nova senha deve ter pelo menos 6 caracteres.</p>
+            <div className="space-y-2">
+              <Label htmlFor="confirmPassword">Confirmar Nova Senha *</Label>
+              <div className="relative">
+                <Input
+                  id="confirmPassword"
+                  type={showPasswords.confirm ? "text" : "password"}
+                  value={passwordForm.confirmPassword}
+                  onChange={(e) => handlePasswordInputChange("confirmPassword", e.target.value)}
+                  disabled={isUpdatingPassword}
+                  className={passwordForm.confirmPassword && passwordForm.newPassword !== passwordForm.confirmPassword ? "border-red-300" : ""}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                  onClick={() => togglePasswordVisibility("confirm")}
+                  disabled={isUpdatingPassword}
+                >
+                  {showPasswords.confirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
+              {passwordForm.confirmPassword && passwordForm.newPassword !== passwordForm.confirmPassword && (
+                <p className="text-sm text-red-600">As senhas não coincidem</p>
+              )}
             </div>
+          </div>
 
-            <Button type="submit" disabled={isUpdatingPassword}>
-              <Key className="w-4 h-4 mr-2" />
+          <div className="flex justify-end">
+            <Button 
+              onClick={updatePassword} 
+              disabled={
+                isUpdatingPassword || 
+                !passwordForm.currentPassword || 
+                !passwordForm.newPassword || 
+                !passwordForm.confirmPassword ||
+                passwordForm.newPassword !== passwordForm.confirmPassword ||
+                passwordForm.newPassword.length < 6
+              }
+              className="flex items-center gap-2"
+            >
+              <Key className="w-4 h-4" />
               {isUpdatingPassword ? "Atualizando..." : "Atualizar Senha"}
             </Button>
-          </form>
+          </div>
         </CardContent>
       </Card>
     </div>

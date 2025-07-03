@@ -1,6 +1,6 @@
 "use client"
 
-import type React from "react"
+
 
 import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -21,6 +21,11 @@ interface TeamMember {
   description: string
   image: File | null
   imageUrl?: string
+}
+
+interface AppearanceSettingsProps {
+  settings: Record<string, any>
+  onSave: (settings: Record<string, any>) => Promise<boolean>
 }
 
 // Add the image processing utility function at the top of the file, after the imports
@@ -98,61 +103,61 @@ const processImage = (file: File): Promise<File> => {
   })
 }
 
-export function AppearanceSettings() {
+export function AppearanceSettings({ settings: initialSettings, onSave }: AppearanceSettingsProps) {
   const [settings, setSettings] = useState({
-    primaryColor: "#ef4444",
-    secondaryColor: "#f97316",
-    theme: "light",
-    fontFamily: "Inter",
-    fontSize: "medium",
-    borderRadius: "medium",
-    showBranding: true,
-    customCSS: "",
-    aboutTitle: "Nossa História",
-    aboutSubtitle: "Tradição e Sabor desde 2010",
-    aboutDescription:
-      "Somos uma pizzaria familiar que nasceu do sonho de compartilhar o verdadeiro sabor da pizza italiana com nossa comunidade.",
-    storyTitle: "Como Tudo Começou",
-    storyContent:
-      "Em 2010, com muito amor pela culinária italiana e o sonho de criar algo especial, nasceu a Pizza Express...",
-    valuesTitle: "Nossos Valores",
-    valuesSubtitle: "Os princípios que nos guiam todos os dias",
-    teamTitle: "Nossa Equipe",
-    teamSubtitle: "As pessoas que fazem a magia acontecer",
-    showTeamSection: true,
+    primaryColor: initialSettings.primaryColor || "#ef4444",
+    secondaryColor: initialSettings.secondaryColor || "#f97316",
+    theme: initialSettings.theme || "light",
+    fontFamily: initialSettings.fontFamily || "Inter",
+    fontSize: initialSettings.fontSize || "medium",
+    borderRadius: initialSettings.borderRadius || "medium",
+    showBranding: initialSettings.showBranding ?? true,
+    customCSS: initialSettings.customCSS || "",
+    aboutTitle: initialSettings.aboutTitle || "Nossa História",
+    aboutSubtitle: initialSettings.aboutSubtitle || "Tradição e Sabor desde 2010",
+    aboutDescription: initialSettings.aboutDescription || "Somos uma pizzaria familiar que nasceu do sonho de compartilhar o verdadeiro sabor da pizza italiana com nossa comunidade.",
+    storyTitle: initialSettings.storyTitle || "Como Tudo Começou",
+    storyContent: initialSettings.storyContent || "Em 2010, com muito amor pela culinária italiana e o sonho de criar algo especial, nasceu a Pizza Express...",
+    valuesTitle: initialSettings.valuesTitle || "Nossos Valores",
+    valuesSubtitle: initialSettings.valuesSubtitle || "Os princípios que nos guiam todos os dias",
+    teamTitle: initialSettings.teamTitle || "Nossa Equipe",
+    teamSubtitle: initialSettings.teamSubtitle || "As pessoas que fazem a magia acontecer",
+    showTeamSection: initialSettings.showTeamSection ?? true,
     aboutHeroImage: null as File | null,
     aboutStoryImage: null as File | null,
   })
 
-  // State for team members
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([
-    {
-      id: "1",
-      name: "Marco Rossi",
-      role: "Chef Pizzaiolo",
-      description:
-        "Com mais de 15 anos de experiência, Marco é o responsável por manter a tradição e qualidade de nossas pizzas.",
-      image: null,
-      imageUrl: "/placeholder.svg?height=300&width=300",
-    },
-    {
-      id: "2",
-      name: "Ana Silva",
-      role: "Gerente Geral",
-      description: "Ana cuida de toda a operação, garantindo que cada cliente tenha a melhor experiência possível.",
-      image: null,
-      imageUrl: "/placeholder.svg?height=300&width=300",
-    },
-    {
-      id: "3",
-      name: "Carlos Santos",
-      role: "Coordenador de Delivery",
-      description:
-        "Carlos lidera nossa equipe de entrega, assegurando que sua pizza chegue quentinha e no tempo certo.",
-      image: null,
-      imageUrl: "/placeholder.svg?height=300&width=300",
-    },
-  ])
+  // State for team members - garantir que seja sempre um array
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>(
+    Array.isArray(initialSettings.teamMembers) ? initialSettings.teamMembers : [
+      {
+        id: "1",
+        name: "Marco Rossi",
+        role: "Chef Pizzaiolo",
+        description:
+          "Com mais de 15 anos de experiência, Marco é o responsável por manter a tradição e qualidade de nossas pizzas.",
+        image: null,
+        imageUrl: "/placeholder.svg?height=300&width=300",
+      },
+      {
+        id: "2",
+        name: "Ana Silva",
+        role: "Gerente Geral",
+        description: "Ana cuida de toda a operação, garantindo que cada cliente tenha a melhor experiência possível.",
+        image: null,
+        imageUrl: "/placeholder.svg?height=300&width=300",
+      },
+      {
+        id: "3",
+        name: "Carlos Santos",
+        role: "Coordenador de Delivery",
+        description:
+          "Carlos lidera nossa equipe de entrega, assegurando que sua pizza chegue quentinha e no tempo certo.",
+        image: null,
+        imageUrl: "/placeholder.svg?height=300&width=300",
+      },
+    ]
+  )
 
   const [isLoading, setIsLoading] = useState(false)
   const [processingImageId, setProcessingImageId] = useState<string | null>(null)
@@ -209,15 +214,18 @@ export function AppearanceSettings() {
 
   // Add new team member
   const addTeamMember = () => {
-    const newMember: TeamMember = {
-      id: `member-${Date.now()}`,
-      name: "Novo Membro",
-      role: "Cargo",
-      description: "Descrição do novo membro da equipe.",
-      image: null,
-      imageUrl: "/placeholder.svg?height=300&width=300",
-    }
-    setTeamMembers((prev) => [...prev, newMember])
+    const newId = (teamMembers.length + 1).toString()
+    setTeamMembers((prev) => [
+      ...prev,
+      {
+        id: newId,
+        name: "",
+        role: "",
+        description: "",
+        image: null,
+        imageUrl: "/placeholder.svg?height=300&width=300",
+      },
+    ])
   }
 
   // Remove team member
@@ -267,10 +275,23 @@ export function AppearanceSettings() {
 
   const handleSave = async () => {
     setIsLoading(true)
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-    console.log("Saving appearance settings:", settings)
-    console.log("Team members:", teamMembers)
-    setIsLoading(false)
+    try {
+      // Filtrar apenas as configurações que devem ser salvas (excluir files)
+      const { aboutHeroImage, aboutStoryImage, ...settingsToSave } = settings
+      
+      // Incluir dados dos membros da equipe
+      const finalSettings = {
+        ...settingsToSave,
+        teamMembers: teamMembers.map(({ image, ...member }) => member) // Remove File objects
+      }
+      
+      console.log("Saving appearance settings:", finalSettings)
+      await onSave(finalSettings)
+    } catch (error) {
+      console.error("Error saving appearance settings:", error)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const colorPresets = [
@@ -674,7 +695,7 @@ export function AppearanceSettings() {
                 </Button>
               </div>
 
-              {teamMembers.map((member, index) => (
+              {Array.isArray(teamMembers) && teamMembers.map((member, index) => (
                 <Card key={member.id} className="overflow-hidden">
                   <CardHeader className="bg-gray-50 p-4">
                     <div className="flex items-center justify-between">
@@ -774,7 +795,7 @@ export function AppearanceSettings() {
                 </Card>
               ))}
 
-              {teamMembers.length === 0 && (
+              {(!Array.isArray(teamMembers) || teamMembers.length === 0) && (
                 <div className="text-center py-8 border rounded-lg bg-gray-50">
                   <p className="text-gray-500">Nenhum membro da equipe adicionado.</p>
                   <Button onClick={addTeamMember} variant="outline" className="mt-2">

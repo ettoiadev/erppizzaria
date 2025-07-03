@@ -1,6 +1,6 @@
 "use client"
 
-import type React from "react"
+
 import { useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -15,9 +15,10 @@ interface DeliveryPersonModalProps {
   deliveryPerson?: DeliveryPerson | null
   isOpen: boolean
   onClose: () => void
+  onSave: (data: any) => void
 }
 
-export function DeliveryPersonModal({ deliveryPerson, isOpen, onClose }: DeliveryPersonModalProps) {
+export function DeliveryPersonModal({ deliveryPerson, isOpen, onClose, onSave }: DeliveryPersonModalProps) {
   const isEditing = !!deliveryPerson
   const [formData, setFormData] = useState({
     name: deliveryPerson?.name || "",
@@ -25,6 +26,7 @@ export function DeliveryPersonModal({ deliveryPerson, isOpen, onClose }: Deliver
     phone: deliveryPerson?.phone || "",
     vehicleType: deliveryPerson?.vehicleType || "motorcycle",
     vehiclePlate: deliveryPerson?.vehiclePlate || "",
+    currentLocation: deliveryPerson?.currentLocation || "",
     status: deliveryPerson?.status || "available",
   })
 
@@ -34,9 +36,24 @@ export function DeliveryPersonModal({ deliveryPerson, isOpen, onClose }: Deliver
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    // In production, make API call to save delivery person
-    console.log("Saving delivery person:", formData)
-    onClose()
+    onSave(formData)
+  }
+
+  // Função para formatar data no padrão brasileiro
+  const formatDate = (dateString: string) => {
+    try {
+      const date = new Date(dateString)
+      if (isNaN(date.getTime())) {
+        return "Data inválida"
+      }
+      return date.toLocaleDateString("pt-BR", {
+        day: "2-digit",
+        month: "2-digit", 
+        year: "numeric"
+      })
+    } catch (error) {
+      return "Data inválida"
+    }
   }
 
   const getStatusColor = (status: string) => {
@@ -156,6 +173,16 @@ export function DeliveryPersonModal({ deliveryPerson, isOpen, onClose }: Deliver
                   required
                 />
               </div>
+
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="currentLocation">Localização Atual</Label>
+                <Input
+                  id="currentLocation"
+                  value={formData.currentLocation}
+                  onChange={(e) => handleInputChange("currentLocation", e.target.value)}
+                  placeholder="Ex: Centro da cidade, Bairro Exemplo"
+                />
+              </div>
             </div>
           </div>
 
@@ -174,7 +201,7 @@ export function DeliveryPersonModal({ deliveryPerson, isOpen, onClose }: Deliver
                   </div>
                   <div className="text-center p-4 bg-yellow-50 rounded-lg">
                     <Star className="w-8 h-8 text-yellow-600 mx-auto mb-2" />
-                    <div className="text-2xl font-bold text-yellow-600">{deliveryPerson.averageRating}</div>
+                    <div className="text-2xl font-bold text-yellow-600">⭐ {Number(deliveryPerson.averageRating || 0).toFixed(1)}</div>
                     <div className="text-sm text-gray-600">Avaliação Média</div>
                   </div>
                   <div className="text-center p-4 bg-green-50 rounded-lg">
@@ -197,7 +224,7 @@ export function DeliveryPersonModal({ deliveryPerson, isOpen, onClose }: Deliver
                     <div>
                       <div className="text-sm text-gray-600">Cadastrado em</div>
                       <div className="font-medium">
-                        {new Date(deliveryPerson.createdAt).toLocaleDateString("pt-BR")}
+                        {formatDate(deliveryPerson.createdAt)}
                       </div>
                     </div>
                   </div>

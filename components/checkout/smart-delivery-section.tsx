@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -48,6 +48,34 @@ export function SmartDeliverySection({ userId, onAddressSelect, selectedAddress 
   const [makeDefault, setMakeDefault] = useState(false)
   const [savingAddress, setSavingAddress] = useState(false)
 
+  // Selecionar um endereço - declarada antes dos useEffects
+  const selectAddress = useCallback((address: Address) => {
+    console.log("[SmartDeliverySection] Selecionando endereço:", address)
+    
+    const formattedAddress = `${address.street}, ${address.number}${
+      address.complement ? `, ${address.complement}` : ""
+    } - ${address.neighborhood}, ${address.city}/${address.state} - CEP: ${address.zip_code}`
+
+    const addressData = {
+      zipCode: address.zip_code,
+      street: address.street,
+      number: address.number,
+      complement: address.complement || "",
+      neighborhood: address.neighborhood,
+      city: address.city,
+      state: address.state,
+    }
+
+    onAddressSelect({
+      name: address.name,
+      phone: "", // Será preenchido pelo componente pai com dados do usuário
+      address: formattedAddress,
+      addressData,
+    })
+
+    setView("default")
+  }, [onAddressSelect])
+
   // Carregar endereços do usuário
   useEffect(() => {
     async function loadAddresses() {
@@ -71,8 +99,9 @@ export function SmartDeliverySection({ userId, onAddressSelect, selectedAddress 
           setAddresses(data.addresses)
 
           // Se houver um endereço padrão, selecione-o automaticamente
-          const defaultAddress = data.addresses.find((addr: Address) => addr.is_default)
-          if (defaultAddress && view === "default") {
+          const defaultAddress = data.addresses.find((addr: Address) => addr.is_default) || data.addresses[0]
+          if (defaultAddress && !selectedAddress?.zipCode) {
+            console.log("[SmartDeliverySection] Selecionando endereço padrão automaticamente:", defaultAddress)
             selectAddress(defaultAddress)
           }
 
@@ -95,32 +124,18 @@ export function SmartDeliverySection({ userId, onAddressSelect, selectedAddress 
     }
 
     loadAddresses()
-  }, [userId])
+  }, [userId, selectAddress, selectedAddress?.zipCode])
 
-  // Selecionar um endereço
-  const selectAddress = (address: Address) => {
-    const formattedAddress = `${address.street}, ${address.number}${
-      address.complement ? `, ${address.complement}` : ""
-    } - ${address.neighborhood}, ${address.city}/${address.state} - CEP: ${address.zip_code}`
-
-    const addressData = {
-      zipCode: address.zip_code,
-      street: address.street,
-      number: address.number,
-      complement: address.complement || "",
-      neighborhood: address.neighborhood,
-      city: address.city,
-      state: address.state,
+  // Selecionar automaticamente endereço padrão quando necessário
+  useEffect(() => {
+    if (!loading && addresses.length > 0 && view === "default" && !selectedAddress?.zipCode) {
+      const selectedAddr = addresses.find((a) => a.is_default) || addresses[0]
+      if (selectedAddr) {
+        console.log("[SmartDeliverySection] Selecionando endereço padrão via useEffect:", selectedAddr)
+        selectAddress(selectedAddr)
+      }
     }
-
-    onAddressSelect({
-      name: address.name,
-      address: formattedAddress,
-      addressData,
-    })
-
-    setView("default")
-  }
+  }, [addresses, view, selectedAddress?.zipCode, loading, selectAddress])
 
   // Salvar novo endereço
   const saveNewAddress = async () => {
@@ -329,7 +344,7 @@ export function SmartDeliverySection({ userId, onAddressSelect, selectedAddress 
     )
   }
 
-  // View === "default"
+  // View === "default"  
   const selectedAddr = addresses.find((a) => a.is_default) || addresses[0]
 
   if (!selectedAddr) {

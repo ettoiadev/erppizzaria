@@ -1,37 +1,74 @@
+-- Criar enum para status do pedido
+DO $$ BEGIN
+    CREATE TYPE order_status AS ENUM (
+        'RECEIVED',
+        'PREPARING',
+        'ON_THE_WAY',
+        'DELIVERED',
+        'CANCELLED'
+    );
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+-- Criar enum para status do pagamento
+DO $$ BEGIN
+    CREATE TYPE payment_status AS ENUM (
+        'PENDING',
+        'PAID',
+        'FAILED',
+        'REFUNDED'
+    );
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+-- Criar enum para método de pagamento
+DO $$ BEGIN
+    CREATE TYPE payment_method AS ENUM (
+        'CASH',
+        'CREDIT_CARD',
+        'DEBIT_CARD',
+        'PIX'
+    );
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
 -- Criar tabela de pedidos
 CREATE TABLE IF NOT EXISTS orders (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-  status VARCHAR(20) DEFAULT 'RECEIVED' CHECK (status IN ('RECEIVED', 'PREPARING', 'ON_THE_WAY', 'DELIVERED', 'CANCELLED')),
-  total DECIMAL(10,2) NOT NULL,
-  subtotal DECIMAL(10,2) NOT NULL,
-  delivery_fee DECIMAL(10,2) DEFAULT 0,
-  discount DECIMAL(10,2) DEFAULT 0,
-  payment_method VARCHAR(50) NOT NULL,
-  payment_status VARCHAR(20) DEFAULT 'PENDING' CHECK (payment_status IN ('PENDING', 'PAID', 'FAILED', 'REFUNDED')),
-  delivery_address TEXT NOT NULL,
-  delivery_phone VARCHAR(20) NOT NULL,
-  delivery_instructions TEXT,
-  estimated_delivery_time TIMESTAMP WITH TIME ZONE,
-  delivered_at TIMESTAMP WITH TIME ZONE,
-  cancelled_at TIMESTAMP WITH TIME ZONE,
-  cancellation_reason TEXT,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID REFERENCES auth.users(id),
+    status order_status DEFAULT 'RECEIVED',
+    total DECIMAL(10,2) NOT NULL,
+    subtotal DECIMAL(10,2) NOT NULL,
+    delivery_fee DECIMAL(10,2) DEFAULT 0,
+    discount DECIMAL(10,2) DEFAULT 0,
+    payment_method payment_method NOT NULL,
+    payment_status payment_status DEFAULT 'PENDING',
+    delivery_address TEXT NOT NULL,
+    delivery_phone VARCHAR(20) NOT NULL,
+    delivery_instructions TEXT,
+    estimated_delivery_time TIMESTAMP WITH TIME ZONE,
+    delivered_at TIMESTAMP WITH TIME ZONE,
+    cancelled_at TIMESTAMP WITH TIME ZONE,
+    cancellation_reason TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Criar tabela de itens do pedido
 CREATE TABLE IF NOT EXISTS order_items (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  order_id UUID REFERENCES orders(id) ON DELETE CASCADE,
-  product_id UUID REFERENCES products(id) ON DELETE CASCADE,
-  quantity INTEGER NOT NULL CHECK (quantity > 0),
-  unit_price DECIMAL(10,2) NOT NULL,
-  total_price DECIMAL(10,2) NOT NULL,
-  size VARCHAR(50),
-  toppings TEXT[], -- Array de toppings
-  special_instructions TEXT,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    order_id UUID REFERENCES orders(id) ON DELETE CASCADE,
+    product_id UUID REFERENCES products(id),
+    quantity INTEGER NOT NULL,
+    unit_price DECIMAL(10,2) NOT NULL,
+    total_price DECIMAL(10,2) NOT NULL,
+    size VARCHAR(50),
+    toppings JSONB DEFAULT '[]'::jsonb,
+    special_instructions TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Criar tabela de histórico de status dos pedidos
@@ -45,7 +82,7 @@ CREATE TABLE IF NOT EXISTS order_status_history (
   notes TEXT
 );
 
--- Criar índices para performance
+-- Criar índices
 CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(user_id);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
 CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at DESC);
@@ -53,7 +90,7 @@ CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id);
 CREATE INDEX IF NOT EXISTS idx_order_items_product_id ON order_items(product_id);
 CREATE INDEX IF NOT EXISTS idx_order_status_history_order_id ON order_status_history(order_id);
 
--- Trigger para atualizar updated_at automaticamente
+-- Criar função para atualizar o timestamp de atualização
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -62,9 +99,11 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
-CREATE TRIGGER update_orders_updated_at 
-    BEFORE UPDATE ON orders 
-    FOR EACH ROW 
+-- Criar trigger para atualizar o timestamp
+DROP TRIGGER IF EXISTS update_orders_updated_at ON orders;
+CREATE TRIGGER update_orders_updated_at
+    BEFORE UPDATE ON orders
+    FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
 -- Trigger para registrar mudanças de status

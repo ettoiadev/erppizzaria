@@ -94,7 +94,7 @@ export default function FavoritesPage() {
                     <span className="text-sm text-gray-600 ml-1">{product.rating}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-xl font-bold text-primary">R$ {product.price.toFixed(2)}</span>
+                    <span className="text-xl font-bold text-primary">R$ {Number(product.price).toFixed(2)}</span>
                     <Button size="sm" onClick={() => handleAddToCart(product)}>
                       <ShoppingCart className="w-4 h-4 mr-2" />
                       Adicionar
@@ -112,7 +112,7 @@ export default function FavoritesPage() {
               Adicione produtos aos seus favoritos para encontrá-los facilmente aqui.
             </p>
             <Button asChild>
-              <a href="/menu">Explorar Cardápio</a>
+              <a href="/cardapio">Explorar Cardápio</a>
             </Button>
           </div>
         )}

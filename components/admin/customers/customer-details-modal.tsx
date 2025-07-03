@@ -41,6 +41,40 @@ export function CustomerDetailsModal({ customer, isOpen, onClose }: CustomerDeta
 
   const averageOrderValue = customer.totalOrders > 0 ? customer.totalSpent / customer.totalOrders : 0
 
+  // Calcular dias desde última atividade
+  const calculateDaysSinceLastActivity = () => {
+    const now = new Date()
+    const createdAt = new Date(customer.createdAt)
+    const lastOrderDate = customer.lastOrderAt ? new Date(customer.lastOrderAt) : createdAt
+    
+    // Usar a data mais recente entre criação da conta e último pedido
+    const lastActivityDate = lastOrderDate > createdAt ? lastOrderDate : createdAt
+    const daysSinceLastActivity = Math.floor((now.getTime() - lastActivityDate.getTime()) / (1000 * 60 * 60 * 24))
+    
+    return daysSinceLastActivity
+  }
+
+  const daysSinceLastActivity = calculateDaysSinceLastActivity()
+
+  const getCustomerNotes = () => {
+    if (customer.status === "vip") {
+      return "Cliente VIP com alta frequência de pedidos e valor elevado."
+    } else if (customer.status === "active") {
+      if (customer.totalOrders > 0) {
+        return "Cliente ativo com pedidos regulares."
+      } else {
+        return `Cliente cadastrado há ${daysSinceLastActivity} dias. Ainda não fez pedidos.`
+      }
+    } else {
+      // Status inactive
+      if (daysSinceLastActivity >= 30) {
+        return `Cliente inativo há ${daysSinceLastActivity} dias.`
+      } else {
+        return `Cliente cadastrado há ${daysSinceLastActivity} dias. Ainda não fez pedidos.`
+      }
+    }
+  }
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -145,11 +179,7 @@ export function CustomerDetailsModal({ customer, isOpen, onClose }: CustomerDeta
             <h3 className="text-lg font-semibold mb-3">Observações</h3>
             <div className="p-4 bg-gray-50 rounded-lg">
               <p className="text-gray-600 text-sm">
-                {customer.status === "vip"
-                  ? "Cliente VIP com alta frequência de pedidos e valor elevado."
-                  : customer.status === "active"
-                    ? "Cliente ativo com pedidos regulares."
-                    : "Cliente inativo há mais de 30 dias."}
+                {getCustomerNotes()}
               </p>
             </div>
           </div>

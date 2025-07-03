@@ -1,30 +1,73 @@
-# williamdiskpizza
+# 🍕 William Disk Pizza - Sistema de Delivery
 
-*Automatically synced with your [v0.dev](https://v0.dev) deployments*
+Sistema completo de delivery de pizza desenvolvido com Next.js 14 e PostgreSQL.
 
-[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/ettostickers-7463s-projects/v0-pizzeria-web-application)
-[![Built with v0](https://img.shields.io/badge/Built%20with-v0.dev-black?style=for-the-badge)](https://v0.dev/chat/projects/ohCqlaqNSAl)
+## 🚀 Tecnologias Utilizadas
 
-## Overview
+- **Frontend**: Next.js 14, React 18, TypeScript
+- **Backend**: Next.js API Routes, PostgreSQL direto
+- **Autenticação**: JWT com bcrypt
+- **Banco de Dados**: PostgreSQL direto (sem Supabase)
+- **Styling**: Tailwind CSS, Radix UI
+- **Estado**: React Context API, TanStack Query
 
-This repository will stay in sync with your deployed chats on [v0.dev](https://v0.dev).
-Any changes you make to your deployed app will be automatically pushed to this repository from [v0.dev](https://v0.dev).
+## 🎯 Funcionalidades
 
-## Deployment
+### Para Clientes
+- ✅ Cadastro e login de usuários
+- ✅ Navegação de cardápio por categorias
+- ✅ Carrinho de compras
+- ✅ Sistema de pedidos
+- ✅ Acompanhamento de status
+- ✅ Histórico de pedidos
+- ✅ Gerenciamento de endereços
 
-Your project is live at:
+### Para Administradores
+- ✅ Dashboard administrativo
+- ✅ Gerenciamento de produtos e categorias
+- ✅ Gerenciamento de pedidos
+- ✅ Relatórios de vendas
+- ✅ Configurações do sistema
 
-**[https://vercel.com/ettostickers-7463s-projects/v0-pizzeria-web-application](https://vercel.com/ettostickers-7463s-projects/v0-pizzeria-web-application)**
+## 🔧 Configuração
 
-## Build your app
+### 1. Instale as dependências
+```bash
+npm install
+```
 
-Continue building your app on:
+### 2. Configure as variáveis de ambiente
+Crie um arquivo `.env.local`:
+```env
+DATABASE_URL=postgresql://usuario:senha@localhost:5432/williamdiskpizza
+JWT_SECRET=sua_chave_secreta_super_segura_aqui
+NODE_ENV=development
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
+```
 
-**[https://v0.dev/chat/projects/ohCqlaqNSAl](https://v0.dev/chat/projects/ohCqlaqNSAl)**
+### 3. Configure o Banco PostgreSQL
+Execute o script completo no PostgreSQL:
+```bash
+# Execute no seu cliente PostgreSQL
+scripts/setup-postgresql-complete.sql
+```
 
-## How It Works
+### 4. Execute a aplicação
+```bash
+npm run dev
+```
 
-1. Create and modify your project using [v0.dev](https://v0.dev)
-2. Deploy your chats from the v0 interface
-3. Changes are automatically pushed to this repository
-4. Vercel deploys the latest version from this repository
+## 👨‍💼 Acesso Admin
+- Email: `admin@williamdiskpizza.com`
+- Senha: `admin123`
+- URL: `http://localhost:3000/admin`
+
+## 📁 Estrutura
+```
+williamdiskpizza/
+├── app/                    # Pages e API Routes
+├── components/            # Componentes React
+├── lib/                   # Utilitários (auth.ts, db.ts)
+├── scripts/               # Scripts SQL
+└── types/                 # Definições TypeScript
+```

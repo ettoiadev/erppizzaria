@@ -5,7 +5,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
-import { Calendar, DollarSign, Package } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Calendar, DollarSign, Package, RefreshCw } from "lucide-react"
 
 interface CustomerOrderHistoryProps {
   customerId: string
@@ -13,62 +14,59 @@ interface CustomerOrderHistoryProps {
   onClose: () => void
 }
 
+interface OrderItem {
+  name: string
+  quantity: number
+  price: number
+}
+
 interface Order {
   id: string
-  date: string
+  created_at: string
   status: string
   total: number
-  items: Array<{
-    name: string
+  payment_method?: string
+  order_items: Array<{
     quantity: number
-    price: number
+    price: string
+    products: {
+      name: string
+    }
   }>
-  paymentMethod: string
 }
 
 export function CustomerOrderHistory({ customerId, isOpen, onClose }: CustomerOrderHistoryProps) {
-  // Mock order history data
-  const mockOrders: Order[] = [
-    {
-      id: "1001",
-      date: "2024-01-20T18:45:00Z",
-      status: "DELIVERED",
-      total: 45.9,
-      items: [
-        { name: "Pizza Margherita", quantity: 1, price: 32.9 },
-        { name: "Coca-Cola 350ml", quantity: 2, price: 5.9 },
-      ],
-      paymentMethod: "PIX",
-    },
-    {
-      id: "1002",
-      date: "2024-01-18T20:15:00Z",
-      status: "DELIVERED",
-      total: 38.9,
-      items: [{ name: "Pizza Pepperoni", quantity: 1, price: 38.9 }],
-      paymentMethod: "Cartão",
-    },
-    {
-      id: "1003",
-      date: "2024-01-15T19:30:00Z",
-      status: "DELIVERED",
-      total: 67.8,
-      items: [
-        { name: "Pizza Quatro Queijos", quantity: 1, price: 45.9 },
-        { name: "Brownie de Chocolate", quantity: 1, price: 12.9 },
-        { name: "Água Mineral 500ml", quantity: 2, price: 3.5 },
-      ],
-      paymentMethod: "Dinheiro",
-    },
-  ]
+  // Mapeamento de métodos de pagamento do backend para português
+  const mapPaymentMethodToPortuguese = (backendValue: string): string => {
+    const paymentMapping: Record<string, string> = {
+      "PIX": "PIX",
+      "CASH": "Dinheiro",
+      "CREDIT_CARD": "Cartão de Crédito", 
+      "DEBIT_CARD": "Cartão de Débito",
+      "CARD_ON_DELIVERY": "Cartão na Entrega"
+    }
+    return paymentMapping[backendValue] || backendValue
+  }
 
-  const { data: orders = mockOrders, isLoading } = useQuery({
+  // Buscar pedidos reais do banco de dados PostgreSQL
+  const { data: orders = [], isLoading, error, refetch } = useQuery({
     queryKey: ["customer-orders", customerId],
     queryFn: async () => {
-      // In production, fetch from API
-      return mockOrders
+      console.log("Buscando pedidos do cliente:", customerId)
+      
+      const response = await fetch(`/api/orders?userId=${customerId}`)
+      
+      if (!response.ok) {
+        throw new Error(`Erro ${response.status}: ${response.statusText}`)
+      }
+      
+      const data = await response.json()
+      console.log("Pedidos do cliente carregados:", data.orders?.length || 0)
+      
+      return data.orders || []
     },
-    enabled: isOpen,
+    enabled: isOpen && !!customerId,
+    staleTime: 1000 * 60 * 5, // 5 minutos
   })
 
   const getStatusColor = (status: string) => {
@@ -101,16 +99,41 @@ export function CustomerOrderHistory({ customerId, isOpen, onClose }: CustomerOr
     }
   }
 
+  const formatOrderItems = (orderItems: Order['order_items']): OrderItem[] => {
+    return orderItems.map(item => ({
+      name: item.products?.name || 'Produto',
+      quantity: item.quantity,
+      price: parseFloat(item.price || '0')
+    }))
+  }
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Histórico de Pedidos</DialogTitle>
+          <DialogTitle className="flex items-center justify-between">
+            Histórico de Pedidos
+            <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isLoading}>
+              <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
+              Atualizar
+            </Button>
+          </DialogTitle>
         </DialogHeader>
 
         {isLoading ? (
           <div className="flex items-center justify-center h-32">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            <div className="text-center">
+              <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-gray-400" />
+              <p className="text-gray-600">Carregando pedidos...</p>
+            </div>
+          </div>
+        ) : error ? (
+          <div className="text-center py-8">
+            <p className="text-red-600 mb-4">Erro ao carregar pedidos: {error.message}</p>
+            <Button onClick={() => refetch()}>
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Tentar Novamente
+            </Button>
           </div>
         ) : (
           <div className="space-y-4">
@@ -120,49 +143,61 @@ export function CustomerOrderHistory({ customerId, isOpen, onClose }: CustomerOr
                 <p className="text-gray-500">Nenhum pedido encontrado para este cliente.</p>
               </div>
             ) : (
-              orders.map((order) => (
-                <Card key={order.id}>
-                  <CardContent className="p-6">
-                    <div className="flex justify-between items-start mb-4">
-                      <div>
-                        <h3 className="text-lg font-semibold">Pedido #{order.id}</h3>
-                        <div className="flex items-center gap-2 text-sm text-gray-600 mt-1">
-                          <Calendar className="w-4 h-4" />
-                          <span>{new Date(order.date).toLocaleString("pt-BR")}</span>
+              orders.map((order: Order) => {
+                const orderItems = formatOrderItems(order.order_items || [])
+                
+                return (
+                  <Card key={order.id}>
+                    <CardContent className="p-6">
+                      <div className="flex justify-between items-start mb-4">
+                        <div>
+                          <h3 className="text-lg font-semibold">Pedido #{order.id.slice(-8)}</h3>
+                          <div className="flex items-center gap-2 text-sm text-gray-600 mt-1">
+                            <Calendar className="w-4 h-4" />
+                            <span>{new Date(order.created_at).toLocaleString("pt-BR")}</span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <Badge className={getStatusColor(order.status)}>{getStatusLabel(order.status)}</Badge>
+                          <div className="text-lg font-bold text-primary mt-1">R$ {Number(order.total || 0).toFixed(2)}</div>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <Badge className={getStatusColor(order.status)}>{getStatusLabel(order.status)}</Badge>
-                        <div className="text-lg font-bold text-primary mt-1">R$ {order.total.toFixed(2)}</div>
-                      </div>
-                    </div>
 
-                    <Separator className="my-4" />
+                      <Separator className="my-4" />
 
-                    <div className="space-y-2">
-                      <h4 className="font-medium">Itens do Pedido:</h4>
-                      {order.items.map((item, index) => (
-                        <div key={index} className="flex justify-between text-sm">
-                          <span>
-                            {item.quantity}x {item.name}
+                      {orderItems.length > 0 ? (
+                        <div className="space-y-2">
+                          <h4 className="font-medium">Itens do Pedido:</h4>
+                          {orderItems.map((item, index) => (
+                            <div key={index} className="flex justify-between text-sm">
+                              <span>
+                                {item.quantity}x {item.name}
+                              </span>
+                              <span>R$ {(item.price * item.quantity).toFixed(2)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-sm text-gray-500">
+                          Itens do pedido não disponíveis
+                        </div>
+                      )}
+
+                      <Separator className="my-4" />
+
+                      <div className="flex justify-between items-center text-sm">
+                        <div className="flex items-center gap-2">
+                          <DollarSign className="w-4 h-4 text-gray-500" />
+                          <span className="text-gray-600">
+                            Pagamento: {order.payment_method ? mapPaymentMethodToPortuguese(order.payment_method) : 'Não informado'}
                           </span>
-                          <span>R$ {(item.price * item.quantity).toFixed(2)}</span>
                         </div>
-                      ))}
-                    </div>
-
-                    <Separator className="my-4" />
-
-                    <div className="flex justify-between items-center text-sm">
-                      <div className="flex items-center gap-2">
-                        <DollarSign className="w-4 h-4 text-gray-500" />
-                        <span className="text-gray-600">Pagamento: {order.paymentMethod}</span>
+                        <div className="font-medium">Total: R$ {Number(order.total || 0).toFixed(2)}</div>
                       </div>
-                      <div className="font-medium">Total: R$ {order.total.toFixed(2)}</div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
+                    </CardContent>
+                  </Card>
+                )
+              })
             )}
           </div>
         )}

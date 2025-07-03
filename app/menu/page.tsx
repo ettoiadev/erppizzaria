@@ -15,7 +15,7 @@ export default function MenuPage() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [isCartOpen, setIsCartOpen] = useState(false)
 
-  const { data: products, isLoading } = useQuery({
+  const { data: productsData, isLoading } = useQuery({
     queryKey: ["products"],
     queryFn: async () => {
       const response = await fetch("/api/products")
@@ -24,7 +24,7 @@ export default function MenuPage() {
     },
   })
 
-  const { data: categories } = useQuery({
+  const { data: categoriesData } = useQuery({
     queryKey: ["categories"],
     queryFn: async () => {
       const response = await fetch("/api/categories")
@@ -33,7 +33,10 @@ export default function MenuPage() {
     },
   })
 
-  const filteredProducts = products?.filter(
+  const products = Array.isArray(productsData) ? productsData : (productsData?.products || [])
+  const categories = categoriesData?.categories || []
+
+  const filteredProducts = (products || []).filter(
     (product: Product) => selectedCategory === "all" || product.categoryId === selectedCategory,
   )
 
@@ -56,12 +59,12 @@ export default function MenuPage() {
         </div>
 
         <CategoryFilter
-          categories={categories || []}
+          categories={categories}
           selectedCategory={selectedCategory}
           onCategoryChange={setSelectedCategory}
         />
 
-        <ProductGrid products={filteredProducts || []} onProductClick={setSelectedProduct} />
+        <ProductGrid products={filteredProducts} onProductClick={setSelectedProduct} />
       </div>
 
       {selectedProduct && (

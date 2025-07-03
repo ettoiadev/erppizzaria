@@ -8,23 +8,28 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Save, Bell, Mail, Smartphone, MessageSquare } from "lucide-react"
 
-export function NotificationSettings() {
+interface NotificationSettingsProps {
+  settings: Record<string, any>
+  onSave: (settings: Record<string, any>) => Promise<boolean>
+}
+
+export function NotificationSettings({ settings: initialSettings, onSave }: NotificationSettingsProps) {
   const [settings, setSettings] = useState({
-    emailNotifications: true,
-    smsNotifications: false,
-    pushNotifications: true,
-    whatsappNotifications: false,
-    newOrderNotification: true,
-    orderStatusNotification: true,
-    lowStockNotification: true,
-    dailyReportNotification: true,
-    smtpHost: "smtp.gmail.com",
-    smtpPort: 587,
-    smtpUser: "",
-    smtpPassword: "",
-    twilioAccountSid: "",
-    twilioAuthToken: "",
-    whatsappApiKey: "",
+    emailNotifications: initialSettings.emailNotifications ?? true,
+    smsNotifications: initialSettings.smsNotifications ?? false,
+    pushNotifications: initialSettings.pushNotifications ?? true,
+    whatsappNotifications: initialSettings.whatsappNotifications ?? false,
+    newOrderNotification: initialSettings.newOrderNotification ?? true,
+    orderStatusNotification: initialSettings.orderStatusNotification ?? true,
+    lowStockNotification: initialSettings.lowStockNotification ?? true,
+    dailyReportNotification: initialSettings.dailyReportNotification ?? true,
+    smtpHost: initialSettings.smtpHost || "smtp.gmail.com",
+    smtpPort: initialSettings.smtpPort || 587,
+    smtpUser: initialSettings.smtpUser || "",
+    smtpPassword: initialSettings.smtpPassword || "",
+    twilioAccountSid: initialSettings.twilioAccountSid || "",
+    twilioAuthToken: initialSettings.twilioAuthToken || "",
+    whatsappApiKey: initialSettings.whatsappApiKey || "",
   })
 
   const [isLoading, setIsLoading] = useState(false)
@@ -35,9 +40,14 @@ export function NotificationSettings() {
 
   const handleSave = async () => {
     setIsLoading(true)
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-    console.log("Saving notification settings:", settings)
-    setIsLoading(false)
+    try {
+      console.log("Saving notification settings:", settings)
+      await onSave(settings)
+    } catch (error) {
+      console.error("Error saving notification settings:", error)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (

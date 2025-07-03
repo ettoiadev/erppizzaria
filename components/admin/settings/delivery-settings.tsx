@@ -9,14 +9,19 @@ import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
 import { Save, MapPin, Clock, DollarSign, Plus, Trash2 } from "lucide-react"
 
-export function DeliverySettings() {
+interface DeliverySettingsProps {
+  settings: Record<string, any>
+  onSave: (settings: Record<string, any>) => Promise<boolean>
+}
+
+export function DeliverySettings({ settings: initialSettings, onSave }: DeliverySettingsProps) {
   const [settings, setSettings] = useState({
-    deliveryEnabled: true,
-    freeDeliveryMinimum: 50.0,
-    defaultDeliveryFee: 5.9,
-    maxDeliveryDistance: 10,
-    estimatedDeliveryTime: 30,
-    deliveryAreas: [
+    deliveryEnabled: initialSettings.deliveryEnabled ?? true,
+    freeDeliveryMinimum: initialSettings.freeDeliveryMinimum || 50.0,
+    defaultDeliveryFee: initialSettings.defaultDeliveryFee || 5.9,
+    maxDeliveryDistance: initialSettings.maxDeliveryDistance || 10,
+    estimatedDeliveryTime: initialSettings.estimatedDeliveryTime || 30,
+    deliveryAreas: initialSettings.deliveryAreas || [
       { name: "Centro", fee: 5.9, maxDistance: 5 },
       { name: "Jardins", fee: 7.9, maxDistance: 8 },
       { name: "Vila Madalena", fee: 6.9, maxDistance: 7 },
@@ -55,9 +60,14 @@ export function DeliverySettings() {
 
   const handleSave = async () => {
     setIsLoading(true)
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-    console.log("Saving delivery settings:", settings)
-    setIsLoading(false)
+    try {
+      console.log("Saving delivery settings:", settings)
+      await onSave(settings)
+    } catch (error) {
+      console.error("Error saving delivery settings:", error)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (

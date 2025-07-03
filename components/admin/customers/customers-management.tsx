@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { CustomerDetailsModal } from "./customer-details-modal"
 import { CustomerOrderHistory } from "./customer-order-history"
-import { Search, Eye, Phone, Mail, MapPin, Calendar, ShoppingBag } from "lucide-react"
+import { Search, Eye, Phone, Mail, MapPin, Calendar, ShoppingBag, RefreshCw } from "lucide-react"
 import type { Customer } from "@/types/admin"
 
 export function CustomersManagement() {
@@ -18,97 +18,39 @@ export function CustomersManagement() {
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
   const [showOrderHistory, setShowOrderHistory] = useState<string | null>(null)
 
-  // Mock customers data - In production, fetch from API
-  const mockCustomers: Customer[] = [
-    {
-      id: "1",
-      name: "João Silva",
-      email: "joao.silva@email.com",
-      phone: "(11) 99999-9999",
-      address: "Rua das Flores, 123 - Centro, São Paulo/SP",
-      complement: "Apto 45",
-      createdAt: "2024-01-15T10:30:00Z",
-      lastOrderAt: "2024-01-20T18:45:00Z",
-      totalOrders: 15,
-      totalSpent: 487.5,
-      status: "active",
-      favoriteItems: ["Pizza Margherita", "Coca-Cola 350ml"],
-    },
-    {
-      id: "2",
-      name: "Maria Santos",
-      email: "maria.santos@email.com",
-      phone: "(11) 88888-8888",
-      address: "Av. Paulista, 1000 - Bela Vista, São Paulo/SP",
-      complement: "Conjunto 12",
-      createdAt: "2024-01-10T14:20:00Z",
-      lastOrderAt: "2024-01-19T20:15:00Z",
-      totalOrders: 8,
-      totalSpent: 234.8,
-      status: "active",
-      favoriteItems: ["Pizza Pepperoni", "Pizza Quatro Queijos"],
-    },
-    {
-      id: "3",
-      name: "Pedro Costa",
-      email: "pedro.costa@email.com",
-      phone: "(11) 77777-7777",
-      address: "Rua Augusta, 500 - Consolação, São Paulo/SP",
-      complement: "",
-      createdAt: "2023-12-20T09:15:00Z",
-      lastOrderAt: "2024-01-18T19:30:00Z",
-      totalOrders: 25,
-      totalSpent: 892.3,
-      status: "vip",
-      favoriteItems: ["Pizza Calabresa", "Brownie de Chocolate"],
-    },
-    {
-      id: "4",
-      name: "Ana Oliveira",
-      email: "ana.oliveira@email.com",
-      phone: "(11) 66666-6666",
-      address: "Rua Oscar Freire, 200 - Jardins, São Paulo/SP",
-      complement: "Casa 2",
-      createdAt: "2023-11-05T16:45:00Z",
-      lastOrderAt: "2023-12-15T21:00:00Z",
-      totalOrders: 3,
-      totalSpent: 89.7,
-      status: "inactive",
-      favoriteItems: ["Pizza Margherita"],
-    },
-    {
-      id: "5",
-      name: "Carlos Ferreira",
-      email: "carlos.ferreira@email.com",
-      phone: "(11) 55555-5555",
-      address: "Rua da Consolação, 800 - Centro, São Paulo/SP",
-      complement: "Sala 101",
-      createdAt: "2024-01-01T12:00:00Z",
-      lastOrderAt: "2024-01-21T17:20:00Z",
-      totalOrders: 12,
-      totalSpent: 356.4,
-      status: "active",
-      favoriteItems: ["Pizza Portuguesa", "Água Mineral 500ml"],
-    },
-  ]
-
-  const { data: customers = mockCustomers, isLoading } = useQuery({
+  // Buscar clientes reais do banco de dados PostgreSQL
+  const { data: customersData, isLoading, error, refetch } = useQuery({
     queryKey: ["customers"],
     queryFn: async () => {
-      // In production, fetch from API
-      return mockCustomers
+      console.log("Buscando clientes da API...")
+      
+      const response = await fetch('/api/customers')
+      
+      if (!response.ok) {
+        throw new Error(`Erro ${response.status}: ${response.statusText}`)
+      }
+      
+      const data = await response.json()
+      console.log("Clientes carregados:", data.customers?.length || 0)
+      
+      return data
     },
+    refetchOnWindowFocus: false,
+    staleTime: 1000 * 60 * 5, // 5 minutos
   })
+
+  const customers = customersData?.customers || []
 
   // Filter and sort customers
   const filteredCustomers = customers
     .filter(
-      (customer) =>
-        customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        customer.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        customer.phone.includes(searchTerm),
+      (customer: Customer) =>
+        (customer.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (customer.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (customer.phone || '').includes(searchTerm) ||
+        (customer.address || '').toLowerCase().includes(searchTerm.toLowerCase()),
     )
-    .sort((a, b) => {
+    .sort((a: Customer, b: Customer) => {
       switch (sortBy) {
         case "name":
           return a.name.localeCompare(b.name)
@@ -148,10 +90,29 @@ export function CustomersManagement() {
     }
   }
 
+  const handleRefresh = () => {
+    refetch()
+  }
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <div className="text-center">
+          <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-gray-400" />
+          <p className="text-gray-600">Carregando clientes...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-red-600 mb-4">Erro ao carregar clientes: {error.message}</p>
+        <Button onClick={handleRefresh}>
+          <RefreshCw className="w-4 h-4 mr-2" />
+          Tentar Novamente
+        </Button>
       </div>
     )
   }
@@ -161,8 +122,12 @@ export function CustomersManagement() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Gerenciar Clientes</h1>
-          <p className="text-gray-600">Visualize e gerencie informações dos clientes</p>
+          <p className="text-gray-600">Visualize e gerencie informações dos clientes cadastrados</p>
         </div>
+        <Button variant="outline" onClick={handleRefresh} disabled={isLoading}>
+          <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
+          Atualizar
+        </Button>
       </div>
 
       {/* Stats Cards */}
@@ -186,7 +151,7 @@ export function CustomersManagement() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Clientes Ativos</p>
-                <p className="text-2xl font-bold">{customers.filter((c) => c.status === "active").length}</p>
+                <p className="text-2xl font-bold">{customers.filter((c: Customer) => c.status === "active").length}</p>
               </div>
               <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
                 <ShoppingBag className="w-4 h-4 text-green-600" />
@@ -200,7 +165,7 @@ export function CustomersManagement() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Clientes VIP</p>
-                <p className="text-2xl font-bold">{customers.filter((c) => c.status === "vip").length}</p>
+                <p className="text-2xl font-bold">{customers.filter((c: Customer) => c.status === "vip").length}</p>
               </div>
               <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center">
                 <ShoppingBag className="w-4 h-4 text-yellow-600" />
@@ -215,7 +180,7 @@ export function CustomersManagement() {
               <div>
                 <p className="text-sm text-gray-600">Receita Total</p>
                 <p className="text-2xl font-bold">
-                  R$ {customers.reduce((sum, c) => sum + c.totalSpent, 0).toFixed(2)}
+                  R$ {customers.reduce((sum: number, c: Customer) => sum + Number(c.totalSpent || 0), 0).toFixed(2)}
                 </p>
               </div>
               <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
@@ -255,77 +220,95 @@ export function CustomersManagement() {
       </Card>
 
       {/* Customers List */}
-      <div className="grid gap-4">
-        {filteredCustomers.map((customer) => (
-          <Card key={customer.id} className="hover:shadow-md transition-shadow">
-            <CardContent className="p-6">
-              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
-                    <h3 className="text-lg font-semibold text-gray-900">{customer.name}</h3>
-                    <Badge className={getStatusColor(customer.status)}>{getStatusLabel(customer.status)}</Badge>
+      {customers.length === 0 ? (
+        <Card>
+          <CardContent className="p-12 text-center">
+            <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
+              <ShoppingBag className="w-8 h-8 text-gray-400" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Nenhum cliente cadastrado</h3>
+            <p className="text-gray-600 mb-6 max-w-md mx-auto">
+              Ainda não há clientes cadastrados no sistema. Os clientes aparecerão aqui quando se registrarem na aplicação.
+            </p>
+            <Button onClick={handleRefresh}>
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Recarregar Dados
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-4">
+          {filteredCustomers.map((customer: Customer) => (
+            <Card key={customer.id} className="hover:shadow-md transition-shadow">
+              <CardContent className="p-6">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-2">
+                      <h3 className="text-lg font-semibold text-gray-900">{customer.name}</h3>
+                      <Badge className={getStatusColor(customer.status)}>{getStatusLabel(customer.status)}</Badge>
+                    </div>
+
+                    <div className="grid md:grid-cols-2 gap-2 text-sm text-gray-600">
+                      <div className="flex items-center gap-2">
+                        <Mail className="w-4 h-4 flex-shrink-0" />
+                        <span className="truncate">{customer.email || 'Email não informado'}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Phone className="w-4 h-4 flex-shrink-0" />
+                        <span>{customer.phone || 'Telefone não informado'}</span>
+                      </div>
+                      <div className="flex items-center gap-2 md:col-span-2">
+                        <MapPin className="w-4 h-4 flex-shrink-0" />
+                        <span className="text-xs lg:text-sm break-words">{customer.address || 'Endereço não cadastrado'}</span>
+                      </div>
+                      <div className="flex items-center gap-2 md:col-span-2">
+                        <Calendar className="w-4 h-4 flex-shrink-0" />
+                        <span>Cliente desde {new Date(customer.createdAt).toLocaleDateString("pt-BR")}</span>
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="grid md:grid-cols-2 gap-2 text-sm text-gray-600">
-                    <div className="flex items-center gap-2">
-                      <Mail className="w-4 h-4" />
-                      <span>{customer.email}</span>
+                  <div className="flex flex-col lg:flex-row items-start lg:items-center gap-4">
+                    <div className="text-center lg:text-right">
+                      <div className="text-sm text-gray-600">Pedidos</div>
+                      <div className="text-xl font-bold text-primary">{customer.totalOrders}</div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Phone className="w-4 h-4" />
-                      <span>{customer.phone}</span>
+                    <div className="text-center lg:text-right">
+                      <div className="text-sm text-gray-600">Total Gasto</div>
+                      <div className="text-xl font-bold text-primary">R$ {Number(customer.totalSpent || 0).toFixed(2)}</div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <MapPin className="w-4 h-4" />
-                      <span className="truncate">{customer.address}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Calendar className="w-4 h-4" />
-                      <span>Cliente desde {new Date(customer.createdAt).toLocaleDateString("pt-BR")}</span>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" onClick={() => setSelectedCustomer(customer)}>
+                        <Eye className="w-4 h-4 mr-1" />
+                        Detalhes
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => setShowOrderHistory(customer.id)}>
+                        <ShoppingBag className="w-4 h-4 mr-1" />
+                        Pedidos
+                      </Button>
                     </div>
                   </div>
                 </div>
 
-                <div className="flex flex-col lg:flex-row items-start lg:items-center gap-4">
-                  <div className="text-center lg:text-right">
-                    <div className="text-sm text-gray-600">Pedidos</div>
-                    <div className="text-xl font-bold text-primary">{customer.totalOrders}</div>
+                {customer.favoriteItems && customer.favoriteItems.length > 0 && (
+                  <div className="mt-4 pt-4 border-t">
+                    <div className="text-sm text-gray-600 mb-2">Itens Favoritos:</div>
+                    <div className="flex flex-wrap gap-2">
+                      {customer.favoriteItems.map((item, index) => (
+                        <Badge key={index} variant="secondary" className="text-xs">
+                          {item}
+                        </Badge>
+                      ))}
+                    </div>
                   </div>
-                  <div className="text-center lg:text-right">
-                    <div className="text-sm text-gray-600">Total Gasto</div>
-                    <div className="text-xl font-bold text-primary">R$ {customer.totalSpent.toFixed(2)}</div>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => setSelectedCustomer(customer)}>
-                      <Eye className="w-4 h-4 mr-1" />
-                      Detalhes
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => setShowOrderHistory(customer.id)}>
-                      <ShoppingBag className="w-4 h-4 mr-1" />
-                      Pedidos
-                    </Button>
-                  </div>
-                </div>
-              </div>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
 
-              {customer.favoriteItems.length > 0 && (
-                <div className="mt-4 pt-4 border-t">
-                  <div className="text-sm text-gray-600 mb-2">Itens Favoritos:</div>
-                  <div className="flex flex-wrap gap-2">
-                    {customer.favoriteItems.map((item, index) => (
-                      <Badge key={index} variant="secondary" className="text-xs">
-                        {item}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {filteredCustomers.length === 0 && (
+      {filteredCustomers.length === 0 && customers.length > 0 && (
         <Card>
           <CardContent className="p-8 text-center">
             <p className="text-gray-500">Nenhum cliente encontrado com os filtros aplicados.</p>
@@ -352,4 +335,4 @@ export function CustomersManagement() {
       )}
     </div>
   )
-}
+} 

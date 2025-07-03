@@ -18,9 +18,9 @@ export default function HomePage() {
   const router = useRouter()
 
   useEffect(() => {
-    // Redirect authenticated users to menu page
+    // Redirect authenticated users to cardapio page
     if (user && !isLoading) {
-      router.push("/menu")
+      router.push("/cardapio")
     }
   }, [user, isLoading, router])
 

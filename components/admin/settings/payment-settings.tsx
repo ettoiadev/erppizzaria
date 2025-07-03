@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,31 +9,97 @@ import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
 import { Save, CreditCard, Banknote, QrCode, Smartphone } from "lucide-react"
 
-export function PaymentSettings() {
+interface PaymentSettingsProps {
+  settings: Record<string, any>
+  onSave: (settings: Record<string, any>) => Promise<boolean>
+  onMarkUnsaved?: () => void
+}
+
+export function PaymentSettings({ settings: initialSettings, onSave, onMarkUnsaved }: PaymentSettingsProps) {
   const [settings, setSettings] = useState({
-    pixEnabled: true,
-    pixKey: "contato@pizzaexpress.com",
-    cashEnabled: true,
-    cardOnDeliveryEnabled: true,
-    creditCardEnabled: false,
-    debitCardEnabled: false,
-    stripePublicKey: "",
-    stripeSecretKey: "",
-    mercadoPagoAccessToken: "",
-    paypalClientId: "",
+    pixEnabled: initialSettings.pixEnabled ?? true,
+    pixKey: initialSettings.pixKey || "12996367326",
+    cashEnabled: initialSettings.cashEnabled ?? true,
+    cardOnDeliveryEnabled: initialSettings.cardOnDeliveryEnabled ?? true,
+    creditCardEnabled: initialSettings.creditCardEnabled ?? false,
+    debitCardEnabled: initialSettings.debitCardEnabled ?? false,
+    stripePublicKey: initialSettings.stripePublicKey || "",
+    stripeSecretKey: initialSettings.stripeSecretKey || "",
+    mercadoPagoAccessToken: initialSettings.mercadoPagoAccessToken || "",
+    paypalClientId: initialSettings.paypalClientId || "",
   })
 
+  const [originalSettings, setOriginalSettings] = useState(settings)
   const [isLoading, setIsLoading] = useState(false)
 
+  // Atualizar configurações quando props mudarem
+  useEffect(() => {
+    if (initialSettings && Object.keys(initialSettings).length > 0) {
+      const mergedSettings = { ...settings, ...initialSettings }
+      setSettings(mergedSettings)
+      setOriginalSettings(mergedSettings)
+    }
+  }, [initialSettings])
+
+  // Verificar se houve mudanças
+  const hasChanges = () => {
+    return JSON.stringify(settings) !== JSON.stringify(originalSettings)
+  }
+
+  // Validação da chave PIX
+  const validatePixKey = (key: string) => {
+    if (!key) return true // Opcional
+    // Validação básica - pode ser CPF, CNPJ, email ou telefone
+    const cpfRegex = /^\d{11}$/
+    const cnpjRegex = /^\d{14}$/
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    const phoneRegex = /^\d{10,11}$/
+    
+    return cpfRegex.test(key) || cnpjRegex.test(key) || emailRegex.test(key) || phoneRegex.test(key)
+  }
+
   const handleInputChange = (field: string, value: string | boolean) => {
-    setSettings((prev) => ({ ...prev, [field]: value }))
+    setSettings((prev) => {
+      const newSettings = { ...prev, [field]: value }
+      
+      // Marcar como não salvo se houve mudança
+      setTimeout(() => {
+        if (onMarkUnsaved && JSON.stringify(newSettings) !== JSON.stringify(originalSettings)) {
+          onMarkUnsaved()
+        }
+      }, 0)
+      
+      return newSettings
+    })
   }
 
   const handleSave = async () => {
+    // Validar chave PIX se PIX estiver habilitado
+    if (settings.pixEnabled && !validatePixKey(settings.pixKey)) {
+      return
+    }
+
     setIsLoading(true)
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-    console.log("Saving payment settings:", settings)
-    setIsLoading(false)
+    try {
+      console.log("Saving payment settings:", settings)
+      const success = await onSave(settings)
+      
+      if (success) {
+        // Atualizar configurações originais após salvamento bem-sucedido
+        setOriginalSettings({ ...settings })
+      }
+    } catch (error) {
+      console.error("Error saving payment settings:", error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Verificar se pode salvar
+  const canSave = () => {
+    if (!hasChanges()) return false
+    if (settings.pixEnabled && !validatePixKey(settings.pixKey)) return false
+    return true
   }
 
   return (
@@ -49,7 +115,7 @@ export function PaymentSettings() {
                 <QrCode className="w-6 h-6 text-blue-600" />
                 <div>
                   <Label>PIX</Label>
-                  <p className="text-sm text-gray-600">Pagamento instantâneo via PIX</p>
+                  <p className="text-sm text-gray-600">Pagamento após confirmação manual</p>
                 </div>
               </div>
               <Switch
@@ -60,13 +126,17 @@ export function PaymentSettings() {
 
             {settings.pixEnabled && (
               <div className="ml-9 space-y-2">
-                <Label htmlFor="pixKey">Chave PIX</Label>
+                <Label htmlFor="pixKey">Chave PIX *</Label>
                 <Input
                   id="pixKey"
                   value={settings.pixKey}
                   onChange={(e) => handleInputChange("pixKey", e.target.value)}
-                  placeholder="Digite sua chave PIX"
+                  placeholder="CPF, CNPJ, email ou telefone"
+                  className={!validatePixKey(settings.pixKey) ? "border-red-300" : ""}
                 />
+                {!validatePixKey(settings.pixKey) && (
+                  <p className="text-sm text-red-600">Chave PIX inválida. Use CPF, CNPJ, email ou telefone.</p>
+                )}
               </div>
             )}
 
@@ -195,7 +265,7 @@ export function PaymentSettings() {
       </Card>
 
       <div className="flex justify-end">
-        <Button onClick={handleSave} disabled={isLoading}>
+        <Button onClick={handleSave} disabled={isLoading || !canSave()}>
           <Save className="w-4 h-4 mr-2" />
           {isLoading ? "Salvando..." : "Salvar Configurações"}
         </Button>

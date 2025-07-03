@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Plus } from "lucide-react"
 import type { Product } from "@/types"
 import { useState } from "react"
+import { formatCurrency } from "@/lib/utils"
 
 interface ProductCardProps {
   product: Product
@@ -32,41 +33,56 @@ export function ProductCard({ product, onClick }: ProductCardProps) {
     !product.image.startsWith("blob:") &&
     (product.image.startsWith("http") || product.image.startsWith("/"))
 
-  const shouldShowImage = product.showImage !== false && isValidImageUrl && !imageError
+  // Determina se deve mostrar a área da imagem
+  const shouldShowImageArea = product.showImage !== false && isValidImageUrl
+  
+  // Determina se deve mostrar a imagem real (sem erro de carregamento)
+  const shouldShowImage = shouldShowImageArea && !imageError
 
   return (
     <Card className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer group">
-      <div className="aspect-square overflow-hidden bg-gray-100 flex items-center justify-center" onClick={onClick}>
-        {shouldShowImage ? (
-          <img
-            src={product.image || "/placeholder.svg"}
-            alt={product.name}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-            onError={handleImageError}
-            onLoad={handleImageLoad}
-            style={{ display: imageLoading ? "none" : "block" }}
-          />
-        ) : null}
+      {/* Área da imagem - só renderiza se showImage for true E houver URL válida */}
+      {shouldShowImageArea && (
+        <div className="h-[150px] overflow-hidden bg-gray-100 flex items-center justify-center" onClick={onClick}>
+          {shouldShowImage && (
+            <img
+              src={product.image || "/placeholder.svg"}
+              alt={product.name}
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+              onError={handleImageError}
+              onLoad={handleImageLoad}
+              style={{ display: imageLoading ? "none" : "block" }}
+            />
+          )}
+          
+          {imageLoading && shouldShowImage && (
+            <div className="w-full h-full bg-gray-200 animate-pulse flex items-center justify-center">
+              <span className="text-gray-400 text-sm">Carregando...</span>
+            </div>
+          )}
 
-        {imageLoading && shouldShowImage && (
-          <div className="w-full h-full bg-gray-200 animate-pulse flex items-center justify-center">
-            <span className="text-gray-400 text-sm">Carregando...</span>
-          </div>
-        )}
+          {imageError && (
+            <div className="w-full h-full bg-gray-100 flex items-center justify-center">
+              <span className="text-gray-400 text-sm">Sem imagem</span>
+            </div>
+          )}
+        </div>
+      )}
 
-        {(!shouldShowImage || imageError) && !imageLoading && (
-          <div className="w-full h-full bg-gray-100 flex items-center justify-center">
-            <span className="text-gray-400 text-sm">Sem imagem</span>
-          </div>
-        )}
-      </div>
-      <CardContent className="p-4">
+      {/* Conteúdo do card - com padding e tamanhos ajustados baseado na presença da área de imagem */}
+      <CardContent className={shouldShowImageArea ? "p-4" : "p-6"}>
         <div onClick={onClick}>
-          <h3 className="font-semibold text-lg mb-2 line-clamp-1">{product.name}</h3>
-          <p className="text-gray-600 text-sm mb-3 line-clamp-2">{product.description}</p>
+          <h3 className={`font-semibold mb-2 line-clamp-1 ${shouldShowImageArea ? "text-lg" : "text-xl"}`}>
+            {product.productNumber ? `${product.productNumber} - ${product.name}` : product.name}
+          </h3>
+          <p className={`text-gray-600 mb-3 ${shouldShowImageArea ? "text-sm line-clamp-2" : "text-base line-clamp-3"}`}>
+            {product.description}
+          </p>
           <div className="flex items-center justify-between">
-            <span className="text-xl font-bold text-primary">R$ {product.price.toFixed(2)}</span>
-            <Button size="sm" className="shrink-0">
+            <span className={`font-bold text-primary ${shouldShowImageArea ? "text-xl" : "text-2xl"}`}>
+              {formatCurrency(product.price)}
+            </span>
+            <Button size={shouldShowImageArea ? "sm" : "default"} className="shrink-0">
               <Plus className="w-4 h-4 mr-1" />
               Adicionar
             </Button>

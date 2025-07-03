@@ -1,7 +1,7 @@
 "use client"
 
-import type React from "react"
-import { useState } from "react"
+
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,21 +9,30 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
-import { Upload, Save, MapPin, Phone, Mail, Clock, X, Zap, Truck } from "lucide-react"
+import { Upload, Save, MapPin, Phone, Mail, Clock, X, Zap, Bike } from "lucide-react"
 
-export function GeneralSettings() {
+interface GeneralSettingsProps {
+  settings: Record<string, any>
+  onSave: (settings: Record<string, any>) => Promise<boolean>
+  onMarkUnsaved?: () => void
+}
+
+export function GeneralSettings({ settings: initialSettings, onSave, onMarkUnsaved }: GeneralSettingsProps) {
   const [settings, setSettings] = useState({
-    companyName: "Pizza Express",
+    restaurant_name: "William Disk Pizza",
     description: "A melhor pizza da cidade, entregue na sua porta",
-    address: "Rua das Pizzas, 123 - Centro, São Paulo/SP",
-    phone: "(11) 99999-9999",
-    email: "contato@pizzaexpress.com",
-    website: "www.pizzaexpress.com",
+    restaurant_address: "Rua das Pizzas, 123 - Centro, São Paulo/SP",
+    restaurant_phone: "(11) 99999-9999",
+    email: "contato@williamdiskpizza.com",
+    website: "www.williamdiskpizza.com",
+    logo_url: "",
     openingHours: "18:00",
     closingHours: "23:00",
     isOpen: true,
     acceptOrders: true,
-    minimumOrderValue: 25.0,
+    min_order_value: 25.0,
+    delivery_fee: 5.0,
+    delivery_time: 45,
     logo: null as File | null,
     // Landing page hero image
     heroImage: null as File | null,
@@ -34,19 +43,103 @@ export function GeneralSettings() {
     freeDeliveryEnabled: true,
     freeDeliveryTitle: "Frete Grátis",
     freeDeliverySubtext: "Entrega gratuita para pedidos acima de R$ 50,00",
+    ...initialSettings
   })
 
+  const [originalSettings, setOriginalSettings] = useState(settings)
   const [isLoading, setIsLoading] = useState(false)
   const [isProcessingHeroImage, setIsProcessingHeroImage] = useState(false)
+  const [validationErrors, setValidationErrors] = useState({
+    email: "",
+    restaurant_phone: "",
+    website: "",
+  })
+
+  useEffect(() => {
+    if (initialSettings && Object.keys(initialSettings).length > 0) {
+      const mergedSettings = { ...settings, ...initialSettings }
+      setSettings(mergedSettings)
+      setOriginalSettings(mergedSettings)
+    }
+  }, [initialSettings])
+
+  // Função para validar email
+  const validateEmail = (email: string) => {
+    if (!email) return ""
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    return emailRegex.test(email) ? "" : "Formato de email inválido"
+  }
+
+  // Função para validar telefone
+  const validatePhone = (phone: string) => {
+    if (!phone) return ""
+    const numbers = phone.replace(/\D/g, '')
+    return numbers.length >= 10 && numbers.length <= 11 ? "" : "Telefone deve ter 10 ou 11 dígitos"
+  }
+
+  // Função para validar website
+  const validateWebsite = (website: string) => {
+    if (!website) return ""
+    const websiteRegex = /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/
+    return websiteRegex.test(website) ? "" : "Formato de website inválido"
+  }
+
+  // Verificar se houve mudanças
+  const hasChanges = () => {
+    const currentSettings = { ...settings }
+    delete (currentSettings as any).logo
+    delete (currentSettings as any).heroImage
+    
+    const original = { ...originalSettings }
+    delete (original as any).logo
+    delete (original as any).heroImage
+    
+    return JSON.stringify(currentSettings) !== JSON.stringify(original)
+  }
 
   const handleInputChange = (field: string, value: string | number | boolean) => {
-    setSettings((prev) => ({ ...prev, [field]: value }))
+    setSettings((prev) => {
+      const newSettings = { ...prev, [field]: value }
+      
+      // Validações em tempo real
+      if (field === "email") {
+        const error = validateEmail(value as string)
+        setValidationErrors(prev => ({ ...prev, email: error }))
+      } else if (field === "restaurant_phone") {
+        const error = validatePhone(value as string)
+        setValidationErrors(prev => ({ ...prev, restaurant_phone: error }))
+      } else if (field === "website") {
+        const error = validateWebsite(value as string)
+        setValidationErrors(prev => ({ ...prev, website: error }))
+      }
+      
+      // Marcar como não salvo se houve mudança
+      setTimeout(() => {
+        if (onMarkUnsaved && hasChanges()) {
+          onMarkUnsaved()
+        }
+      }, 0)
+      
+      return newSettings
+    })
+  }
+
+  // Função para formatar telefone
+  const formatPhone = (value: string) => {
+    const numbers = value.replace(/\D/g, '')
+    if (numbers.length <= 11) {
+      return numbers
+        .replace(/(\d{2})(\d)/, '($1) $2')
+        .replace(/(\d{4,5})(\d{4})$/, '$1-$2')
+    }
+    return value
   }
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
       setSettings((prev) => ({ ...prev, logo: file }))
+      if (onMarkUnsaved) onMarkUnsaved()
     }
   }
 
@@ -122,6 +215,7 @@ export function GeneralSettings() {
         // Process image to 800x600 for hero section
         const processedFile = await processImage(file, 660, 660)
         setSettings((prev) => ({ ...prev, heroImage: processedFile }))
+        if (onMarkUnsaved) onMarkUnsaved()
       } catch (error) {
         console.error("Error processing hero image:", error)
       } finally {
@@ -132,14 +226,75 @@ export function GeneralSettings() {
 
   const removeHeroImage = () => {
     setSettings((prev) => ({ ...prev, heroImage: null }))
+    if (onMarkUnsaved) onMarkUnsaved()
   }
 
   const handleSave = async () => {
+    // Validar antes de salvar
+    const emailError = validateEmail(settings.email)
+    const phoneError = validatePhone(settings.restaurant_phone)
+    const websiteError = validateWebsite(settings.website)
+
+    setValidationErrors({
+      email: emailError,
+      restaurant_phone: phoneError,
+      website: websiteError,
+    })
+
+    if (emailError || phoneError || websiteError) {
+      return
+    }
+
+    // Validações obrigatórias
+    if (!settings.restaurant_name?.trim()) {
+      alert("Nome da empresa é obrigatório")
+      return
+    }
+
     setIsLoading(true)
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-    console.log("Saving general settings:", settings)
-    setIsLoading(false)
+    try {
+      // Filtrar apenas as configurações que devem ser salvas (excluir files)
+      const { logo, heroImage, ...settingsToSave } = settings
+      
+      // Se há um novo logo para fazer upload
+      if (logo) {
+        try {
+          const logoFormData = new FormData()
+          logoFormData.append('file', logo)
+          
+          const logoResponse = await fetch('/api/upload', {
+            method: 'POST',
+            body: logoFormData
+          })
+          
+          if (logoResponse.ok) {
+            const logoResult = await logoResponse.json()
+            if (logoResult.url) {
+              settingsToSave.logo_url = logoResult.url
+            }
+          }
+        } catch (logoError) {
+          console.error("Error uploading logo:", logoError)
+        }
+      }
+      
+      console.log("Saving general settings:", settingsToSave)
+      const success = await onSave(settingsToSave)
+      
+      if (success) {
+        // Atualizar configurações originais após salvamento bem-sucedido
+        setOriginalSettings({ ...settings })
+      }
+    } catch (error) {
+      console.error("Error saving general settings:", error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Verificar se há erros de validação
+  const hasValidationErrors = () => {
+    return !!(validationErrors.email || validationErrors.restaurant_phone || validationErrors.website)
   }
 
   return (
@@ -151,11 +306,11 @@ export function GeneralSettings() {
         <CardContent className="space-y-4">
           <div className="grid md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="companyName">Nome da Empresa</Label>
+              <Label htmlFor="restaurant_name">Nome da Empresa</Label>
               <Input
-                id="companyName"
-                value={settings.companyName}
-                onChange={(e) => handleInputChange("companyName", e.target.value)}
+                id="restaurant_name"
+                value={settings.restaurant_name || ""}
+                onChange={(e) => handleInputChange("restaurant_name", e.target.value)}
               />
             </div>
 
@@ -163,9 +318,14 @@ export function GeneralSettings() {
               <Label htmlFor="website">Website</Label>
               <Input
                 id="website"
-                value={settings.website}
+                value={settings.website || ""}
                 onChange={(e) => handleInputChange("website", e.target.value)}
+                className={validationErrors.website ? "border-red-300" : ""}
+                placeholder="www.exemplo.com"
               />
+              {validationErrors.website && (
+                <p className="text-sm text-red-600">{validationErrors.website}</p>
+              )}
             </div>
           </div>
 
@@ -173,7 +333,7 @@ export function GeneralSettings() {
             <Label htmlFor="description">Descrição</Label>
             <Textarea
               id="description"
-              value={settings.description}
+              value={settings.description || ""}
               onChange={(e) => handleInputChange("description", e.target.value)}
               rows={3}
             />
@@ -185,9 +345,15 @@ export function GeneralSettings() {
               <div className="w-20 h-20 bg-gray-100 rounded-lg flex items-center justify-center">
                 {settings.logo ? (
                   <img
-                    src={URL.createObjectURL(settings.logo) || "/placeholder.svg"}
+                    src={URL.createObjectURL(settings.logo)}
                     alt="Logo"
-                    className="w-full h-full object-cover rounded-lg"
+                    className="w-full h-full object-contain rounded-lg"
+                  />
+                ) : settings.logo_url ? (
+                  <img
+                    src={settings.logo_url}
+                    alt="Logo"
+                    className="w-full h-full object-contain rounded-lg"
                   />
                 ) : (
                   <Upload className="w-8 h-8 text-gray-400" />
@@ -197,93 +363,78 @@ export function GeneralSettings() {
                 <input type="file" id="logo" accept="image/*" onChange={handleLogoUpload} className="hidden" />
                 <Button variant="outline" onClick={() => document.getElementById("logo")?.click()}>
                   <Upload className="w-4 h-4 mr-2" />
-                  Fazer Upload
+                  {settings.logo || settings.logo_url ? "Alterar Logo" : "Fazer Upload"}
                 </Button>
-                <p className="text-sm text-gray-600 mt-1">PNG, JPG até 2MB</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="heroImage">Imagem Principal da Landing Page</Label>
-            <div className="space-y-3">
-              {settings.heroImage && (
-                <div className="relative w-full max-w-md">
-                  <img
-                    src={URL.createObjectURL(settings.heroImage) || "/placeholder.svg"}
-                    alt="Hero"
-                    className="w-full h-48 object-cover rounded-lg border"
-                  />
-                  <Button variant="destructive" size="sm" className="absolute top-2 right-2" onClick={removeHeroImage}>
+                {(settings.logo || settings.logo_url) && (
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => setSettings(prev => ({ ...prev, logo: null, logo_url: "" }))}
+                    className="ml-2"
+                  >
                     <X className="w-4 h-4" />
                   </Button>
-                </div>
-              )}
-              <div>
-                <input
-                  type="file"
-                  id="heroImage"
-                  accept="image/jpeg,image/jpg,image/png,image/webp"
-                  onChange={handleHeroImageUpload}
-                  className="hidden"
-                />
-                <Button
-                  variant="outline"
-                  onClick={() => document.getElementById("heroImage")?.click()}
-                  disabled={isProcessingHeroImage}
-                >
-                  <Upload className="w-4 h-4 mr-2" />
-                  {isProcessingHeroImage ? "Processando..." : settings.heroImage ? "Alterar Imagem" : "Fazer Upload"}
-                </Button>
-                <p className="text-sm text-gray-600 mt-1">
-                  Tamanho recomendado: 660x660 pixels
-                  <br />
-                  Imagens serão redimensionadas automaticamente
-                </p>
+                )}
               </div>
             </div>
+            <p className="text-xs text-gray-500">
+              Tamanho máximo recomendado: 150x150 pixels • Formatos aceitos: JPG, PNG, WebP
+            </p>
           </div>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>Informações de Contato</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <MapPin className="w-5 h-5" />
+            Contato e Localização
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="address" className="flex items-center gap-2">
-              <MapPin className="w-4 h-4" />
-              Endereço
-            </Label>
-            <Textarea
-              id="address"
-              value={settings.address}
-              onChange={(e) => handleInputChange("address", e.target.value)}
-              rows={2}
+            <Label htmlFor="restaurant_address">Endereço</Label>
+            <Input
+              id="restaurant_address"
+              value={settings.restaurant_address || ""}
+              onChange={(e) => handleInputChange("restaurant_address", e.target.value)}
             />
           </div>
 
           <div className="grid md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="phone" className="flex items-center gap-2">
-                <Phone className="w-4 h-4" />
-                Telefone
-              </Label>
-              <Input id="phone" value={settings.phone} onChange={(e) => handleInputChange("phone", e.target.value)} />
+              <Label htmlFor="restaurant_phone">Telefone *</Label>
+              <div className="relative">
+                <Phone className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+                <Input
+                  id="restaurant_phone"
+                  className={`pl-10 ${validationErrors.restaurant_phone ? "border-red-300" : ""}`}
+                  value={formatPhone(settings.restaurant_phone || "")}
+                  onChange={(e) => handleInputChange("restaurant_phone", e.target.value)}
+                  placeholder="(11) 99999-9999"
+                />
+              </div>
+              {validationErrors.restaurant_phone && (
+                <p className="text-sm text-red-600">{validationErrors.restaurant_phone}</p>
+              )}
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="email" className="flex items-center gap-2">
-                <Mail className="w-4 h-4" />
-                Email
-              </Label>
-              <Input
-                id="email"
-                type="email"
-                value={settings.email}
-                onChange={(e) => handleInputChange("email", e.target.value)}
-              />
+              <Label htmlFor="email">E-mail *</Label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+                <Input
+                  id="email"
+                  type="email"
+                  className={`pl-10 ${validationErrors.email ? "border-red-300" : ""}`}
+                  value={settings.email || ""}
+                  onChange={(e) => handleInputChange("email", e.target.value)}
+                  placeholder="contato@empresa.com"
+                />
+              </div>
+              {validationErrors.email && (
+                <p className="text-sm text-red-600">{validationErrors.email}</p>
+              )}
             </div>
           </div>
         </CardContent>
@@ -291,32 +442,29 @@ export function GeneralSettings() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Horário de Funcionamento</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="w-5 h-5" />
+            Horário de Funcionamento
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="openingHours" className="flex items-center gap-2">
-                <Clock className="w-4 h-4" />
-                Horário de Abertura
-              </Label>
+              <Label htmlFor="openingHours">Horário de Abertura</Label>
               <Input
                 id="openingHours"
                 type="time"
-                value={settings.openingHours}
+                value={settings.openingHours || ""}
                 onChange={(e) => handleInputChange("openingHours", e.target.value)}
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="closingHours" className="flex items-center gap-2">
-                <Clock className="w-4 h-4" />
-                Horário de Fechamento
-              </Label>
+              <Label htmlFor="closingHours">Horário de Fechamento</Label>
               <Input
                 id="closingHours"
                 type="time"
-                value={settings.closingHours}
+                value={settings.closingHours || ""}
                 onChange={(e) => handleInputChange("closingHours", e.target.value)}
               />
             </div>
@@ -324,134 +472,85 @@ export function GeneralSettings() {
 
           <Separator />
 
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <Label htmlFor="isOpen">Estabelecimento Aberto</Label>
-                <p className="text-sm text-gray-600">Permite que clientes vejam o cardápio e façam pedidos</p>
-              </div>
-              <Switch
-                id="isOpen"
-                checked={settings.isOpen}
-                onCheckedChange={(checked) => handleInputChange("isOpen", checked)}
-              />
+          <div className="flex items-center justify-between">
+            <div>
+              <Label htmlFor="isOpen">Estabelecimento Aberto</Label>
+              <p className="text-sm text-gray-600">Controla se o estabelecimento está aceitando pedidos</p>
             </div>
+            <Switch
+              id="isOpen"
+              checked={settings.isOpen || false}
+              onCheckedChange={(checked) => handleInputChange("isOpen", checked)}
+            />
+          </div>
 
-            <div className="flex items-center justify-between">
-              <div>
-                <Label htmlFor="acceptOrders">Aceitar Novos Pedidos</Label>
-                <p className="text-sm text-gray-600">Permite que novos pedidos sejam feitos</p>
-              </div>
-              <Switch
-                id="acceptOrders"
-                checked={settings.acceptOrders}
-                onCheckedChange={(checked) => handleInputChange("acceptOrders", checked)}
-              />
+          <div className="flex items-center justify-between">
+            <div>
+              <Label htmlFor="acceptOrders">Aceitar Pedidos Online</Label>
+              <p className="text-sm text-gray-600">Permite ou bloqueia pedidos através do site</p>
             </div>
+            <Switch
+              id="acceptOrders"
+              checked={settings.acceptOrders || false}
+              onCheckedChange={(checked) => handleInputChange("acceptOrders", checked)}
+            />
           </div>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>Configurações de Pedidos</CardTitle>
+          <CardTitle className="flex items-center space-x-2">
+            <Bike className="w-5 h-5" />
+            <span className="font-medium">Configurações de Entrega</span>
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="minimumOrderValue">Valor Mínimo do Pedido (R$)</Label>
-            <Input
-              id="minimumOrderValue"
-              type="number"
-              step="0.01"
-              value={settings.minimumOrderValue}
-              onChange={(e) => handleInputChange("minimumOrderValue", Number.parseFloat(e.target.value))}
-            />
-            <p className="text-sm text-gray-600">Valor mínimo para aceitar pedidos</p>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Caixas de Destaque da Landing Page</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Fast Delivery Feature Box */}
-          <div className="space-y-4 p-4 border rounded-lg">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Zap className="w-5 h-5 text-primary" />
-                <h4 className="font-semibold">Entrega Rápida</h4>
-              </div>
-              <Switch
-                checked={settings.fastDeliveryEnabled}
-                onCheckedChange={(checked) => handleInputChange("fastDeliveryEnabled", checked)}
+          <div className="grid md:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="min_order_value">Valor Mínimo do Pedido (R$)</Label>
+              <Input
+                id="min_order_value"
+                type="number"
+                step="0.01"
+                min="0"
+                value={settings.min_order_value || 0}
+                onChange={(e) => handleInputChange("min_order_value", parseFloat(e.target.value))}
               />
             </div>
 
-            <div className="grid md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="fastDeliveryTitle">Título</Label>
-                <Input
-                  id="fastDeliveryTitle"
-                  value={settings.fastDeliveryTitle}
-                  onChange={(e) => handleInputChange("fastDeliveryTitle", e.target.value)}
-                  disabled={!settings.fastDeliveryEnabled}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="fastDeliverySubtext">Subtexto</Label>
-                <Textarea
-                  id="fastDeliverySubtext"
-                  value={settings.fastDeliverySubtext}
-                  onChange={(e) => handleInputChange("fastDeliverySubtext", e.target.value)}
-                  disabled={!settings.fastDeliveryEnabled}
-                  rows={2}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Free Delivery Feature Box */}
-          <div className="space-y-4 p-4 border rounded-lg">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Truck className="w-5 h-5 text-primary" />
-                <h4 className="font-semibold">Frete Grátis</h4>
-              </div>
-              <Switch
-                checked={settings.freeDeliveryEnabled}
-                onCheckedChange={(checked) => handleInputChange("freeDeliveryEnabled", checked)}
+            <div className="space-y-2">
+              <Label htmlFor="delivery_fee">Taxa de Entrega (R$)</Label>
+              <Input
+                id="delivery_fee"
+                type="number"
+                step="0.01"
+                min="0"
+                value={settings.delivery_fee || 0}
+                onChange={(e) => handleInputChange("delivery_fee", parseFloat(e.target.value))}
               />
             </div>
 
-            <div className="grid md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="freeDeliveryTitle">Título</Label>
-                <Input
-                  id="freeDeliveryTitle"
-                  value={settings.freeDeliveryTitle}
-                  onChange={(e) => handleInputChange("freeDeliveryTitle", e.target.value)}
-                  disabled={!settings.freeDeliveryEnabled}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="freeDeliverySubtext">Subtexto</Label>
-                <Textarea
-                  id="freeDeliverySubtext"
-                  value={settings.freeDeliverySubtext}
-                  onChange={(e) => handleInputChange("freeDeliverySubtext", e.target.value)}
-                  disabled={!settings.freeDeliveryEnabled}
-                  rows={2}
-                />
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="delivery_time">Tempo de Entrega (min)</Label>
+              <Input
+                id="delivery_time"
+                type="number"
+                min="15"
+                max="120"
+                value={settings.delivery_time || 45}
+                onChange={(e) => handleInputChange("delivery_time", parseInt(e.target.value))}
+              />
             </div>
           </div>
         </CardContent>
       </Card>
 
       <div className="flex justify-end">
-        <Button onClick={handleSave} disabled={isLoading}>
+        <Button 
+          onClick={handleSave} 
+          disabled={isLoading || !hasChanges() || hasValidationErrors() || !settings.restaurant_name?.trim()}
+        >
           <Save className="w-4 h-4 mr-2" />
           {isLoading ? "Salvando..." : "Salvar Configurações"}
         </Button>

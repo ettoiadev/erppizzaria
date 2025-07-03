@@ -1,103 +1,220 @@
 import { NextResponse } from "next/server"
+import { query } from "@/lib/db"
+import { verifyToken } from "@/lib/auth"
+import { JwtPayload } from "jsonwebtoken"
 
-// Mock about content - In production, this would come from a database
-const mockAboutContent = {
-  hero: {
-    title: "Nossa História",
-    subtitle: "Tradição e Sabor desde 2010",
-    description:
-      "Somos uma pizzaria familiar que nasceu do sonho de compartilhar o verdadeiro sabor da pizza italiana com nossa comunidade.",
-    image: "/placeholder.svg?height=600&width=800",
-  },
-  story: {
-    title: "Como Tudo Começou",
-    paragraphs: [
-      "Em 2010, com muito amor pela culinária italiana e o sonho de criar algo especial, nasceu a Pizza Express. Começamos como uma pequena pizzaria familiar no coração de São Paulo, com apenas algumas mesas e um forno a lenha tradicional.",
-      "Nossa receita secreta não está apenas na massa artesanal ou nos ingredientes frescos selecionados diariamente. Está no carinho e dedicação que colocamos em cada pizza, tratando cada cliente como parte da nossa família.",
-      "Ao longo dos anos, crescemos e evoluímos, mas nunca perdemos nossa essência: fazer a melhor pizza da cidade com ingredientes de qualidade e muito amor. Hoje, atendemos toda a região com nosso serviço de delivery, levando o sabor autêntico da Pizza Express até você.",
-    ],
-    image: "/placeholder.svg?height=500&width=600",
-  },
-  values: {
-    title: "Nossos Valores",
-    subtitle: "Os princípios que nos guiam todos os dias",
-    values: [
-      {
-        icon: "heart",
-        title: "Paixão pela Qualidade",
-        description:
-          "Cada pizza é feita com ingredientes selecionados e muito carinho, garantindo sempre o melhor sabor.",
-      },
-      {
-        icon: "star",
-        title: "Excelência no Atendimento",
-        description: "Tratamos cada cliente como família, oferecendo um atendimento personalizado e acolhedor.",
-      },
-      {
-        icon: "users",
-        title: "Compromisso com a Comunidade",
-        description: "Somos parte da comunidade e nos orgulhamos de contribuir para o bem-estar local.",
-      },
-      {
-        icon: "leaf",
-        title: "Sustentabilidade",
-        description: "Nos preocupamos com o meio ambiente, usando embalagens eco-friendly e ingredientes locais.",
-      },
-    ],
-  },
-  team: {
-    title: "Nossa Equipe",
-    subtitle: "As pessoas que fazem a magia acontecer",
-    members: [
-      {
-        name: "Marco Rossi",
-        role: "Chef Pizzaiolo",
-        description:
-          "Com mais de 15 anos de experiência, Marco é o responsável por manter a tradição e qualidade de nossas pizzas.",
-        image: "/placeholder.svg?height=300&width=300",
-      },
-      {
-        name: "Ana Silva",
-        role: "Gerente Geral",
-        description: "Ana cuida de toda a operação, garantindo que cada cliente tenha a melhor experiência possível.",
-        image: "/placeholder.svg?height=300&width=300",
-      },
-      {
-        name: "Carlos Santos",
-        role: "Coordenador de Delivery",
-        description:
-          "Carlos lidera nossa equipe de entrega, assegurando que sua pizza chegue quentinha e no tempo certo.",
-        image: "/placeholder.svg?height=300&width=300",
-      },
-    ],
-  },
-  contact: {
-    title: "Venha nos Visitar",
-    subtitle: "Estamos sempre prontos para recebê-lo",
-    address: "Rua das Pizzas, 123 - Centro, São Paulo/SP",
-    phone: "(11) 99999-9999",
-    email: "contato@pizzaexpress.com",
-    hours: "Seg-Dom: 18h às 23h",
-  },
+// Force dynamic rendering for this route
+export const dynamic = 'force-dynamic'
+
+interface CustomJwtPayload extends JwtPayload {
+  role?: string;
 }
 
+// GET - Buscar conteúdo da página Sobre
 export async function GET() {
   try {
-    return NextResponse.json(mockAboutContent)
+    // First check if table exists and get structure
+    const checkTable = await query(`
+      SELECT column_name, data_type 
+      FROM information_schema.columns 
+      WHERE table_name = 'about_content' 
+      AND column_name = 'id'
+    `)
+
+    let whereClause = ''
+    let queryParams: any[] = []
+
+    if (checkTable.rows.length > 0) {
+      const idType = checkTable.rows[0].data_type
+      if (idType === 'uuid') {
+        // Try to find any record first, then use a default UUID
+        const anyRecord = await query('SELECT id FROM about_content LIMIT 1')
+        if (anyRecord.rows.length > 0) {
+          whereClause = 'WHERE id = $1'
+          queryParams = [anyRecord.rows[0].id]
+        } else {
+          // No records exist, we'll create one
+          whereClause = 'WHERE 1=0' // This will return empty result and trigger creation
+        }
+      } else {
+        whereClause = 'WHERE id = 1'
+      }
+    } else {
+      // Table doesn't exist or column doesn't exist, handle gracefully
+      return NextResponse.json({ error: "Tabela about_content não encontrada" }, { status: 500 })
+    }
+
+    const result = await query(
+      `SELECT * FROM about_content ${whereClause}`,
+      queryParams
+    )
+
+    if (result.rows.length === 0) {
+      const defaultContent = {
+        hero: {
+          title: "Sobre a Pizza Delivery",
+          subtitle: "Tradição em sabor desde 2020",
+          image: "/placeholder.jpg"
+        },
+        story: {
+          title: "Nossa História",
+          content: "A Pizza Delivery nasceu do sonho de levar a melhor pizza artesanal até você...",
+          image: "/placeholder.jpg"
+        },
+        values: [
+          {
+            title: "Qualidade",
+            description: "Ingredientes selecionados e processos rigorosos de qualidade",
+            icon: "🌟"
+          },
+          {
+            title: "Rapidez",
+            description: "Entrega rápida e eficiente para sua pizza chegar quentinha",
+            icon: "⚡"
+          },
+          {
+            title: "Atendimento",
+            description: "Equipe treinada para oferecer o melhor atendimento",
+            icon: "💝"
+          }
+        ],
+        team: [
+          {
+            name: "João Silva",
+            role: "Chef de Cozinha",
+            image: "/placeholder-user.jpg"
+          },
+          {
+            name: "Maria Oliveira",
+            role: "Gerente",
+            image: "/placeholder-user.jpg"
+          }
+        ]
+      }
+
+      try {
+        const insertResult = await query(
+          `
+          INSERT INTO about_content 
+          (hero, story, values, team)
+          VALUES ($1, $2, $3, $4)
+          RETURNING *
+          `,
+          [
+            JSON.stringify(defaultContent.hero),
+            JSON.stringify(defaultContent.story),
+            JSON.stringify(defaultContent.values),
+            JSON.stringify(defaultContent.team)
+          ]
+        )
+
+        return NextResponse.json({ content: insertResult.rows[0] })
+      } catch (insertError) {
+        // If insert fails, return default content without saving
+        return NextResponse.json({ content: { 
+          id: 'default',
+          hero: defaultContent.hero,
+          story: defaultContent.story,
+          values: defaultContent.values,
+          team: defaultContent.team
+        }})
+      }
+    }
+
+    return NextResponse.json({ content: result.rows[0] })
   } catch (error) {
-    return NextResponse.json({ error: "Erro ao buscar conteúdo" }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
   }
 }
 
+// PUT - Atualizar conteúdo da página Sobre
 export async function PUT(request: Request) {
   try {
-    const updatedContent = await request.json()
+    const authHeader = request.headers.get("authorization")
+    if (!authHeader) {
+      return NextResponse.json({ error: "Token não fornecido" }, { status: 401 })
+    }
 
-    // In production, save to database
-    console.log("Updating about content:", updatedContent)
+    const token = await verifyToken(authHeader) as CustomJwtPayload
+    if (!token || token.role !== "admin") {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    }
 
-    return NextResponse.json({ success: true, data: updatedContent })
+    const body = await request.json()
+    const { hero, story, values, team } = body
+
+    if (!hero || !story || !values || !team) {
+      return NextResponse.json(
+        { error: "Todos os campos são obrigatórios" },
+        { status: 400 }
+      )
+    }
+
+    if (!hero.title || !hero.subtitle || !story.title || !story.content) {
+      return NextResponse.json(
+        { error: "Campos obrigatórios faltando em hero ou story" },
+        { status: 400 }
+      )
+    }
+
+    if (!Array.isArray(values) || values.length === 0) {
+      return NextResponse.json(
+        { error: "Valores devem ser um array não vazio" },
+        { status: 400 }
+      )
+    }
+
+    if (!Array.isArray(team) || team.length === 0) {
+      return NextResponse.json(
+        { error: "Equipe deve ser um array não vazio" },
+        { status: 400 }
+      )
+    }
+
+    // Check if any record exists first
+    const existing = await query('SELECT id FROM about_content LIMIT 1')
+    
+    if (existing.rows.length > 0) {
+      // Update existing record
+      const result = await query(
+        `
+        UPDATE about_content 
+        SET hero = $1,
+            story = $2,
+            values = $3,
+            team = $4,
+            updated_at = NOW()
+        WHERE id = $5
+        RETURNING *
+        `,
+        [
+          JSON.stringify(hero),
+          JSON.stringify(story),
+          JSON.stringify(values),
+          JSON.stringify(team),
+          existing.rows[0].id
+        ]
+      )
+      return NextResponse.json({ content: result.rows[0] })
+    } else {
+      // Create new record
+      const result = await query(
+        `
+        INSERT INTO about_content 
+        (hero, story, values, team)
+        VALUES ($1, $2, $3, $4)
+        RETURNING *
+        `,
+        [
+          JSON.stringify(hero),
+          JSON.stringify(story),
+          JSON.stringify(values),
+          JSON.stringify(team)
+        ]
+      )
+      return NextResponse.json({ content: result.rows[0] })
+    }
   } catch (error) {
-    return NextResponse.json({ error: "Erro ao atualizar conteúdo" }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
   }
 }

@@ -1,35 +1,49 @@
-import { type NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
+import { query } from "@/lib/db"
 
-export async function POST(request: NextRequest) {
+// POST - Enviar mensagem de contato
+export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { name, email, phone, subject, message } = body
+    const { name, email, subject, message } = body
 
-    // Validação básica
-    if (!name || !email || !subject || !message) {
-      return NextResponse.json({ error: "Campos obrigatórios não preenchidos" }, { status: 400 })
+    // Validar dados
+    if (!name?.trim() || !email?.trim() || !message?.trim()) {
+      return NextResponse.json(
+        { error: "Nome, email e mensagem são obrigatórios" },
+        { status: 400 }
+      )
     }
 
-    // Aqui você integraria com seu sistema de e-mail
-    // Por exemplo: SendGrid, Nodemailer, etc.
-    console.log("Nova mensagem de contato:", {
-      name,
-      email,
-      phone,
-      subject,
-      message,
-      timestamp: new Date().toISOString(),
-    })
+    // Validar formato do email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      return NextResponse.json(
+        { error: "Email inválido" },
+        { status: 400 }
+      )
+    }
 
-    // Simular processamento
-    await new Promise((resolve) => setTimeout(resolve, 1000))
+    // Inserir mensagem
+    const result = await query(
+      `
+      INSERT INTO contact_messages 
+      (name, email, subject, message)
+      VALUES ($1, $2, $3, $4)
+      RETURNING *
+      `,
+      [name, email, subject || "Contato via site", message]
+    )
 
-    return NextResponse.json({
-      success: true,
-      message: "Mensagem enviada com sucesso!",
+    // TODO: Enviar email de notificação para o administrador
+    // Isso será implementado quando configurarmos o serviço de email
+
+    return NextResponse.json({ 
+      message: "Mensagem enviada com sucesso",
+      contact: result.rows[0]
     })
   } catch (error) {
-    console.error("Erro ao processar contato:", error)
+    console.error("Erro ao enviar mensagem:", error)
     return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
   }
 }

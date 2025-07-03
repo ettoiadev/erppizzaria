@@ -1,106 +1,94 @@
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
-import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
+import { query } from "@/lib/db"
+import { verifyToken } from "@/lib/auth"
 
+// GET - Listar endereços do usuário
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get("userId")
 
     if (!userId) {
-      console.log("[GET /api/addresses] Erro: userId não fornecido")
-      return NextResponse.json({ addresses: [] }, { status: 400 })
+      return NextResponse.json({ error: "UserId não fornecido" }, { status: 400 })
     }
 
-    const supabase = createRouteHandlerClient({ cookies })
+    const result = await query(
+      'SELECT *, label as name FROM customer_addresses WHERE user_id = $1 ORDER BY is_default DESC, created_at DESC',
+      [userId]
+    )
 
-    console.log(`[GET /api/addresses] Buscando endereços para userId: ${userId}`)
-
-    // Verificar se a tabela existe antes de fazer a consulta
-    const { error: tableCheckError, data: tableExists } = await supabase
-      .from("customer_addresses")
-      .select("id")
-      .limit(1)
-      .maybeSingle()
-
-    if (tableCheckError) {
-      console.log(`[GET /api/addresses] Erro ao verificar tabela: ${tableCheckError.message}`)
-      return NextResponse.json({ addresses: [] }, { status: 200 })
-    }
-
-    // Se a tabela não existir ou estiver vazia, retornar array vazio
-    if (tableCheckError) {
-      console.log("[GET /api/addresses] Tabela customer_addresses não existe ou está inacessível")
-      return NextResponse.json({ addresses: [] }, { status: 200 })
-    }
-
-    const { data: addresses, error } = await supabase
-      .from("customer_addresses")
-      .select("*")
-      .eq("customer_id", userId)
-      .order("is_default", { ascending: false })
-      .order("created_at", { ascending: false })
-
-    if (error) {
-      console.log(`[GET /api/addresses] Erro ao buscar endereços: ${error.message}`)
-      return NextResponse.json({ addresses: [] }, { status: 200 })
-    }
-
-    console.log(`[GET /api/addresses] Encontrados ${addresses.length} endereços`)
-    return NextResponse.json({ addresses }, { status: 200 })
+    return NextResponse.json({ addresses: result.rows })
   } catch (error) {
-    console.error("[GET /api/addresses] Erro não tratado:", error)
-    return NextResponse.json({ addresses: [] }, { status: 200 })
+    console.error("Erro ao buscar endereços:", error)
+    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
   }
 }
 
+// POST - Adicionar novo endereço
 export async function POST(request: Request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
-    const data = await request.json()
+    const body = await request.json()
+    const { customer_id, name, street, number, complement, neighborhood, city, state, zip_code, is_default } = body
 
-    if (!data.customer_id) {
+    console.log("POST /api/addresses - Dados recebidos:", body)
+
+    // Validações detalhadas dos campos obrigatórios
+    if (!customer_id) {
       return NextResponse.json({ error: "ID do cliente é obrigatório" }, { status: 400 })
     }
-
-    // Verificar se é o primeiro endereço do cliente
-    const { data: existingAddresses, error: countError } = await supabase
-      .from("customer_addresses")
-      .select("id")
-      .eq("customer_id", data.customer_id)
-
-    if (countError) {
-      console.error("Erro ao verificar endereços existentes:", countError)
+    if (!name || !name.trim()) {
+      return NextResponse.json({ error: "Nome do endereço é obrigatório" }, { status: 400 })
+    }
+    if (!zip_code || !zip_code.trim()) {
+      return NextResponse.json({ error: "CEP é obrigatório" }, { status: 400 })
+    }
+    const zipCodeNumbers = zip_code.replace(/\D/g, "")
+    if (zipCodeNumbers.length !== 8) {
+      return NextResponse.json({ error: "CEP deve ter 8 dígitos" }, { status: 400 })
+    }
+    if (!street || !street.trim()) {
+      return NextResponse.json({ error: "Rua/Logradouro é obrigatório" }, { status: 400 })
+    }
+    if (!number || !number.trim()) {
+      return NextResponse.json({ error: "Número é obrigatório" }, { status: 400 })
+    }
+    if (!neighborhood || !neighborhood.trim()) {
+      return NextResponse.json({ error: "Bairro é obrigatório" }, { status: 400 })
+    }
+    if (!city || !city.trim()) {
+      return NextResponse.json({ error: "Cidade é obrigatória" }, { status: 400 })
+    }
+    if (!state || !state.trim()) {
+      return NextResponse.json({ error: "Estado é obrigatório" }, { status: 400 })
+    }
+    if (state.length !== 2) {
+      return NextResponse.json({ error: "Estado deve ter 2 caracteres (UF)" }, { status: 400 })
     }
 
-    // Se for o primeiro endereço ou se is_default for true, definir como padrão
-    const isDefault = data.is_default === true || !existingAddresses || existingAddresses.length === 0
-
-    const { data: address, error } = await supabase
-      .from("customer_addresses")
-      .insert({
-        customer_id: data.customer_id,
-        name: data.name || "Endereço Principal",
-        zip_code: data.zip_code,
-        street: data.street,
-        number: data.number,
-        complement: data.complement || "",
-        neighborhood: data.neighborhood,
-        city: data.city,
-        state: data.state,
-        is_default: isDefault,
-      })
-      .select()
-      .single()
-
-    if (error) {
-      console.error("Erro ao criar endereço:", error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
+    // Se o novo endereço for padrão, remover o padrão dos outros
+    if (is_default) {
+      await query(
+        'UPDATE customer_addresses SET is_default = false WHERE user_id = $1',
+        [customer_id]
+      )
     }
 
-    return NextResponse.json({ address }, { status: 201 })
+    // Inserir novo endereço
+    const result = await query(
+      `
+      INSERT INTO customer_addresses 
+      (user_id, label, street, number, complement, neighborhood, city, state, zip_code, is_default)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      RETURNING *, label as name
+      `,
+      [customer_id, name || 'Endereço', street, number, complement, neighborhood, city, state, zip_code, is_default || false]
+    )
+
+    console.log("POST /api/addresses - Endereço criado:", result.rows[0])
+
+    return NextResponse.json({ address: result.rows[0] })
   } catch (error) {
-    console.error("Erro não tratado:", error)
-    return NextResponse.json({ error: "Erro ao processar a solicitação" }, { status: 500 })
+    console.error("Erro ao criar endereço:", error)
+    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
   }
 }

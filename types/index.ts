@@ -7,6 +7,7 @@ export interface Product {
   categoryId: string
   available: boolean
   showImage?: boolean
+  productNumber?: number
   sizes?: ProductSize[]
   toppings?: ProductTopping[]
 }
@@ -26,6 +27,8 @@ export interface Category {
   name: string
   description: string
   image: string
+  sort_order?: number
+  active?: boolean
 }
 
 export interface CartItem {
@@ -36,6 +39,20 @@ export interface CartItem {
   image: string
   size?: string
   toppings?: string[]
+  notes?: string
+  isHalfAndHalf?: boolean
+  halfAndHalf?: {
+    firstHalf: {
+      productId: string
+      productName: string
+      toppings?: string[]
+    }
+    secondHalf: {
+      productId: string
+      productName: string
+      toppings?: string[]
+    }
+  }
 }
 
 export interface Order {

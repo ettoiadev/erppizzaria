@@ -1,5 +1,5 @@
 -- Script de diagnóstico completo do sistema de pedidos
--- Execute no SQL Editor do Supabase
+-- Execute no PostgreSQL williamdiskpizza
 
 -- 1. Verificar se as tabelas existem
 SELECT 

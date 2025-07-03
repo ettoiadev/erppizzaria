@@ -1,5 +1,5 @@
 -- Script simplificado para corrigir estrutura da tabela orders
--- Execute este script no SQL Editor do Supabase
+-- Execute este script no PostgreSQL williamdiskpizza
 
 -- 1. Criar tabela orders se não existir
 CREATE TABLE IF NOT EXISTS orders (

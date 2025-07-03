@@ -30,7 +30,7 @@ export default function AccountPage() {
       setFormData({
         name: user.name || "",
         email: user.email || "",
-        phone: user.phone || "",
+        phone: formatPhone(user.phone || ""), // Formatar telefone ao carregar
       })
     }
   }, [user])
@@ -52,12 +52,14 @@ export default function AccountPage() {
       setError("Email inválido")
       return false
     }
-    if (formData.phone && formData.phone.trim()) {
-      const phoneNumbers = formData.phone.replace(/\D/g, "")
-      if (phoneNumbers.length < 10 || phoneNumbers.length > 11) {
-        setError("Telefone deve ter 10 ou 11 dígitos")
-        return false
-      }
+    if (!formData.phone.trim()) {
+      setError("Telefone é obrigatório")
+      return false
+    }
+    const phoneNumbers = formData.phone.replace(/\D/g, "")
+    if (phoneNumbers.length < 10 || phoneNumbers.length > 11) {
+      setError("Telefone deve ter 10 ou 11 dígitos")
+      return false
     }
     return true
   }
@@ -70,8 +72,38 @@ export default function AccountPage() {
     setSuccess("")
 
     try {
-      // Simular chamada da API
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      if (!user?.id) {
+        throw new Error("Usuário não identificado")
+      }
+
+      // Enviar telefone apenas com números para o backend
+      const cleanPhone = formData.phone.replace(/\D/g, "")
+      
+      const response = await fetch(`/api/users/${user.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: formData.name.trim(),
+          email: formData.email.trim(),
+          phone: cleanPhone, // Enviar apenas números
+        }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || "Erro ao atualizar dados")
+      }
+
+      console.log("Dados atualizados com sucesso:", result)
+
+      // Atualizar formData com telefone formatado
+      setFormData(prev => ({
+        ...prev,
+        phone: formatPhone(cleanPhone)
+      }))
 
       setSuccess("Dados atualizados com sucesso!")
       setIsEditing(false)
@@ -81,10 +113,11 @@ export default function AccountPage() {
         description: "Suas informações foram atualizadas com sucesso.",
       })
     } catch (error) {
-      setError("Não foi possível atualizar os dados. Tente novamente.")
+      const errorMessage = error instanceof Error ? error.message : "Não foi possível atualizar os dados. Tente novamente."
+      setError(errorMessage)
       toast({
         title: "Erro",
-        description: "Não foi possível atualizar os dados.",
+        description: errorMessage,
         variant: "destructive",
       })
     } finally {
@@ -97,7 +130,7 @@ export default function AccountPage() {
       setFormData({
         name: user.name || "",
         email: user.email || "",
-        phone: user.phone || "",
+        phone: formatPhone(user.phone || ""), // Formatar telefone ao cancelar
       })
     }
     setIsEditing(false)
@@ -113,10 +146,11 @@ export default function AccountPage() {
 
   const formatPhone = (value: string) => {
     const numbers = value.replace(/\D/g, "")
-    if (numbers.length <= 10) {
-      return numbers.replace(/(\d{2})(\d{4})(\d{4})/, "($1) $2-$3")
-    }
-    return numbers.replace(/(\d{2})(\d{5})(\d{4})/, "($1) $2-$3")
+    if (numbers.length === 0) return ""
+    if (numbers.length <= 2) return `(${numbers}`
+    if (numbers.length <= 6) return `(${numbers.slice(0, 2)}) ${numbers.slice(2)}`
+    if (numbers.length <= 10) return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 6)}-${numbers.slice(6)}`
+    return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7, 11)}`
   }
 
   return (
@@ -172,7 +206,7 @@ export default function AccountPage() {
               <div className="space-y-2">
                 <Label htmlFor="name" className="flex items-center gap-2">
                   <User className="w-4 h-4" />
-                  Nome Completo
+                  Nome Completo <span className="text-red-500">*</span>
                 </Label>
                 <Input
                   id="name"
@@ -180,12 +214,13 @@ export default function AccountPage() {
                   onChange={(e) => handleInputChange("name", e.target.value)}
                   disabled={!isEditing || isLoading}
                   placeholder="Seu nome completo"
+                  required
                 />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="email" className="flex items-center gap-2">
                   <Mail className="w-4 h-4" />
-                  E-mail
+                  E-mail <span className="text-red-500">*</span>
                 </Label>
                 <Input
                   id="email"
@@ -194,6 +229,7 @@ export default function AccountPage() {
                   onChange={(e) => handleInputChange("email", e.target.value)}
                   disabled={!isEditing || isLoading}
                   placeholder="seu@email.com"
+                  required
                 />
               </div>
             </div>
@@ -201,7 +237,7 @@ export default function AccountPage() {
             <div className="space-y-2">
               <Label htmlFor="phone" className="flex items-center gap-2">
                 <Phone className="w-4 h-4" />
-                Telefone
+                Telefone <span className="text-red-500">*</span>
               </Label>
               <Input
                 id="phone"
@@ -213,6 +249,7 @@ export default function AccountPage() {
                 disabled={!isEditing || isLoading}
                 placeholder="(11) 99999-9999"
                 maxLength={15}
+                required
               />
             </div>
 
@@ -229,7 +266,13 @@ export default function AccountPage() {
                 </div>
                 <div>
                   <Label className="text-gray-600">Tipo de Conta</Label>
-                  <p className="capitalize">{user?.role?.toLowerCase()}</p>
+                  <p className="capitalize">
+                    {user?.role?.toLowerCase() === 'customer' ? 'Cliente' : 
+                     user?.role?.toLowerCase() === 'admin' ? 'Administrador' :
+                     user?.role?.toLowerCase() === 'kitchen' ? 'Cozinha' :
+                     user?.role?.toLowerCase() === 'delivery' ? 'Entregador' :
+                     user?.role?.toLowerCase()}
+                  </p>
                 </div>
               </div>
             </div>
@@ -245,7 +288,7 @@ export default function AccountPage() {
                   </a>
                 </Button>
                 <Button variant="outline" asChild className="justify-start">
-                  <a href="/checkout">
+                  <a href="/conta/enderecos">
                     <MapPin className="w-4 h-4 mr-2" />
                     Gerenciar Endereços
                   </a>

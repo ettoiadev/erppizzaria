@@ -9,15 +9,17 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
-import { Clock, Phone, MapPin, CreditCard, Package, Truck, CheckCircle, XCircle, Eye, RefreshCw } from "lucide-react"
+import { Clock, Phone, MapPin, CreditCard, Package, Bike, CheckCircle, XCircle, Eye, RefreshCw, Bell, Dot, Printer, Store, Truck } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { ManualOrderForm } from "./manual-order-form"
+
 
 const statusColors = {
-  RECEIVED: "bg-blue-100 text-blue-800 border-blue-200",
-  PREPARING: "bg-yellow-100 text-yellow-800 border-yellow-200",
-  ON_THE_WAY: "bg-purple-100 text-purple-800 border-purple-200",
-  DELIVERED: "bg-green-100 text-green-800 border-green-200",
-  CANCELLED: "bg-red-100 text-red-800 border-red-200",
+  RECEIVED: "bg-blue-500 text-white border-blue-600 shadow-md",
+  PREPARING: "bg-yellow-500 text-black border-yellow-600 shadow-md font-bold",
+  ON_THE_WAY: "bg-blue-600 text-white border-blue-700 shadow-md font-bold",
+  DELIVERED: "bg-green-500 text-white border-green-600 shadow-md",
+  CANCELLED: "bg-red-500 text-white border-red-600 shadow-md",
 }
 
 const statusLabels = {
@@ -31,13 +33,14 @@ const statusLabels = {
 const statusIcons = {
   RECEIVED: Package,
   PREPARING: Clock,
-  ON_THE_WAY: Truck,
+  ON_THE_WAY: Bike,
   DELIVERED: CheckCircle,
   CANCELLED: XCircle,
 }
 
 interface OrderItem {
   id: string
+  name?: string // Nome do produto no item
   quantity: number
   unit_price: number
   total_price: number
@@ -48,6 +51,17 @@ interface OrderItem {
     description: string
     image: string
   }
+  half_and_half?: {
+    firstHalf?: {
+      productName: string
+      toppings: string[]
+    }
+    secondHalf?: {
+      productName: string
+      toppings: string[]
+    }
+  }
+  special_instructions?: string
 }
 
 interface Order {
@@ -68,6 +82,10 @@ interface Order {
     full_name: string
     phone?: string
   }
+  // Novos campos calculados da API para exibição correta do cliente
+  customer_display_name?: string
+  customer_display_phone?: string
+  customer_name?: string
   order_items: OrderItem[]
 }
 
@@ -82,7 +100,6 @@ interface OrderStatistics {
 }
 
 export function OrdersManagement() {
-  const [selectedStatus, setSelectedStatus] = useState("all")
   const [orders, setOrders] = useState<Order[]>([])
   const [statistics, setStatistics] = useState<OrderStatistics>({
     total: 0,
@@ -93,10 +110,12 @@ export function OrdersManagement() {
     cancelled: 0,
     totalRevenue: 0,
   })
+  const [selectedStatus, setSelectedStatus] = useState("all")
   const [loading, setLoading] = useState(true)
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null)
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [cancellationNotes, setCancellationNotes] = useState("")
+  const [isManualOrderModalOpen, setIsManualOrderModalOpen] = useState(false)
   const { toast } = useToast()
 
   const fetchOrders = async () => {
@@ -182,12 +201,23 @@ export function OrdersManagement() {
     }
   }
 
-  const getNextStatusAction = (currentStatus: string) => {
+  const getStatusIcon = (status: string) => {
+    const icons = {
+      RECEIVED: Package,
+      PREPARING: Clock,
+      ON_THE_WAY: Bike,
+      DELIVERED: CheckCircle,
+      CANCELLED: XCircle,
+    }
+    return icons[status as keyof typeof icons] || Package
+  }
+
+  const getNextStatus = (currentStatus: string) => {
     switch (currentStatus) {
       case "RECEIVED":
         return { status: "PREPARING", label: "Iniciar Preparo", icon: Clock }
       case "PREPARING":
-        return { status: "ON_THE_WAY", label: "Enviar para Entrega", icon: Truck }
+        return { status: "ON_THE_WAY", label: "Enviar para Entrega", icon: Bike }
       case "ON_THE_WAY":
         return { status: "DELIVERED", label: "Marcar como Entregue", icon: CheckCircle }
       default:
@@ -206,12 +236,251 @@ export function OrdersManagement() {
     return new Date(dateString).toLocaleString("pt-BR")
   }
 
+  const handleManualOrderSuccess = () => {
+    fetchOrders()
+    setIsManualOrderModalOpen(false)
+  }
+
+  // Mapeamento de métodos de pagamento do backend para português
+  const mapPaymentMethodToPortuguese = (backendValue: string): string => {
+    const paymentMapping: Record<string, string> = {
+      "PIX": "PIX",
+      "CASH": "Dinheiro",
+      "CREDIT_CARD": "Cartão de Crédito", 
+      "DEBIT_CARD": "Cartão de Débito",
+      "CARD_ON_DELIVERY": "Cartão na Entrega"
+    }
+    return paymentMapping[backendValue] || backendValue
+  }
+
+  // Função para imprimir pedido para a cozinha
+  const printKitchenReceipt = (order: Order) => {
+    const printWindow = window.open('', '_blank', 'width=300,height=600')
+    if (!printWindow) return
+
+    const formatDateTime = (dateString: string) => {
+      return new Date(dateString).toLocaleString("pt-BR", {
+        day: '2-digit',
+        month: '2-digit', 
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+    }
+
+    const formatCurrency = (value: number) => {
+      return new Intl.NumberFormat("pt-BR", {
+        style: "currency",
+        currency: "BRL",
+      }).format(value)
+    }
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Pedido #${order.id.slice(-8)} - Cozinha</title>
+        <style>
+          @media print {
+            @page { 
+              margin: 5mm; 
+              size: 80mm auto;
+            }
+            body { 
+              margin: 0; 
+              font-size: 11px;
+              line-height: 1.2;
+            }
+          }
+          body {
+            font-family: 'Courier New', monospace;
+            width: 70mm;
+            margin: 0 auto;
+            padding: 5mm;
+            background: white;
+            color: black;
+            font-size: 11px;
+            line-height: 1.3;
+          }
+          .header {
+            text-align: center;
+            border-bottom: 2px solid #000;
+            padding-bottom: 5px;
+            margin-bottom: 10px;
+          }
+          .order-number {
+            font-size: 18px;
+            font-weight: bold;
+            margin: 5px 0;
+          }
+          .status {
+            background: #000;
+            color: white;
+            padding: 3px 8px;
+            font-weight: bold;
+            font-size: 12px;
+            margin: 5px 0;
+          }
+          .section {
+            margin: 8px 0;
+            padding: 3px 0;
+          }
+          .section-title {
+            font-weight: bold;
+            text-decoration: underline;
+            margin-bottom: 3px;
+          }
+          .item {
+            margin: 3px 0;
+            padding: 2px 0;
+          }
+          .item-name {
+            font-weight: bold;
+          }
+          .item-details {
+            margin-left: 5px;
+            font-size: 10px;
+          }
+          .observations {
+            background: #f0f0f0;
+            padding: 5px;
+            border: 1px solid #000;
+            margin: 5px 0;
+            font-weight: bold;
+          }
+          .footer {
+            border-top: 1px solid #000;
+            padding-top: 5px;
+            margin-top: 10px;
+            text-align: center;
+            font-size: 10px;
+          }
+          .dashed-line {
+            border-top: 1px dashed #000;
+            margin: 5px 0;
+          }
+          .customer-info {
+            font-size: 10px;
+            margin: 2px 0;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div style="font-weight: bold; font-size: 14px;">WILLIAM DISK PIZZA</div>
+          <div style="font-size: 10px;">PEDIDO PARA COZINHA</div>
+          <div class="order-number">PEDIDO #${order.id.slice(-8)}</div>
+          <div class="status">${statusLabels[order.status]}</div>
+        </div>
+
+        <div class="section">
+          <div style="font-weight: bold;">DATA/HORA:</div>
+          <div>${formatDateTime(order.created_at)}</div>
+        </div>
+
+        <div class="dashed-line"></div>
+
+        <div class="section">
+          <div class="section-title">CLIENTE</div>
+          <div class="customer-info">Nome: ${order.customer_display_name || order.profiles?.full_name || order.customer_name || 'N/A'}</div>
+          <div class="customer-info">Fone: ${order.customer_display_phone || order.delivery_phone || order.profiles?.phone || 'N/A'}</div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">ENTREGA</div>
+          <div style="font-size: 10px; word-wrap: break-word;">
+            ${order.delivery_address}
+          </div>
+        </div>
+
+        <div class="dashed-line"></div>
+
+        <div class="section">
+          <div class="section-title">ITENS DO PEDIDO</div>
+          ${order.order_items?.map(item => `
+            <div class="item">
+              <div class="item-name">${item.quantity}x ${item.products?.name || (item as any).name || 'Produto'}</div>
+              ${item.size ? `<div class="item-details">Tamanho: ${item.size}</div>` : ''}
+              
+              ${item.half_and_half ? `
+                <div class="item-details" style="background: #f0f0f0; padding: 3px; margin: 2px 0; border: 1px solid #ccc;">
+                  <div style="font-weight: bold;">🍕 PIZZA MEIO A MEIO:</div>
+                  <div>1ª metade: ${item.half_and_half.firstHalf?.productName || ''}</div>
+                  ${item.half_and_half.firstHalf?.toppings && item.half_and_half.firstHalf.toppings.length > 0 ? 
+                    `<div style="margin-left: 10px;">+ ${item.half_and_half.firstHalf.toppings.join(', ')}</div>` : ''
+                  }
+                  <div>2ª metade: ${item.half_and_half.secondHalf?.productName || ''}</div>
+                  ${item.half_and_half.secondHalf?.toppings && item.half_and_half.secondHalf.toppings.length > 0 ? 
+                    `<div style="margin-left: 10px;">+ ${item.half_and_half.secondHalf.toppings.join(', ')}</div>` : ''
+                  }
+                </div>
+              ` : ''}
+              
+              ${!item.half_and_half && item.toppings && item.toppings.length > 0 ? 
+                `<div class="item-details">Adicionais: ${item.toppings.join(', ')}</div>` : ''
+              }
+              
+              ${item.special_instructions ? `
+                <div class="observations" style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 3px; margin: 2px 0;">
+                  <div style="font-weight: bold; font-size: 10px;">📝 OBSERVAÇÕES:</div>
+                  <div style="font-size: 10px;">${item.special_instructions}</div>
+                </div>
+              ` : ''}
+            </div>
+          `).join('') || ''}
+        </div>
+
+        <div class="dashed-line"></div>
+
+        <div class="section">
+          <div style="font-weight: bold;">PAGAMENTO: ${mapPaymentMethodToPortuguese(order.payment_method)}</div>
+          <div style="font-weight: bold;">TOTAL: ${formatCurrency(order.total)}</div>
+        </div>
+
+        ${order.delivery_instructions ? `
+          <div class="observations">
+            <div style="text-decoration: underline; margin-bottom: 3px;">OBSERVAÇÕES:</div>
+            <div>${order.delivery_instructions}</div>
+          </div>
+        ` : ''}
+
+        <div class="footer">
+          <div class="dashed-line"></div>
+          <div>Impresso em: ${new Date().toLocaleString('pt-BR')}</div>
+          <div style="margin-top: 5px; font-weight: bold;">
+            ${order.status === 'RECEIVED' ? '⏰ AGUARDANDO PREPARO' : 
+              order.status === 'PREPARING' ? '🔥 EM PREPARO' : 
+              '✅ PROCESSADO'}
+          </div>
+        </div>
+      </body>
+      </html>
+    `
+
+    printWindow.document.write(html)
+    printWindow.document.close()
+    
+    // Aguardar carregamento e imprimir
+    printWindow.onload = () => {
+      setTimeout(() => {
+        printWindow.print()
+        printWindow.close()
+      }, 250)
+    }
+
+    toast({
+      title: "Imprimindo",
+      description: `Pedido #${order.id.slice(-8)} enviado para impressão`,
+    })
+  }
+
   const filteredOrders = orders
 
   return (
     <div className="space-y-6">
       {/* Header com estatísticas */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
@@ -232,6 +501,18 @@ export function OrdersManagement() {
                 <p className="text-2xl font-bold text-yellow-600">{statistics.received + statistics.preparing}</p>
               </div>
               <Clock className="h-8 w-8 text-yellow-600" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">Em Entrega</p>
+                <p className="text-2xl font-bold text-orange-600">{statistics.onTheWay}</p>
+              </div>
+              <Bike className="h-8 w-8 text-orange-600" />
             </div>
           </CardContent>
         </Card>
@@ -265,11 +546,33 @@ export function OrdersManagement() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Gerenciar Pedidos</h1>
-          <p className="text-gray-600">Acompanhe e gerencie todos os pedidos em tempo real</p>
+          <p className="text-gray-600">Acompanhe e gerencie todos os pedidos</p>
         </div>
 
         <div className="flex gap-3">
-          <Button variant="outline" onClick={fetchOrders} disabled={loading} className="flex items-center gap-2">
+          <Dialog open={isManualOrderModalOpen} onOpenChange={setIsManualOrderModalOpen}>
+            <DialogTrigger asChild>
+              <Button 
+                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
+              >
+                <Package className="h-4 w-4" />
+                Novo Pedido Manual
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Criar Pedido Manual</DialogTitle>
+              </DialogHeader>
+              <ManualOrderForm onSuccess={handleManualOrderSuccess} />
+            </DialogContent>
+          </Dialog>
+
+          <Button 
+            variant="outline" 
+            onClick={fetchOrders} 
+            disabled={loading} 
+            className="flex items-center gap-2"
+          >
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             Atualizar
           </Button>
@@ -280,7 +583,12 @@ export function OrdersManagement() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todos os Status</SelectItem>
-              <SelectItem value="RECEIVED">Recebidos ({statistics.received})</SelectItem>
+              <SelectItem value="RECEIVED">
+                <div className="flex items-center gap-2">
+                  Recebidos ({statistics.received})
+                  {statistics.received > 0 && <Badge variant="secondary" className="text-xs">{statistics.received}</Badge>}
+                </div>
+              </SelectItem>
               <SelectItem value="PREPARING">Preparando ({statistics.preparing})</SelectItem>
               <SelectItem value="ON_THE_WAY">Saiu para Entrega ({statistics.onTheWay})</SelectItem>
               <SelectItem value="DELIVERED">Entregues ({statistics.delivered})</SelectItem>
@@ -304,28 +612,47 @@ export function OrdersManagement() {
           </div>
         ) : (
           filteredOrders.map((order) => {
-            const StatusIcon = statusIcons[order.status]
-            const nextAction = getNextStatusAction(order.status)
+            const StatusIcon = getStatusIcon(order.status)
+            const nextAction = getNextStatus(order.status)
 
             return (
-              <Card key={order.id} className="hover:shadow-md transition-shadow">
-                <CardHeader>
-                  <div className="flex justify-between items-start">
-                    <div className="space-y-1">
-                      <CardTitle className="text-lg flex items-center gap-2">
-                        Pedido #{order.id.slice(-8)}
-                        <StatusIcon className="h-5 w-5" />
-                      </CardTitle>
-                      <div className="flex items-center gap-4 text-sm text-gray-600">
-                        <span className="flex items-center gap-1">
-                          <Phone className="h-4 w-4" />
-                          {order.profiles?.full_name || "Cliente não identificado"}
-                        </span>
-                        <span>{order.delivery_phone}</span>
-                        <span>{formatDateTime(order.created_at)}</span>
-                      </div>
+              <Card key={order.id} className="hover:shadow-md transition-shadow overflow-hidden border-2">
+                {/* STATUS EM DESTAQUE NO TOPO */}
+                <div className={`px-6 py-4 ${statusColors[order.status]} border-b-2`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <StatusIcon className="h-7 w-7" />
+                      <span className="text-xl font-bold tracking-wide">
+                        {statusLabels[order.status]}
+                      </span>
+                      {/* Badge para pedidos manuais */}
+                      {(order.delivery_address === "Manual (Balcão)" || order.delivery_address === "Manual (Telefone)") && (
+                        <Badge variant="secondary" className="bg-purple-100 text-purple-800 border-purple-200 font-medium">
+                          {order.delivery_address === "Manual (Balcão)" ? (
+                            <><Store className="h-3 w-3 mr-1" />BALCÃO</>
+                          ) : (
+                            <><Phone className="h-3 w-3 mr-1" />TELEFONE</>
+                          )}
+                        </Badge>
+                      )}
                     </div>
-                    <Badge className={statusColors[order.status]}>{statusLabels[order.status]}</Badge>
+                    <div className="text-right">
+                      <p className="text-lg font-bold">Pedido #{order.id.slice(-8)}</p>
+                      <p className="text-sm opacity-90">{formatDateTime(order.created_at)}</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <CardHeader className="pb-3">
+                  <div className="flex items-center gap-4 text-sm text-gray-600">
+                    <span className="flex items-center gap-1">
+                      <Phone className="h-4 w-4" />
+                      {order.customer_display_name || order.profiles?.full_name || order.customer_name || "Cliente não identificado"}
+                    </span>
+                    <span>{order.customer_display_phone || order.delivery_phone || order.profiles?.phone || "Sem telefone"}</span>
+                    <span className="ml-auto font-bold text-lg text-gray-900">
+                      {formatCurrency(order.total)}
+                    </span>
                   </div>
                 </CardHeader>
 
@@ -350,15 +677,49 @@ export function OrdersManagement() {
                     </h4>
                     <div className="space-y-1">
                       {order.order_items?.map((item, index) => (
-                        <div key={index} className="flex justify-between text-sm bg-gray-50 p-2 rounded">
-                          <span>
-                            {item.quantity}x {item.products.name}
-                            {item.size && ` (${item.size})`}
-                            {item.toppings && item.toppings.length > 0 && (
-                              <span className="text-gray-500"> + {item.toppings.join(", ")}</span>
-                            )}
-                          </span>
-                          <span className="font-medium">{formatCurrency(item.total_price)}</span>
+                        <div key={index} className="space-y-2 bg-gray-50 p-3 rounded border">
+                          <div className="flex justify-between">
+                            <span className="font-medium">
+                              {item.quantity}x {item.products?.name || item.name || "Produto não encontrado"}
+                              {item.size && ` (${item.size})`}
+                            </span>
+                            <span className="font-medium">{formatCurrency(item.total_price)}</span>
+                          </div>
+                          
+                          {/* Informações de pizza meio a meio */}
+                          {item.half_and_half && (
+                            <div className="text-xs bg-blue-50 p-2 rounded border border-blue-200">
+                              <p className="font-medium text-blue-800 mb-1">🍕 Pizza Meio a Meio:</p>
+                              <div className="space-y-1">
+                                <div>
+                                  <span className="font-medium">1ª metade:</span> {item.half_and_half.firstHalf?.productName}
+                                  {item.half_and_half.firstHalf?.toppings && item.half_and_half.firstHalf.toppings.length > 0 && (
+                                    <div className="text-gray-500 ml-2">+ {item.half_and_half.firstHalf.toppings.join(", ")}</div>
+                                  )}
+                                </div>
+                                <div>
+                                  <span className="font-medium">2ª metade:</span> {item.half_and_half.secondHalf?.productName}
+                                  {item.half_and_half.secondHalf?.toppings && item.half_and_half.secondHalf.toppings.length > 0 && (
+                                    <div className="text-gray-500 ml-2">+ {item.half_and_half.secondHalf.toppings.join(", ")}</div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* Adicionais para produtos normais */}
+                          {!item.half_and_half && item.toppings && item.toppings.length > 0 && (
+                            <div className="text-sm text-gray-600">
+                              <span className="font-medium">Adicionais:</span> {item.toppings.join(", ")}
+                            </div>
+                          )}
+                          
+                          {/* Observações do item */}
+                          {item.special_instructions && (
+                            <div className="text-xs bg-orange-50 p-2 rounded border border-orange-200">
+                              <span className="font-medium text-orange-700">📝 Observações:</span> {item.special_instructions}
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -394,7 +755,7 @@ export function OrdersManagement() {
                     <div className="flex items-center gap-4">
                       <span className="flex items-center gap-1">
                         <CreditCard className="h-4 w-4" />
-                        {order.payment_method}
+                        {mapPaymentMethodToPortuguese(order.payment_method)}
                       </span>
                       {order.estimated_delivery_time && (
                         <span className="flex items-center gap-1 text-orange-600">
@@ -406,6 +767,18 @@ export function OrdersManagement() {
 
                     {/* Ações */}
                     <div className="flex gap-2">
+                      {/* Botão de Impressão para Cozinha */}
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => printKitchenReceipt(order)}
+                        className="flex items-center gap-1 text-blue-600 hover:text-blue-700 border-blue-200 hover:border-blue-300"
+                        title="Imprimir para cozinha"
+                      >
+                        <Printer className="h-4 w-4" />
+                        Imprimir
+                      </Button>
+
                       <Dialog>
                         <DialogTrigger asChild>
                           <Button variant="outline" size="sm" onClick={() => setSelectedOrder(order)}>
@@ -422,11 +795,11 @@ export function OrdersManagement() {
                               <div className="grid grid-cols-2 gap-4 text-sm">
                                 <div>
                                   <Label>Cliente:</Label>
-                                  <p>{selectedOrder.profiles?.full_name}</p>
+                                  <p>{selectedOrder.customer_display_name || selectedOrder.profiles?.full_name || selectedOrder.customer_name || "Cliente não identificado"}</p>
                                 </div>
                                 <div>
                                   <Label>Telefone:</Label>
-                                  <p>{selectedOrder.delivery_phone}</p>
+                                  <p>{selectedOrder.customer_display_phone || selectedOrder.delivery_phone || selectedOrder.profiles?.phone || "Sem telefone"}</p>
                                 </div>
                                 <div>
                                   <Label>Status:</Label>
@@ -436,7 +809,7 @@ export function OrdersManagement() {
                                 </div>
                                 <div>
                                   <Label>Método de Pagamento:</Label>
-                                  <p>{selectedOrder.payment_method}</p>
+                                  <p>{mapPaymentMethodToPortuguese(selectedOrder.payment_method)}</p>
                                 </div>
                               </div>
 
@@ -456,7 +829,7 @@ export function OrdersManagement() {
                                   {selectedOrder.order_items?.map((item, index) => (
                                     <div key={index} className="flex justify-between p-2 bg-gray-50 rounded">
                                       <div>
-                                        <p className="font-medium">{item.products.name}</p>
+                                        <p className="font-medium">{item.products?.name || (item as any).name || "Produto não encontrado"}</p>
                                         <p className="text-sm text-gray-600">
                                           Quantidade: {item.quantity}
                                           {item.size && ` • Tamanho: ${item.size}`}

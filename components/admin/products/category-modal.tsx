@@ -1,6 +1,6 @@
 "use client"
 
-import type React from "react"
+
 
 import { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -152,16 +152,6 @@ export function CategoryModal({ open, onOpenChange, category, onSave }: Category
               value={formData.description}
               onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
               required
-            />
-          </div>
-
-          <div>
-            <Label htmlFor="image">URL da Imagem</Label>
-            <Input
-              id="image"
-              value={formData.image}
-              onChange={(e) => setFormData((prev) => ({ ...prev, image: e.target.value }))}
-              placeholder="https://exemplo.com/imagem.jpg"
             />
           </div>
 
