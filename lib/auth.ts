@@ -1,108 +1,164 @@
 import bcrypt from 'bcrypt';
-import { query } from './db';
 import { sign, verify } from 'jsonwebtoken';
+import { getUserByEmail, createUserProfile, UserProfile } from './supabase-integration';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'william-disk-pizza-jwt-secret-2024';
+const JWT_SECRET = process.env.JWT_SECRET || 'william-disk-pizza-jwt-secret-2024-production';
 
-export async function hashPassword(password: string) {
+export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 10);
 }
 
-export async function comparePasswords(password: string, hashedPassword: string) {
+export async function comparePasswords(password: string, hashedPassword: string): Promise<boolean> {
   return bcrypt.compare(password, hashedPassword);
 }
 
-export async function createUser({ email, password, full_name, role = 'customer' }: {
+export async function createUser({ 
+  email, 
+  password, 
+  full_name, 
+  role = 'customer' 
+}: {
   email: string;
   password: string;
   full_name: string;
   role?: string;
-}) {
-  const hashedPassword = await hashPassword(password);
-  
-  // Criar perfil do usuário diretamente na tabela profiles
-  const result = await query(
-    'INSERT INTO profiles (email, full_name, role, password_hash) VALUES ($1, $2, $3, $4) RETURNING *',
-    [email.toLowerCase(), full_name, role, hashedPassword]
-  );
-  
-  return {
-    id: result.rows[0].id,
-    email: email.toLowerCase(),
-    full_name,
-    role
-  };
-}
+}): Promise<UserProfile | null> {
+  try {
+    console.log('🔐 Criando usuário:', email);
+    
+    const hashedPassword = await hashPassword(password);
+    
+    const user = await createUserProfile({
+      email: email.toLowerCase(),
+      full_name,
+      role,
+      password_hash: hashedPassword
+    });
 
-export function generateToken(user: any) {
-  return sign(
-    {
+    if (!user) {
+      throw new Error('Falha ao criar usuário');
+    }
+
+    console.log('✅ Usuário criado com sucesso:', user.email);
+    
+    return {
       id: user.id,
       email: user.email,
-      role: user.role
-    },
-    JWT_SECRET,
-    { expiresIn: '7d' }
-  );
+      full_name: user.full_name,
+      role: user.role as 'customer' | 'admin' | 'kitchen' | 'delivery'
+    };
+  } catch (error: any) {
+    console.error('❌ Erro ao criar usuário:', error.message);
+    throw new Error('Erro ao criar conta: ' + error.message);
+  }
 }
 
-export async function verifyToken(token: string) {
+export function generateToken(user: UserProfile): string {
   try {
-    return verify(token, JWT_SECRET);
-  } catch (error) {
+    console.log('🎫 Gerando token para:', user.email);
+    
+    const token = sign(
+      {
+        id: user.id,
+        email: user.email,
+        role: user.role
+      },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    console.log('✅ Token gerado com sucesso');
+    return token;
+  } catch (error: any) {
+    console.error('❌ Erro ao gerar token:', error.message);
+    throw new Error('Erro ao gerar token de autenticação');
+  }
+}
+
+export async function verifyToken(token: string): Promise<any> {
+  try {
+    const decoded = verify(token, JWT_SECRET);
+    console.log('✅ Token verificado com sucesso');
+    return decoded;
+  } catch (error: any) {
+    console.error('❌ Token inválido:', error.message);
     return null;
   }
 }
 
-export async function getUserByEmail(email: string) {
+export { getUserByEmail };
+
+export async function verifyAdmin(token: string): Promise<any> {
   try {
-    if (!email?.trim()) {
-      console.log('getUserByEmail: Email vazio fornecido');
+    const payload = await verifyToken(token);
+    
+    if (!payload || typeof payload === 'string' || payload.role !== 'admin') {
+      console.log('❌ Token não é de administrador');
       return null;
     }
 
-    console.log('getUserByEmail: Buscando usuário com email:', email);
-    
-    const result = await query(
-      'SELECT id, email, full_name, role, password_hash FROM profiles WHERE email = $1',
-      [email.toLowerCase().trim()]
-    );
-    
-    console.log('getUserByEmail: Resultado da query:', {
-      rowCount: result.rowCount,
-      hasUser: !!result.rows[0]
-    });
-    
-    const user = result.rows[0];
-    
-    if (user) {
-      console.log('getUserByEmail: Usuário encontrado:', {
-        id: user.id,
-        email: user.email,
-        role: user.role,
-        hasPassword: !!user.password_hash
-      });
-    } else {
-      console.log('getUserByEmail: Nenhum usuário encontrado para email:', email);
-    }
-    
-    return user || null;
-    
+    console.log('✅ Admin verificado:', payload.email);
+    return payload;
   } catch (error: any) {
-    console.error('getUserByEmail: Erro ao buscar usuário:', {
-      email,
-      error: error.message,
-      code: error.code,
-      hint: error.hint
-    });
+    console.error('❌ Erro ao verificar admin:', error.message);
     return null;
   }
 }
 
-export async function verifyAdmin(token: string) {
-  const payload = await verifyToken(token);
-  if (!payload || typeof payload === 'string' || payload.role !== 'admin') {
+// Função para validar se email já existe
+export async function emailExists(email: string): Promise<boolean> {
+  try {
+    const user = await getUserByEmail(email);
+    return !!user;
+  } catch (error) {
+    console.error('❌ Erro ao verificar email:', error);
+    return false;
+  }
+}
+
+// Função para login completo
+export async function authenticateUser(email: string, password: string): Promise<{
+  user: UserProfile;
+  token: string;
+} | null> {
+  try {
+    console.log('🔐 Autenticando usuário:', email);
+    
+    // Buscar usuário
+    const user = await getUserByEmail(email);
+    if (!user) {
+      console.log('❌ Usuário não encontrado');
+      return null;
+    }
+
+    // Verificar senha
+    if (!user.password_hash) {
+      console.log('❌ Usuário sem senha configurada');
+      return null;
+    }
+
+    const isValidPassword = await comparePasswords(password, user.password_hash);
+    if (!isValidPassword) {
+      console.log('❌ Senha inválida');
+      return null;
+    }
+
+    // Gerar token
+    const token = generateToken(user);
+
+    console.log('✅ Usuário autenticado com sucesso');
+    
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        full_name: user.full_name,
+        role: user.role
+      },
+      token
+    };
+  } catch (error: any) {
+    console.error('❌ Erro na autenticação:', error.message);
     return null;
   }
-  return payload;
 } 

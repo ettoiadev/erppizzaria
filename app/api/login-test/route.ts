@@ -1,8 +1,10 @@
 import { NextRequest } from "next/server"
-import { comparePasswords, generateToken, getUserByEmail } from "@/lib/auth"
+import { authenticateUser } from "@/lib/auth"
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('🧪 === TESTE LOGIN API START ===')
+    
     const { email, password } = await request.json()
     
     if (!email || !password) {
@@ -12,26 +14,22 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Buscar usuário
-    const user = await getUserByEmail(email)
-    if (!user) {
+    console.log('🔐 Testando autenticação para:', email)
+
+    // Usar a mesma função de autenticação otimizada
+    const authResult = await authenticateUser(email, password)
+
+    if (!authResult) {
+      console.log('❌ Teste: Authentication failed')
       return Response.json(
         { error: "Credenciais inválidas" },
         { status: 401 }
       )
     }
 
-    // Verificar senha
-    const isValidPassword = await comparePasswords(password, user.password_hash)
-    if (!isValidPassword) {
-      return Response.json(
-        { error: "Credenciais inválidas" },
-        { status: 401 }
-      )
-    }
+    const { user, token } = authResult
 
-    // Gerar token
-    const token = generateToken(user)
+    console.log('✅ Teste: Usuário autenticado:', user.email)
 
     return Response.json({
       user: {
@@ -40,11 +38,12 @@ export async function POST(request: NextRequest) {
         full_name: user.full_name,
         role: user.role
       },
-      token
+      token,
+      test_route: true
     })
 
-  } catch (error) {
-    console.error("Login error:", error)
+  } catch (error: any) {
+    console.error("❌ Teste: Login error:", error.message)
     return Response.json(
       { error: "Erro interno do servidor" },
       { status: 500 }
