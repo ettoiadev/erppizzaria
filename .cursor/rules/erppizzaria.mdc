@@ -1,0 +1,21 @@
+---
+description: >
+  Regras para o projeto ERP Pizzaria com Supabase, Next.js e Tailwind.
+  Não modifique estruturas de banco, rotas ou fluxos existentes sem permissão explícita.
+globs:
+  - "**/*.ts"
+  - "**/*.tsx"
+  - "**/*.sql"
+alwaysApply: true
+---
+
+# Regras do Projeto ERP Pizzaria
+
+- Sempre use apenas TailwindCSS para estilização. Não utilizar CSS inline ou bibliotecas externas.
+- Nunca altere a estrutura do banco de dados (SQL ou Supabase) sem solicitação explícita.
+- Não modifique rotas, estruturas de pastas ou nomes de arquivos existentes.
+- Utilize apenas bibliotecas já presentes no projeto.
+- Código deve ser em TypeScript com tipagem forte e boas práticas de arquitetura.
+- Automatize comandos de desenvolvimento (dev/build/migrate), mas sempre peça aprovação para alterações em produção.
+- Siga o estilo de código atual (nomes de variáveis, formatação, arquitetura).
+
