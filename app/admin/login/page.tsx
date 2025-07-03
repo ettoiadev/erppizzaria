@@ -18,7 +18,7 @@ export default function AdminLoginPage() {
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [showRegisterModal, setShowRegisterModal] = useState(false)
-  const { login } = useAuth()
+  const { login, testAlternativeLogin } = useAuth()
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -31,6 +31,20 @@ export default function AdminLoginPage() {
       router.push("/admin")
     } catch (error: any) {
       setError(error.message || "Email ou senha inválidos")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleAlternativeLogin = async () => {
+    setIsLoading(true)
+    setError("")
+
+    try {
+      await testAlternativeLogin(email, password)
+      router.push("/admin")
+    } catch (error: any) {
+      setError(`[TESTE] ${error.message || "Email ou senha inválidos"}`)
     } finally {
       setIsLoading(false)
     }
@@ -72,9 +86,21 @@ export default function AdminLoginPage() {
               />
             </div>
 
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? "Entrando..." : "Entrar"}
-            </Button>
+            <div className="space-y-2">
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? "Entrando..." : "Entrar"}
+              </Button>
+              
+              <Button 
+                type="button" 
+                variant="outline" 
+                className="w-full" 
+                onClick={handleAlternativeLogin}
+                disabled={isLoading}
+              >
+                🧪 Testar Rota Alternativa
+              </Button>
+            </div>
           </form>
 
           <div className="mt-6 pt-4 border-t border-gray-200">
