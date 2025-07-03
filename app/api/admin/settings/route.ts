@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import jwt from "jsonwebtoken"
-import { query } from "@/lib/db"
+import { supabase } from "@/lib/supabase-integration"
 import { verifyToken } from "@/lib/auth"
 import { JwtPayload } from "jsonwebtoken"
 
@@ -64,27 +64,19 @@ export async function GET(request: Request) {
 
     console.log(`[ADMIN_SETTINGS] Acesso autorizado para admin: ${decoded.email}`)
 
-    // Verificar se tabela admin_settings existe
-    const tableCheck = await query(`
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_schema = 'public' AND table_name = 'admin_settings'
-      ) as table_exists
-    `)
+    // Buscar configurações usando Supabase
+    const { data, error } = await supabase
+      .from('admin_settings')
+      .select('setting_key, setting_value')
+      .order('setting_key')
 
-    if (!tableCheck.rows[0].table_exists) {
-      console.log("[ADMIN_SETTINGS] Tabela admin_settings não encontrada, retornando configurações vazias")
+    if (error) {
+      console.log("[ADMIN_SETTINGS] Erro ao buscar configurações ou tabela não existe:", error.message)
       return NextResponse.json({ settings: {} })
     }
 
-    const result = await query(`
-      SELECT setting_key, setting_value 
-      FROM admin_settings
-      ORDER BY setting_key
-    `)
-
     const settings: Record<string, any> = {}
-    result.rows.forEach(row => {
+    data?.forEach((row: any) => {
       try {
         settings[row.setting_key] = JSON.parse(row.setting_value)
       } catch {
@@ -130,24 +122,21 @@ export async function POST(request: Request) {
     const settings = await request.json()
     console.log(`[ADMIN_SETTINGS] Atualizando ${Object.keys(settings).length} configurações`)
 
-    // Verificar se tabela admin_settings existe, criar se não existir
-    await query(`
-      CREATE TABLE IF NOT EXISTS admin_settings (
-        setting_key VARCHAR(255) PRIMARY KEY,
-        setting_value TEXT NOT NULL,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-      )
-    `)
-
+    // Salvar configurações usando Supabase upsert
     for (const [key, value] of Object.entries(settings)) {
       const stringValue = typeof value === 'string' ? value : JSON.stringify(value)
-      await query(`
-        INSERT INTO admin_settings (setting_key, setting_value)
-        VALUES ($1, $2)
-        ON CONFLICT (setting_key)
-        DO UPDATE SET setting_value = $2, updated_at = NOW()
-      `, [key, stringValue])
+      
+      const { error } = await supabase
+        .from('admin_settings')
+        .upsert({
+          setting_key: key,
+          setting_value: stringValue
+        })
+
+      if (error) {
+        console.error(`[ADMIN_SETTINGS] Erro ao salvar configuração ${key}:`, error.message)
+        return NextResponse.json({ error: `Erro ao salvar configuração ${key}` }, { status: 500 })
+      }
     }
 
     console.log("[ADMIN_SETTINGS] Configurações salvas com sucesso")

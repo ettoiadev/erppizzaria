@@ -89,6 +89,59 @@ export async function query(text: string, params?: any[]) {
       }
     }
     
+    // Query para buscar configurações admin_settings
+    if (normalizedQuery.includes('select setting_key, setting_value') && normalizedQuery.includes('admin_settings')) {
+      const { data, error } = await supabase
+        .from('admin_settings')
+        .select('setting_key, setting_value')
+        .in('setting_key', params?.[0] || []);
+        
+      if (error) {
+        // Se a tabela não existir, retornar array vazio
+        console.log('⚠️ Tabela admin_settings não encontrada, retornando vazio');
+        return {
+          rows: [],
+          rowCount: 0
+        };
+      }
+      
+      return {
+        rows: data || [],
+        rowCount: data?.length || 0
+      };
+    }
+    
+    // Query para buscar configuração específica (allowAdminRegistration)
+    if (normalizedQuery.includes('select setting_value from admin_settings where setting_key')) {
+      const settingKey = params?.[0] || text.match(/'([^']+)'/)?.[1];
+      if (!settingKey) {
+        throw new Error('Setting key parameter is required');
+      }
+      
+      const { data, error } = await supabase
+        .from('admin_settings')
+        .select('setting_value')
+        .eq('setting_key', settingKey)
+        .single();
+        
+      if (error) {
+        if (error.code === 'PGRST116') {
+          // Setting não encontrada - retornar valor padrão
+          const defaultValue = settingKey === 'allowAdminRegistration' ? 'disabled' : '';
+          return {
+            rows: [{ setting_value: defaultValue }],
+            rowCount: 1
+          };
+        }
+        throw error;
+      }
+      
+      return {
+        rows: data ? [data] : [],
+        rowCount: data ? 1 : 0
+      };
+    }
+
     // Query genérica de teste (SELECT NOW(), etc.)
     if (normalizedQuery.includes('select now()') || normalizedQuery.includes('select version()')) {
       return {

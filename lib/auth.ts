@@ -1,4 +1,4 @@
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import { sign, verify } from 'jsonwebtoken';
 import { getUserByEmail, createUserProfile, UserProfile } from './supabase-integration';
 

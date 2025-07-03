@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server"
-import { createUser } from "@/lib/auth"
-import { query } from "@/lib/db"
+import { createUser, emailExists } from "@/lib/auth"
+import { supabase } from "@/lib/supabase-integration"
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,12 +18,14 @@ export async function POST(request: NextRequest) {
     // Check if admin registration is allowed (default to true if setting doesn't exist)
     let allowRegistration = true
     try {
-      const settingResult = await query(
-        "SELECT setting_value FROM admin_settings WHERE setting_key = 'allowAdminRegistration'"
-      )
+      const { data, error } = await supabase
+        .from('admin_settings')
+        .select('setting_value')
+        .eq('setting_key', 'allowAdminRegistration')
+        .single()
       
-      if (settingResult.rows.length > 0) {
-        const value = settingResult.rows[0].setting_value
+      if (!error && data) {
+        const value = data.setting_value
         allowRegistration = value === "true" || value === true
       }
     } catch (error) {
@@ -41,12 +43,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if email already exists
-    const existingUser = await query(
-      "SELECT id FROM auth.users WHERE email = $1",
-      [email.toLowerCase()]
-    )
+    const userExists = await emailExists(email)
 
-    if (existingUser.rows.length > 0) {
+    if (userExists) {
       return NextResponse.json({ error: "Este email já está cadastrado" }, { status: 400 })
     }
 
@@ -57,6 +56,10 @@ export async function POST(request: NextRequest) {
       full_name,
       role: "admin"
     })
+
+    if (!user) {
+      return NextResponse.json({ error: "Erro ao criar usuário administrador" }, { status: 500 })
+    }
 
     console.log("Admin user created successfully:", user.id)
 
