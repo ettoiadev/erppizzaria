@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server"
-import { query } from "@/lib/db"
+import { supabase } from '@/lib/supabase'
 
 export async function GET(
   request: NextRequest,
@@ -8,52 +8,86 @@ export async function GET(
   try {
     console.log("GET /api/orders/[id] - Buscando pedido:", params.id)
 
-    const result = await query(
-      `
-      SELECT o.*, 
-             p.full_name, p.phone,
-             COALESCE(
-               json_agg(
-                 json_build_object(
-                   'id', oi.id,
-                   'product_id', oi.product_id,
-                   'quantity', oi.quantity,
-                   'unit_price', oi.unit_price,
-                   'total_price', oi.total_price,
-                   'price', oi.unit_price,
-                   'size', oi.size,
-                   'toppings', oi.toppings,
-                   'special_instructions', oi.special_instructions,
-                   'name', COALESCE(pr.name, 'Produto')
-                 ) ORDER BY oi.created_at
-               ) FILTER (WHERE oi.id IS NOT NULL),
-               '[]'::json
-             ) as order_items
-      FROM orders o
-      LEFT JOIN profiles p ON o.user_id = p.id
-      LEFT JOIN order_items oi ON o.id = oi.order_id
-      LEFT JOIN products pr ON oi.product_id = pr.id
-      WHERE o.id = $1
-      GROUP BY o.id, p.full_name, p.phone
-      `,
-      [params.id]
-    )
+    // Buscar pedido básico usando Supabase
+    const { data: order, error: orderError } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('id', params.id)
+      .single()
 
-    if (result.rows.length === 0) {
-      console.log("Pedido não encontrado:", params.id)
-      return NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 })
+    if (orderError) {
+      if (orderError.code === 'PGRST116') {
+        console.log("Pedido não encontrado:", params.id)
+        return NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 })
+      }
+      throw orderError
     }
 
-    const order = result.rows[0]
-    console.log("Pedido encontrado:", order.id, "com", order.order_items?.length || 0, "itens")
+    // Buscar dados do cliente se user_id existir
+    let customerData = null
+    if (order.user_id) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('full_name, email, phone')
+        .eq('id', order.user_id)
+        .single()
+      
+      customerData = profile
+    }
+
+    // Buscar itens do pedido
+    const { data: orderItems, error: itemsError } = await supabase
+      .from('order_items')
+      .select('*')
+      .eq('order_id', order.id)
+
+    if (itemsError) {
+      console.error("Erro ao buscar itens do pedido:", itemsError)
+      throw itemsError
+    }
+
+    // Para cada item, buscar dados do produto
+    const processedItems = []
+    for (const item of orderItems || []) {
+      let productData = null
+      if (item.product_id) {
+        const { data: product } = await supabase
+          .from('products')
+          .select('name, description, image')
+          .eq('id', item.product_id)
+          .single()
+        
+        productData = product
+      }
+
+      processedItems.push({
+        id: item.id,
+        product_id: item.product_id,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        total_price: item.total_price,
+        price: item.unit_price, // Alias para compatibilidade
+        size: item.size,
+        toppings: item.toppings,
+        special_instructions: item.special_instructions,
+        // Aplicar lógica COALESCE no frontend
+        name: productData?.name || item.name || 'Produto'
+      })
+    }
+
+    console.log("Pedido encontrado:", order.id, "com", processedItems.length, "itens")
 
     // Normalizar dados para compatibilidade
     const normalizedOrder = {
       ...order,
-      items: order.order_items || [], // Adicionar alias 'items'
+      // Aplicar lógica COALESCE no frontend
+      full_name: customerData?.full_name || null,
+      phone: customerData?.phone || null,
+      order_items: processedItems,
+      items: processedItems, // Adicionar alias 'items'
       customer: {
-        name: order.full_name || "Cliente",
-        phone: order.phone || order.delivery_phone,
+        name: customerData?.full_name || "Cliente",
+        phone: customerData?.phone || order.delivery_phone,
         address: order.delivery_address
       },
       createdAt: order.created_at,
@@ -82,50 +116,42 @@ export async function PUT(
     const body = await request.json()
     const { status, delivery_instructions, estimated_delivery_time } = body
 
-    // Build dynamic update query
-    const updates = []
-    const values = []
-    let paramCount = 1
+    // Preparar dados para atualização
+    const updateData: any = {}
 
     if (status) {
-      updates.push(`status = $${paramCount}`)
-      values.push(status)
-      paramCount++
+      updateData.status = status
     }
 
     if (delivery_instructions !== undefined) {
-      updates.push(`delivery_instructions = $${paramCount}`)
-      values.push(delivery_instructions)
-      paramCount++
+      updateData.delivery_instructions = delivery_instructions
     }
 
     if (estimated_delivery_time) {
-      updates.push(`estimated_delivery_time = $${paramCount}`)
-      values.push(estimated_delivery_time)
-      paramCount++
+      updateData.estimated_delivery_time = estimated_delivery_time
     }
 
-    if (updates.length === 0) {
+    if (Object.keys(updateData).length === 0) {
       return NextResponse.json({ error: "Nenhum campo para atualizar" }, { status: 400 })
     }
 
-    updates.push(`updated_at = NOW()`)
-    values.push(params.id)
+    updateData.updated_at = new Date().toISOString()
 
-    const updateQuery = `
-      UPDATE orders 
-      SET ${updates.join(', ')}
-      WHERE id = $${paramCount}
-      RETURNING *
-    `
+    // Atualizar usando Supabase
+    const { data: updatedOrder, error } = await supabase
+      .from('orders')
+      .update(updateData)
+      .eq('id', params.id)
+      .select()
+      .single()
 
-    const result = await query(updateQuery, values)
-
-    if (result.rows.length === 0) {
-      return NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 })
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 })
+      }
+      throw error
     }
 
-    const updatedOrder = result.rows[0]
     return NextResponse.json({ 
       message: "Pedido atualizado com sucesso",
       order: updatedOrder 
@@ -141,33 +167,35 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    // First check if order exists
-    const checkResult = await query(
-      'SELECT status FROM orders WHERE id = $1',
-      [params.id]
-    )
+    // Primeiro verificar se o pedido existe
+    const { data: order, error: checkError } = await supabase
+      .from('orders')
+      .select('status')
+      .eq('id', params.id)
+      .single()
 
-    if (checkResult.rows.length === 0) {
-      return NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 })
+    if (checkError) {
+      if (checkError.code === 'PGRST116') {
+        return NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 })
+      }
+      throw checkError
     }
 
-    const order = checkResult.rows[0]
-
-    // Only allow deletion of certain statuses
+    // Apenas permitir exclusão de certos status
     if (!['RECEIVED', 'CANCELLED'].includes(order.status)) {
       return NextResponse.json({ 
         error: "Não é possível excluir pedidos em andamento" 
       }, { status: 400 })
     }
 
-    // Delete order (this will cascade delete order_items due to foreign key constraint)
-    const deleteResult = await query(
-      'DELETE FROM orders WHERE id = $1 RETURNING id',
-      [params.id]
-    )
+    // Excluir pedido usando Supabase (isso irá fazer cascade delete dos order_items devido à foreign key)
+    const { error: deleteError } = await supabase
+      .from('orders')
+      .delete()
+      .eq('id', params.id)
 
-    if (deleteResult.rows.length === 0) {
-      return NextResponse.json({ error: "Falha ao excluir pedido" }, { status: 500 })
+    if (deleteError) {
+      throw deleteError
     }
 
     return NextResponse.json({ message: "Pedido excluído com sucesso" })

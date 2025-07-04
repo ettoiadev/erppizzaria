@@ -1,104 +1,55 @@
 import { NextRequest, NextResponse } from "next/server"
-import { query, pool } from "@/lib/db"
+import { supabase } from '@/lib/supabase'
 
 export async function GET(request: NextRequest) {
   try {
-    console.log("[DRIVERS] Iniciando busca de entregadores no PostgreSQL")
+    console.log("[DRIVERS] Iniciando busca de entregadores usando Supabase")
     
     const { searchParams } = new URL(request.url)
     const status = searchParams.get("status")
 
-    // Verificar se tabela drivers existe
-    const tableCheck = await query(`
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_schema = 'public' AND table_name = 'drivers'
-      ) as table_exists
-    `)
+    // Construir query com filtros usando Supabase
+    let query = supabase
+      .from('drivers')
+      .select('id, name, email, phone, vehicle_type, vehicle_plate, status, current_location, total_deliveries, average_rating, average_delivery_time, created_at, updated_at, last_active_at, active')
 
-    if (!tableCheck.rows[0].table_exists) {
-      console.error("[DRIVERS] Tabela drivers não encontrada no banco williamdiskpizza")
-      return NextResponse.json({
-        error: "Tabela drivers não encontrada",
-        message: "Execute o script setup-drivers-system.sql no pgAdmin4 primeiro",
-        drivers: [],
-        statistics: {
-          total: 0,
-          available: 0,
-          busy: 0,
-          offline: 0,
-          averageDeliveryTime: 0
-        }
-      }, { status: 404 })
-    }
-
-    // Verificar se existe coluna 'active' para soft delete
-    let hasActiveColumn = false
-    try {
-      const columnCheck = await query(`
-        SELECT EXISTS (
-          SELECT FROM information_schema.columns 
-          WHERE table_name = 'drivers' 
-          AND column_name = 'active' 
-          AND table_schema = 'public'
-        ) as column_exists
-      `)
-      hasActiveColumn = columnCheck.rows[0].column_exists
-      console.log(`[DRIVERS] Coluna 'active' existe: ${hasActiveColumn}`)
-    } catch (columnError) {
-      console.warn('[DRIVERS] Erro ao verificar coluna active:', columnError)
-    }
-
-    // Construir query com filtro de status E filtro de ativos
-    let driversQuery = `
-      SELECT 
-        id, name, email, phone, vehicle_type, vehicle_plate,
-        status, current_location, total_deliveries, average_rating,
-        average_delivery_time, created_at, updated_at, last_active_at
-        ${hasActiveColumn ? ', active' : ''}
-      FROM drivers
-    `
-    
-    const params: any[] = []
-    let whereConditions: string[] = []
-
-    // Filtrar apenas entregadores ativos (não desativados)
-    if (hasActiveColumn) {
-      whereConditions.push("(active = true OR active IS NULL)")
-    }
+    // Filtrar apenas entregadores ativos (aplicar lógica no frontend)
+    query = query.or('active.is.null,active.eq.true')
 
     // Filtrar por status se especificado
     if (status && status !== "all") {
-      whereConditions.push(`status = $${params.length + 1}`)
-      params.push(status)
+      query = query.eq('status', status)
     }
 
-    // Adicionar condições WHERE se existirem
-    if (whereConditions.length > 0) {
-      driversQuery += " WHERE " + whereConditions.join(" AND ")
-    }
-    
-    driversQuery += " ORDER BY status DESC, name ASC"
+    // Ordenar resultados
+    query = query.order('status', { ascending: false }).order('name', { ascending: true })
 
-    console.log(`[DRIVERS] Query construída:`, driversQuery)
-    console.log(`[DRIVERS] Parâmetros:`, params)
+    console.log(`[DRIVERS] Executando query Supabase com status: ${status}`)
 
     // Executar query principal
-    const result = await query(driversQuery, params)
-    console.log(`[DRIVERS] Encontrados ${result.rows.length} entregadores no banco`)
+    const { data: drivers, error } = await query
+
+    if (error) {
+      console.error("[DRIVERS] Erro na query Supabase:", error)
+      throw error
+    }
+
+    console.log(`[DRIVERS] Encontrados ${drivers?.length || 0} entregadores`)
 
     // Buscar pedidos ativos para entregadores ocupados
     const driversWithOrders = await Promise.all(
-      result.rows.map(async (driver: any) => {
+      (drivers || []).map(async (driver: any) => {
         if (driver.status === 'busy') {
           try {
-            const ordersResult = await query(
-              "SELECT id FROM orders WHERE driver_id = $1 AND status = 'ON_THE_WAY'",
-              [driver.id]
-            )
+            const { data: orders } = await supabase
+              .from('orders')
+              .select('id')
+              .eq('driver_id', driver.id)
+              .eq('status', 'ON_THE_WAY')
+
             return {
               ...driver,
-              currentOrders: ordersResult.rows.map((order: any) => order.id)
+              currentOrders: (orders || []).map((order: any) => order.id)
             }
           } catch (orderError) {
             console.warn(`[DRIVERS] Erro ao buscar pedidos do entregador ${driver.id}:`, orderError)
@@ -109,14 +60,15 @@ export async function GET(request: NextRequest) {
       })
     )
 
-    // Calcular estatísticas
+    // Calcular estatísticas (aplicar lógica de agregação no frontend)
+    const allDrivers = drivers || []
     const statistics = {
-      total: result.rows.length,
-      available: result.rows.filter((d: any) => d.status === 'available').length,
-      busy: result.rows.filter((d: any) => d.status === 'busy').length,
-      offline: result.rows.filter((d: any) => d.status === 'offline').length,
-      averageDeliveryTime: result.rows.length > 0 
-        ? Math.round(result.rows.reduce((sum: number, d: any) => sum + (d.average_delivery_time || 0), 0) / result.rows.length)
+      total: allDrivers.length,
+      available: allDrivers.filter((d: any) => d.status === 'available').length,
+      busy: allDrivers.filter((d: any) => d.status === 'busy').length,
+      offline: allDrivers.filter((d: any) => d.status === 'offline').length,
+      averageDeliveryTime: allDrivers.length > 0 
+        ? Math.round(allDrivers.reduce((sum: number, d: any) => sum + (d.average_delivery_time || 0), 0) / allDrivers.length)
         : 0
     }
 
@@ -128,39 +80,11 @@ export async function GET(request: NextRequest) {
     })
 
   } catch (error: any) {
-    console.error("[DRIVERS] Erro ao conectar com PostgreSQL:", error)
+    console.error("[DRIVERS] Erro ao buscar entregadores:", error)
     
-    // Retornar erro específico baseado no tipo
-    if (error.code === 'ECONNREFUSED') {
-      return NextResponse.json({
-        error: "Não foi possível conectar ao PostgreSQL",
-        message: "Verifique se o PostgreSQL está rodando na porta 5432",
-        drivers: [],
-        statistics: { total: 0, available: 0, busy: 0, offline: 0, averageDeliveryTime: 0 }
-      }, { status: 503 })
-    }
-
-    if (error.code === '3D000') {
-      return NextResponse.json({
-        error: "Banco de dados williamdiskpizza não encontrado",
-        message: "Crie o banco williamdiskpizza no PostgreSQL",
-        drivers: [],
-        statistics: { total: 0, available: 0, busy: 0, offline: 0, averageDeliveryTime: 0 }
-      }, { status: 503 })
-    }
-
-    if (error.code === '28P01') {
-      return NextResponse.json({
-        error: "Falha na autenticação PostgreSQL",
-        message: "Verifique as credenciais de acesso ao banco",
-        drivers: [],
-        statistics: { total: 0, available: 0, busy: 0, offline: 0, averageDeliveryTime: 0 }
-      }, { status: 503 })
-    }
-
     return NextResponse.json({
       error: "Erro interno do servidor",
-      message: "Erro ao acessar banco de dados",
+      message: "Erro ao acessar dados dos entregadores",
       drivers: [],
       statistics: { total: 0, available: 0, busy: 0, offline: 0, averageDeliveryTime: 0 }
     }, { status: 500 })
@@ -182,70 +106,67 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    // Verificar se tabela drivers existe
-    const tableCheck = await query(`
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_schema = 'public' AND table_name = 'drivers'
-      ) as table_exists
-    `)
+    // Verificar se já existe entregador com o mesmo email
+    const { data: existingDriver } = await supabase
+      .from('drivers')
+      .select('id')
+      .eq('email', email)
+      .limit(1)
 
-    if (!tableCheck.rows[0].table_exists) {
-      return NextResponse.json({
-        error: "Tabela drivers não encontrada",
-        message: "Execute o script setup-drivers-system.sql no pgAdmin4 primeiro"
-      }, { status: 404 })
-    }
-
-    // Inserir novo entregador
-    const insertQuery = `
-      INSERT INTO drivers (
-        name, email, phone, vehicle_type, vehicle_plate, 
-        current_location, status, last_active_at
-      )
-      VALUES ($1, $2, $3, $4, $5, $6, 'offline', CURRENT_TIMESTAMP)
-      RETURNING 
-        id, name, email, phone, vehicle_type, vehicle_plate,
-        status, current_location, total_deliveries, average_rating,
-        average_delivery_time, created_at, updated_at, last_active_at
-    `
-
-    const result = await query(insertQuery, [
-      name, email, phone, vehicleType, vehiclePlate, currentLocation
-    ])
-
-    const newDriver = {
-      ...result.rows[0],
-      currentOrders: []
-    }
-
-    console.log(`[DRIVERS] Entregador criado com sucesso: ${newDriver.name}`)
-
-    return NextResponse.json({
-      driver: newDriver,
-      message: "Entregador criado com sucesso"
-    })
-
-  } catch (error: any) {
-    console.error("[DRIVERS] Erro ao criar entregador:", error)
-    
-    if (error.code === '23505') {
+    if (existingDriver && existingDriver.length > 0) {
       return NextResponse.json({
         error: "Email já cadastrado",
         message: "Já existe um entregador com este email"
       }, { status: 400 })
     }
 
-    if (error.code === 'ECONNREFUSED') {
-      return NextResponse.json({
-        error: "Não foi possível conectar ao PostgreSQL",
-        message: "Verifique se o PostgreSQL está rodando"
-      }, { status: 503 })
+    // Inserir novo entregador usando Supabase
+    const { data: newDriver, error: insertError } = await supabase
+      .from('drivers')
+      .insert({
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        phone: phone.trim(),
+        vehicle_type: vehicleType,
+        vehicle_plate: vehiclePlate?.trim().toUpperCase() || null,
+        current_location: currentLocation || null,
+        status: 'offline', // Status inicial
+        total_deliveries: 0,
+        average_rating: 0,
+        average_delivery_time: 0,
+        active: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        last_active_at: new Date().toISOString()
+      })
+      .select()
+      .single()
+
+    if (insertError) {
+      console.error("[DRIVERS] Erro ao inserir entregador:", insertError)
+      throw insertError
+    }
+
+    console.log("[DRIVERS] Entregador criado com sucesso:", newDriver.id)
+
+    // Normalizar resposta
+    const normalizedDriver = {
+      ...newDriver,
+      currentOrders: []
     }
 
     return NextResponse.json({
+      message: "Entregador criado com sucesso",
+      driver: normalizedDriver
+    })
+
+  } catch (error: any) {
+    console.error("[DRIVERS] Erro ao criar entregador:", error)
+    
+    return NextResponse.json({
       error: "Erro interno do servidor",
-      message: "Erro ao salvar entregador no banco de dados"
+      message: "Erro ao criar entregador",
+      details: error.message
     }, { status: 500 })
   }
 }

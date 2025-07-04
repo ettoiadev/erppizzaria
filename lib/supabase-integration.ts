@@ -167,7 +167,7 @@ export async function getProducts(includeInactive = false): Promise<Product[]> {
     if (error) throw error
 
     // Transformar dados para incluir category_name
-    const products = data?.map(product => ({
+    const products = data?.map((product: any) => ({
       ...product,
       category_name: product.categories?.name
     })) || []
@@ -198,7 +198,7 @@ export async function getProductById(id: number): Promise<Product | null> {
 
     return {
       ...data,
-      category_name: data.categories?.name
+      category_name: (data as any).categories?.name
     }
   } catch (error: any) {
     console.error('❌ Erro ao carregar produto:', error.message)
@@ -285,7 +285,7 @@ export async function getOrders(filters: {
         *,
         profiles(full_name, email, phone),
         order_items(
-          id, name, price, quantity, size, toppings, special_instructions,
+          id, name, unit_price, total_price, quantity, size, toppings, special_instructions,
           products(name, image)
         )
       `)
@@ -340,7 +340,8 @@ export async function createOrder(orderData: Omit<Order, 'id' | 'created_at' | '
       order_id: order.id,
       product_id: item.product_id,
       name: item.name,
-      price: item.price,
+      unit_price: item.price,
+      total_price: item.price * item.quantity,
       quantity: item.quantity,
       size: item.size,
       toppings: item.toppings,

@@ -1,152 +1,124 @@
 import { NextRequest, NextResponse } from "next/server"
-import { query } from "@/lib/db"
+import { supabase } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const searchTerm = searchParams.get('q')?.trim()
+    const searchTerm = searchParams.get('q')?.trim() || ''
     const limit = parseInt(searchParams.get('limit') || '10')
 
-    if (!searchTerm || searchTerm.length < 2) {
+    console.log(`[CUSTOMER_SEARCH] Termo de busca: "${searchTerm}", Limite: ${limit}`)
+
+    if (!searchTerm) {
       return NextResponse.json({ customers: [] })
     }
 
-    console.log(`[CUSTOMER_SEARCH] Buscando clientes com termo: "${searchTerm}"`)
-
-    // Normalizar termo de busca (remover acentos e converter para minúsculas)
+    // Função para normalizar strings (remover acentos, converter para minúsculas)
     const normalizeString = (str: string) => {
-      return str.normalize('NFD')
-               .replace(/[\u0300-\u036f]/g, '')
-               .toLowerCase()
-               .trim()
+      return str
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '') // Remove acentos
+        .trim()
     }
 
     const normalizedSearchTerm = normalizeString(searchTerm)
-    const phoneOnlyNumbers = searchTerm.replace(/\D/g, '')
+    const phoneOnlyNumbers = searchTerm.replace(/\D/g, '') // Apenas números do telefone
 
     console.log(`[CUSTOMER_SEARCH] Termo normalizado: "${normalizedSearchTerm}", Telefone: "${phoneOnlyNumbers}"`)
 
-    // Buscar clientes por nome ou telefone com correspondência estrita
-    const searchQuery = `
-      SELECT 
-        p.id,
-        p.full_name as name,
-        p.phone,
-        p.email,
-        p.created_at,
-        -- Buscar endereço principal
-        (
-          SELECT json_build_object(
-            'id', ca.id,
-            'street', ca.street,
-            'number', ca.number,
-            'complement', ca.complement,
-            'neighborhood', ca.neighborhood,
-            'city', ca.city,
-            'state', ca.state,
-            'zip_code', ca.zip_code,
-            'label', ca.label,
-            'is_default', ca.is_default
-          )
-          FROM customer_addresses ca 
-          WHERE ca.user_id = p.id 
-          ORDER BY ca.is_default DESC, ca.created_at DESC 
-          LIMIT 1
-        ) as primary_address,
-        -- Contar pedidos
-        (
-          SELECT COUNT(*) 
-          FROM orders o 
-          WHERE o.user_id = p.id
-        ) as total_orders
-      FROM profiles p
-      WHERE p.role = 'customer'
-        AND (
-          -- Busca no nome (case insensitive, apenas se o termo não for vazio)
-          (
-            LENGTH($1) > 0 AND 
-            LOWER(p.full_name) LIKE LOWER($2)
-          )
-          OR
-          -- Busca no telefone (apenas números, apenas se o termo não for vazio)
-          (
-            LENGTH($3) > 0 AND 
-            TRANSLATE(p.phone, '()- .', '') LIKE $4
-          )
-        )
-      ORDER BY 
-        -- Priorizar correspondências exatas e por início
-        CASE 
-          WHEN LOWER(p.full_name) = LOWER($5) THEN 1
-          WHEN TRANSLATE(p.phone, '()- .', '') = $6 THEN 1
-          WHEN LOWER(p.full_name) LIKE LOWER($7) THEN 2
-          WHEN TRANSLATE(p.phone, '()- .', '') LIKE $8 THEN 2
-          ELSE 3
-        END,
-        p.created_at DESC
-      LIMIT $9
-    `
+    // Buscar clientes usando Supabase
+    const { data: profiles, error } = await supabase
+      .from('profiles')
+      .select('id, full_name, phone, email, created_at')
+      .eq('role', 'customer')
+      .order('created_at', { ascending: false })
 
-    const searchPattern = `%${normalizedSearchTerm}%`
-    const phonePattern = `%${phoneOnlyNumbers}%`
-    const exactTerm = normalizedSearchTerm
-    const exactPhone = phoneOnlyNumbers
-    const startPattern = `${normalizedSearchTerm}%`
-    const startPhonePattern = `${phoneOnlyNumbers}%`
+    if (error) {
+      console.error("[CUSTOMER_SEARCH] Erro ao buscar perfis:", error)
+      throw error
+    }
 
-    const result = await query(searchQuery, [
-      normalizedSearchTerm,  // $1 - termo normalizado para verificação
-      searchPattern,         // $2 - nome pattern
-      phoneOnlyNumbers,      // $3 - telefone para verificação
-      phonePattern,          // $4 - telefone pattern
-      exactTerm,             // $5 - nome exato
-      exactPhone,            // $6 - telefone exato
-      startPattern,          // $7 - nome começa com
-      startPhonePattern,     // $8 - telefone começa com
-      limit                  // $9 - limit
-    ])
+    console.log(`[CUSTOMER_SEARCH] Total de perfis encontrados: ${profiles?.length || 0}`)
 
-    const rawCustomers = result.rows.map((customer: any) => ({
-      id: customer.id,
-      name: customer.name || 'Nome não informado',
-      phone: customer.phone || '',
-      email: customer.email || '',
-      primaryAddress: customer.primary_address,
-      totalOrders: parseInt(customer.total_orders) || 0,
-      createdAt: customer.created_at
-    }))
+    // Filtrar e processar clientes no frontend
+    const matchingCustomers = []
+    
+    for (const profile of profiles || []) {
+      const customerNameNormalized = normalizeString(profile.full_name || '')
+      const customerPhoneClean = (profile.phone || '').replace(/\D/g, '')
+      
+      // Verificar correspondências
+      const nameMatches = normalizedSearchTerm.length > 0 && customerNameNormalized.includes(normalizedSearchTerm)
+      const phoneMatches = phoneOnlyNumbers.length > 0 && customerPhoneClean.includes(phoneOnlyNumbers)
+      
+      if (nameMatches || phoneMatches) {
+        // Buscar endereço principal do cliente
+        const { data: addresses } = await supabase
+          .from('customer_addresses')
+          .select('street, number, neighborhood, city, state, complement')
+          .eq('user_id', profile.id)
+          .eq('is_default', true)
+          .limit(1)
 
-    console.log(`[CUSTOMER_SEARCH] Clientes brutos encontrados: ${rawCustomers.length}`)
+        // Buscar estatísticas de pedidos
+        const { count: totalOrders } = await supabase
+          .from('orders')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', profile.id)
 
-         // Filtragem adicional no JavaScript para garantir correspondência precisa
-     const filteredCustomers = rawCustomers.filter(customer => {
-       const customerNameNormalized = normalizeString(customer.name)
-       const customerPhoneClean = customer.phone.replace(/\D/g, '')
-       
-       // Verificar se o termo de busca realmente existe no nome ou telefone
-       const nameMatches = normalizedSearchTerm.length > 0 && customerNameNormalized.includes(normalizedSearchTerm)
-       const phoneMatches = phoneOnlyNumbers.length > 0 && customerPhoneClean.includes(phoneOnlyNumbers)
-       
-       const matches = nameMatches || phoneMatches
-       
-       console.log(`[CUSTOMER_SEARCH] Cliente "${customer.name}":`, {
-         customerNameNormalized,
-         customerPhoneClean,
-         searchTerm: normalizedSearchTerm,
-         phoneSearchTerm: phoneOnlyNumbers,
-         nameMatches,
-         phoneMatches,
-         finalMatch: matches
-       })
-       
-       return matches
-     })
+        // Construir endereço principal
+        let primaryAddress = 'Endereço não cadastrado'
+        if (addresses && addresses.length > 0) {
+          const addr = addresses[0]
+          const parts = [
+            `${addr.street}, ${addr.number}`,
+            addr.complement ? `(${addr.complement})` : '',
+            addr.neighborhood,
+            `${addr.city}/${addr.state}`
+          ].filter(Boolean)
+          primaryAddress = parts.join(' - ')
+        }
 
-    console.log(`[CUSTOMER_SEARCH] Clientes filtrados: ${filteredCustomers.length}`)
+        // Calcular prioridade para ordenação (aplicar lógica CASE WHEN no frontend)
+        let priority = 3 // padrão
+        if (customerNameNormalized === normalizedSearchTerm || customerPhoneClean === phoneOnlyNumbers) {
+          priority = 1 // correspondência exata
+        } else if (customerNameNormalized.startsWith(normalizedSearchTerm) || customerPhoneClean.startsWith(phoneOnlyNumbers)) {
+          priority = 2 // começa com
+        }
 
-    return NextResponse.json({ customers: filteredCustomers })
+        matchingCustomers.push({
+          id: profile.id,
+          name: profile.full_name || 'Nome não informado',
+          phone: profile.phone || '',
+          email: profile.email || '',
+          primaryAddress,
+          totalOrders: totalOrders || 0,
+          createdAt: profile.created_at,
+          priority // para ordenação
+        })
+      }
+    }
+
+    // Ordenar por prioridade e depois por data de criação
+    matchingCustomers.sort((a, b) => {
+      if (a.priority !== b.priority) {
+        return a.priority - b.priority
+      }
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    })
+
+    // Aplicar limite e remover campo priority
+    const finalCustomers = matchingCustomers
+      .slice(0, limit)
+      .map(({ priority, ...customer }) => customer)
+
+    console.log(`[CUSTOMER_SEARCH] Clientes encontrados: ${finalCustomers.length}`)
+
+    return NextResponse.json({ customers: finalCustomers })
 
   } catch (error: any) {
     console.error("[CUSTOMER_SEARCH] Erro na busca:", error)
@@ -185,13 +157,15 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    // Verificar se já existe cliente com este telefone
-    const existingCustomer = await query(
-      'SELECT id FROM profiles WHERE phone = $1 AND role = $2',
-      [phone, 'customer']
-    )
+    // Verificar se já existe cliente com este telefone usando Supabase
+    const { data: existingByPhone } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('phone', phone)
+      .eq('role', 'customer')
+      .limit(1)
 
-    if (existingCustomer.rows.length > 0) {
+    if (existingByPhone && existingByPhone.length > 0) {
       return NextResponse.json({ 
         error: "Já existe um cliente cadastrado com este telefone" 
       }, { status: 400 })
@@ -200,113 +174,115 @@ export async function POST(request: NextRequest) {
     // Gerar email se não fornecido
     const customerEmail = email?.trim() || `cliente_${cleanPhone}@temp.williamdiskpizza.com`
 
-    // Verificar se email já existe
-    const existingEmail = await query(
-      'SELECT id FROM profiles WHERE email = $1',
-      [customerEmail]
-    )
+    // Verificar se email já existe usando Supabase
+    const { data: existingByEmail } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('email', customerEmail)
+      .limit(1)
 
-    if (existingEmail.rows.length > 0) {
+    if (existingByEmail && existingByEmail.length > 0) {
       return NextResponse.json({ 
         error: "Este e-mail já está cadastrado" 
       }, { status: 400 })
     }
 
-    // Iniciar transação
-    await query('BEGIN')
+    // Criar perfil do cliente usando Supabase
+    const { data: newCustomer, error: profileError } = await supabase
+      .from('profiles')
+      .insert({
+        full_name: name.trim(),
+        phone: phone,
+        email: customerEmail,
+        role: 'customer',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .select('id, full_name, phone, email, created_at')
+      .single()
 
-    try {
-      // Criar perfil do cliente
-      const profileResult = await query(
-        `INSERT INTO profiles (full_name, phone, email, role, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, NOW(), NOW())
-         RETURNING id, full_name as name, phone, email, created_at`,
-        [name.trim(), phone, customerEmail, 'customer']
-      )
+    if (profileError) {
+      console.error("[CUSTOMER_SEARCH] Erro ao criar perfil:", profileError)
+      throw profileError
+    }
 
-      const newCustomer = profileResult.rows[0]
-
-      // Criar endereço se fornecido
-      let primaryAddress = null
-      if (address && address.street?.trim()) {
-        // Validar campos obrigatórios do endereço
-        const requiredFields = ['street', 'number', 'neighborhood', 'city', 'state', 'zip_code']
-        for (const field of requiredFields) {
-          if (!address[field]?.trim()) {
-            throw new Error(`Campo ${field} do endereço é obrigatório`)
-          }
+    // Criar endereço se fornecido
+    let primaryAddress = null
+    if (address && address.street?.trim()) {
+      // Validar campos obrigatórios do endereço
+      const requiredFields = ['street', 'number', 'neighborhood', 'city', 'state', 'zip_code']
+      for (const field of requiredFields) {
+        if (!address[field]?.trim()) {
+          return NextResponse.json({
+            error: `Campo ${field} do endereço é obrigatório`
+          }, { status: 400 })
         }
-
-        // Validar CEP
-        const cleanZipCode = address.zip_code.replace(/\D/g, '')
-        if (cleanZipCode.length !== 8) {
-          throw new Error("CEP deve ter 8 dígitos")
-        }
-
-        // Validar estado
-        if (address.state.length !== 2) {
-          throw new Error("Estado deve ter 2 caracteres (UF)")
-        }
-
-        const addressResult = await query(
-          `INSERT INTO customer_addresses 
-           (user_id, label, street, number, complement, neighborhood, city, state, zip_code, is_default, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())
-           RETURNING *`,
-          [
-            newCustomer.id,
-            'Endereço Principal',
-            address.street.trim(),
-            address.number.trim(),
-            address.complement?.trim() || '',
-            address.neighborhood.trim(),
-            address.city.trim(),
-            address.state.trim().toUpperCase(),
-            cleanZipCode,
-            true // primeiro endereço é sempre padrão
-          ]
-        )
-
-        primaryAddress = addressResult.rows[0]
       }
 
-      // Commit da transação
-      await query('COMMIT')
+      // Validar CEP
+      const cleanZipCode = address.zip_code.replace(/\D/g, '')
+      if (cleanZipCode.length !== 8) {
+        return NextResponse.json({
+          error: "CEP deve ter 8 dígitos"
+        }, { status: 400 })
+      }
 
-      console.log("[CUSTOMER_SEARCH] Cliente criado com sucesso:", newCustomer.id)
+      // Validar estado
+      if (address.state.length !== 2) {
+        return NextResponse.json({
+          error: "Estado deve ter 2 caracteres (UF)"
+        }, { status: 400 })
+      }
 
-      return NextResponse.json({
-        customer: {
-          id: newCustomer.id,
-          name: newCustomer.name,
-          phone: newCustomer.phone,
-          email: newCustomer.email,
-          primaryAddress: primaryAddress ? {
-            id: primaryAddress.id,
-            street: primaryAddress.street,
-            number: primaryAddress.number,
-            complement: primaryAddress.complement,
-            neighborhood: primaryAddress.neighborhood,
-            city: primaryAddress.city,
-            state: primaryAddress.state,
-            zip_code: primaryAddress.zip_code,
-            label: primaryAddress.label,
-            is_default: primaryAddress.is_default
-          } : null,
-          totalOrders: 0,
-          createdAt: newCustomer.created_at
-        }
-      })
+      // Inserir endereço usando Supabase
+      const { data: addressData, error: addressError } = await supabase
+        .from('customer_addresses')
+        .insert({
+          user_id: newCustomer.id,
+          label: 'Endereço Principal',
+          street: address.street.trim(),
+          number: address.number.trim(),
+          complement: address.complement?.trim() || '',
+          neighborhood: address.neighborhood.trim(),
+          city: address.city.trim(),
+          state: address.state.trim().toUpperCase(),
+          zip_code: cleanZipCode,
+          is_default: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .select()
+        .single()
 
-    } catch (innerError: any) {
-      await query('ROLLBACK')
-      throw innerError
+      if (addressError) {
+        console.error("[CUSTOMER_SEARCH] Erro ao criar endereço:", addressError)
+        // Não falhar se o endereço não for criado, apenas logar o erro
+      } else {
+        primaryAddress = addressData
+      }
     }
+
+    console.log("[CUSTOMER_SEARCH] Cliente criado com sucesso:", newCustomer.id)
+
+    return NextResponse.json({
+      customer: {
+        id: newCustomer.id,
+        name: newCustomer.full_name,
+        phone: newCustomer.phone,
+        email: newCustomer.email,
+        primaryAddress: primaryAddress ? 
+          `${primaryAddress.street}, ${primaryAddress.number} - ${primaryAddress.neighborhood} - ${primaryAddress.city}/${primaryAddress.state}` :
+          'Endereço não cadastrado',
+        totalOrders: 0,
+        createdAt: newCustomer.created_at
+      }
+    })
 
   } catch (error: any) {
     console.error("[CUSTOMER_SEARCH] Erro ao criar cliente:", error)
-    return NextResponse.json({ 
-      error: error.message || "Erro interno do servidor" 
+    return NextResponse.json({
+      error: "Erro interno do servidor",
+      message: error.message
     }, { status: 500 })
   }
 } 

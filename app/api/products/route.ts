@@ -1,34 +1,55 @@
 import { NextResponse } from 'next/server'
-import { query } from '@/lib/db'
+import { supabase } from '@/lib/supabase'
 
 // GET handler para buscar TODOS os produtos do banco de dados
 export async function GET() {
   try {
-    // Query ordenada por product_number, com fallback para created_at se product_number for null
-    const result = await query(
-      'SELECT p.*, c.name as category_name FROM products p LEFT JOIN categories c ON p.category_id = c.id WHERE p.active = true ORDER BY COALESCE(p.product_number, 999999), p.created_at ASC'
-    )
-    
-    console.log('Query executada, produtos encontrados:', result.rows.length)
-    
-    // Se não houver produtos, vamos verificar sem o filtro available
-    if (result.rows.length === 0) {
-      const allProducts = await query(
-        'SELECT p.*, c.name as category_name FROM products p LEFT JOIN categories c ON p.category_id = c.id WHERE p.active = true ORDER BY COALESCE(p.product_number, 999999), p.created_at ASC'
-      )
-      console.log('Produtos sem filtro available:', allProducts.rows.length)
-      
-      // Verificar quantos estão como available = false
-      const unavailable = allProducts.rows.filter(p => !p.available)
-      console.log('Produtos indisponíveis:', unavailable.length)
+    console.log('🔍 Buscando produtos usando Supabase...')
+
+    // Buscar produtos com relacionamento de categoria usando Supabase
+    const { data: products, error } = await supabase
+      .from('products')
+      .select(`
+        *,
+        categories:category_id (
+          id,
+          name
+        )
+      `)
+      .eq('active', true)
+      .order('product_number', { ascending: true, nullsFirst: false })
+      .order('created_at', { ascending: true })
+
+    if (error) {
+      console.error('Erro na query Supabase:', error)
+      throw error
     }
 
-    // Garantir que todos os produtos tenham propriedades essenciais
-    const products = result.rows.map((product, index) => ({
+    console.log('Query executada, produtos encontrados:', products?.length || 0)
+    
+    // Se não houver produtos, verificar sem filtros
+    if (!products || products.length === 0) {
+      const { data: allProducts } = await supabase
+        .from('products')
+        .select('*')
+        .eq('active', true)
+      
+      console.log('Produtos sem filtro available:', allProducts?.length || 0)
+      
+      if (allProducts) {
+        const unavailable = allProducts.filter(p => !p.available)
+        console.log('Produtos indisponíveis:', unavailable.length)
+      }
+    }
+
+    // Processar dados para compatibilidade com o frontend
+    const processedProducts = (products || []).map((product, index) => ({
       ...product,
       name: product.name || "",
       description: product.description || "",
       categoryId: product.category_id || product.categoryId,
+      // Aplicar lógica COALESCE no frontend
+      category_name: product.categories?.name || '',
       available: Boolean(product.available),
       showImage: Boolean(product.show_image ?? true),
       // Se product_number não existir, usar índice + 1 como fallback
@@ -37,7 +58,7 @@ export async function GET() {
       toppings: product.toppings ? (typeof product.toppings === 'string' ? JSON.parse(product.toppings) : product.toppings) : []
     }))
 
-    return NextResponse.json(products)
+    return NextResponse.json(processedProducts)
   } catch (error) {
     console.error('Erro ao buscar produtos:', error)
     return NextResponse.json(
@@ -71,52 +92,43 @@ export async function POST(request: Request) {
       )
     }
 
-    // Verificar se existem produtos ativos para resetar numeração se necessário
-    const activeProductsCheck = await query(
-      'SELECT COUNT(*) as count FROM products WHERE active = true'
-    )
-    
-    const activeCount = parseInt(activeProductsCheck.rows[0].count)
-    console.log(`Produtos ativos encontrados: ${activeCount}`)
-    
-    // Se não há produtos ativos, resetar a sequência de numeração
-    if (activeCount === 0) {
-      console.log('Nenhum produto ativo encontrado. Resetando sequência de numeração para 1.')
-      try {
-        // Primeiro verificar se a sequência existe
-        const seqExists = await query(
-          "SELECT 1 FROM pg_sequences WHERE sequencename = 'products_number_seq'"
-        )
-        
-        if (seqExists.rows.length > 0) {
-          await query('SELECT setval(\'products_number_seq\', 1, false)')
-          console.log('Sequência resetada com sucesso')
-        } else {
-          console.log('Sequência não existe, será criada automaticamente pelo trigger')
-        }
-      } catch (seqError) {
-        console.log('Erro ao resetar sequência:', seqError)
-      }
+    // Verificar se existem produtos ativos usando Supabase
+    const { count: activeCount, error: countError } = await supabase
+      .from('products')
+      .select('*', { count: 'exact', head: true })
+      .eq('active', true)
+
+    if (countError) {
+      console.error('Erro ao contar produtos:', countError)
+    } else {
+      console.log(`Produtos ativos encontrados: ${activeCount || 0}`)
     }
 
-    const result = await query(
-      `INSERT INTO products (name, description, price, category_id, image, available, show_image, sizes, toppings, active) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true) RETURNING *`,
-      [
-        name.trim(),
-        description?.trim() || '',
+    // Inserir produto usando Supabase
+    const { data: insertedProduct, error: insertError } = await supabase
+      .from('products')
+      .insert({
+        name: name.trim(),
+        description: description?.trim() || '',
         price,
-        finalCategoryId,
-        image || null,
+        category_id: finalCategoryId,
+        image: image || null,
         available,
-        showImage,
-        sizes ? JSON.stringify(sizes) : null,
-        toppings ? JSON.stringify(toppings) : null
-      ]
-    )
+        show_image: showImage,
+        sizes: sizes ? JSON.stringify(sizes) : null,
+        toppings: toppings ? JSON.stringify(toppings) : null,
+        active: true
+      })
+      .select()
+      .single()
+
+    if (insertError) {
+      console.error('Erro ao inserir produto:', insertError)
+      throw insertError
+    }
 
     // Normalizar resposta
-    const product = result.rows[0]
+    const product = insertedProduct
     const normalizedProduct = {
       ...product,
       categoryId: product.category_id,

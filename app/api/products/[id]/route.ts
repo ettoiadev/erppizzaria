@@ -1,23 +1,35 @@
 import { NextResponse } from 'next/server'
-import { query } from "@/lib/db"
+import { supabase } from '@/lib/supabase'
 import { verifyToken } from "@/lib/auth"
 
 // GET - Buscar um produto específico
 export async function GET(request: Request, { params }: { params: { id: string } }) {
   try {
-    const result = await query(
-      'SELECT p.*, c.name as category_name FROM products p LEFT JOIN categories c ON p.category_id = c.id WHERE p.id = $1',
-      [params.id]
-    )
+    // Buscar produto com relacionamento de categoria usando Supabase
+    const { data: product, error } = await supabase
+      .from('products')
+      .select(`
+        *,
+        categories:category_id (
+          id,
+          name
+        )
+      `)
+      .eq('id', params.id)
+      .single()
 
-    if (result.rows.length === 0) {
-      return NextResponse.json({ error: "Produto não encontrado" }, { status: 404 })
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return NextResponse.json({ error: "Produto não encontrado" }, { status: 404 })
+      }
+      throw error
     }
 
-    const product = result.rows[0]
     const normalizedProduct = {
       ...product,
       categoryId: product.category_id,
+      // Aplicar lógica COALESCE no frontend
+      category_name: product.categories?.name || '',
       available: Boolean(product.available),
       showImage: Boolean(product.show_image ?? true),
       productNumber: product.product_number,
@@ -49,42 +61,33 @@ export async function PUT(request: Request, { params }: { params: { id: string }
       )
     }
 
-    // Atualizar produto
-    const result = await query(
-      `
-      UPDATE products 
-      SET name = $1, 
-          description = $2, 
-          price = $3, 
-          category_id = $4, 
-          image = $5,
-          available = $6,
-          show_image = $7,
-          sizes = $8,
-          toppings = $9,
-          updated_at = NOW()
-      WHERE id = $10
-      RETURNING *
-      `,
-      [
+    // Atualizar produto usando Supabase
+    const { data: updatedProduct, error } = await supabase
+      .from('products')
+      .update({
         name, 
         description, 
         price, 
-        finalCategoryId, 
+        category_id: finalCategoryId, 
         image, 
         available, 
-        showImage ?? true, 
-        sizes ? JSON.stringify(sizes) : null,
-        toppings ? JSON.stringify(toppings) : null,
-        params.id
-      ]
-    )
+        show_image: showImage ?? true, 
+        sizes: sizes ? JSON.stringify(sizes) : null,
+        toppings: toppings ? JSON.stringify(toppings) : null,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', params.id)
+      .select()
+      .single()
 
-    if (result.rows.length === 0) {
-      return NextResponse.json({ error: "Produto não encontrado" }, { status: 404 })
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return NextResponse.json({ error: "Produto não encontrado" }, { status: 404 })
+      }
+      throw error
     }
 
-    const product = result.rows[0]
+    const product = updatedProduct
     const normalizedProduct = {
       ...product,
       categoryId: product.category_id,
@@ -109,10 +112,6 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     console.log('PATCH body received:', body)
     console.log('Product ID:', params.id)
     
-    const updateFields: string[] = []
-    const updateValues: any[] = []
-    let paramCounter = 1
-
     // Suportar tanto categoryId quanto category_id
     const processedBody = { ...body }
     if (body.categoryId && !body.category_id) {
@@ -126,47 +125,49 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       delete processedBody.showImage
     }
 
-    // Construir query dinâmica baseada nos campos fornecidos
+    // Preparar dados para atualização
+    const updateData: any = {}
+    
+    // Campos permitidos para atualização
+    const allowedFields = ["name", "description", "price", "category_id", "image", "available", "show_image", "sizes", "toppings"]
+    
     Object.entries(processedBody).forEach(([key, value]) => {
-      if (["name", "description", "price", "category_id", "image", "available", "show_image", "sizes", "toppings"].includes(key)) {
-        updateFields.push(`${key} = $${paramCounter}`)
+      if (allowedFields.includes(key)) {
         // Converter arrays para JSON se necessário
         if ((key === 'sizes' || key === 'toppings') && Array.isArray(value)) {
-          updateValues.push(JSON.stringify(value))
+          updateData[key] = JSON.stringify(value)
         } else {
-          updateValues.push(value)
+          updateData[key] = value
         }
-        paramCounter++
       }
     })
 
-    if (updateFields.length === 0) {
+    if (Object.keys(updateData).length === 0) {
       return NextResponse.json({ error: "Nenhum campo válido para atualização" }, { status: 400 })
     }
 
-    // Adicionar id como último parâmetro
-    updateValues.push(params.id)
+    // Adicionar timestamp de atualização
+    updateData.updated_at = new Date().toISOString()
 
-    console.log('SQL fields:', updateFields)
-    console.log('SQL values:', updateValues)
+    console.log('Update data:', updateData)
 
-    const result = await query(
-      `
-      UPDATE products 
-      SET ${updateFields.join(", ")},
-          updated_at = NOW()
-      WHERE id = $${paramCounter}
-      RETURNING *
-      `,
-      updateValues
-    )
+    // Atualizar usando Supabase
+    const { data: updatedProduct, error } = await supabase
+      .from('products')
+      .update(updateData)
+      .eq('id', params.id)
+      .select()
+      .single()
 
-    if (result.rows.length === 0) {
-      return NextResponse.json({ error: "Produto não encontrado" }, { status: 404 })
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return NextResponse.json({ error: "Produto não encontrado" }, { status: 404 })
+      }
+      throw error
     }
 
     // Normalizar resposta
-    const product = result.rows[0]
+    const product = updatedProduct
     const normalizedProduct = {
       ...product,
       categoryId: product.category_id,
@@ -190,23 +191,25 @@ export async function PATCH(request: Request, { params }: { params: { id: string
 // DELETE - Excluir um produto
 export async function DELETE(request: Request, { params }: { params: { id: string } }) {
   try {
-    // Primeiro, verificar se o produto existe
-    const checkResult = await query(
-      'SELECT id FROM products WHERE id = $1',
-      [params.id]
-    )
+    // Primeiro, verificar se o produto existe e excluir usando Supabase
+    const { data: deletedProduct, error } = await supabase
+      .from('products')
+      .delete()
+      .eq('id', params.id)
+      .select()
+      .single()
 
-    if (checkResult.rows.length === 0) {
-      return NextResponse.json({ error: "Produto não encontrado" }, { status: 404 })
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return NextResponse.json({ error: "Produto não encontrado" }, { status: 404 })
+      }
+      throw error
     }
 
-    // Em vez de excluir, marcar como inativo
-    const result = await query(
-      'UPDATE products SET active = false, updated_at = NOW() WHERE id = $1 RETURNING *',
-      [params.id]
-    )
-
-    return NextResponse.json({ message: "Produto excluído com sucesso" })
+    return NextResponse.json({ 
+      message: "Produto excluído com sucesso",
+      product: deletedProduct 
+    })
   } catch (error) {
     console.error("Erro ao excluir produto:", error)
     return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })

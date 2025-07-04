@@ -1,65 +1,58 @@
 import { NextRequest, NextResponse } from "next/server"
-import { query } from "@/lib/db"
+import { supabase } from '@/lib/supabase'
 
 export async function GET(request: NextRequest) {
   try {
-    console.log("[CUSTOMERS] Buscando clientes no PostgreSQL")
+    console.log("[CUSTOMERS] Buscando clientes usando Supabase")
     
-    // Buscar todos os clientes (usuários com role 'customer')
-    const customersQuery = `
-      SELECT 
-        p.id,
-        p.email,
-        p.full_name as name,
-        p.phone,
-        p.created_at,
-        p.updated_at,
-        p.role
-      FROM profiles p 
-      WHERE p.role = 'customer'
-      ORDER BY p.created_at DESC
-    `
+    // Buscar todos os clientes (usuários com role 'customer') usando Supabase
+    const { data: customers, error: customersError } = await supabase
+      .from('profiles')
+      .select('id, email, full_name, phone, created_at, updated_at, role')
+      .eq('role', 'customer')
+      .order('created_at', { ascending: false })
     
-    const customersResult = await query(customersQuery)
-    console.log(`[CUSTOMERS] Encontrados ${customersResult.rows.length} clientes`)
+    if (customersError) {
+      console.error("[CUSTOMERS] Erro ao buscar clientes:", customersError)
+      throw customersError
+    }
+    
+    console.log(`[CUSTOMERS] Encontrados ${customers?.length || 0} clientes`)
 
     // Para cada cliente, buscar endereços e estatísticas de pedidos
     const customersWithDetails = await Promise.all(
-      customersResult.rows.map(async (customer: any) => {
+      (customers || []).map(async (customer: any) => {
         try {
-          // Buscar endereço principal do cliente
-          const addressQuery = `
-            SELECT street, number, neighborhood, city, state, complement, zip_code, label, is_default
-            FROM customer_addresses 
-            WHERE user_id = $1 
-            ORDER BY is_default DESC, created_at DESC 
-            LIMIT 1
-          `
-          const addressResult = await query(addressQuery, [customer.id])
-          console.log(`[CUSTOMERS] Cliente ${customer.id} - Endereços encontrados: ${addressResult.rows.length}`)
+          // Buscar endereço principal do cliente usando Supabase
+          const { data: addresses } = await supabase
+            .from('customer_addresses')
+            .select('street, number, neighborhood, city, state, complement, zip_code, label, is_default')
+            .eq('user_id', customer.id)
+            .order('is_default', { ascending: false })
+            .order('created_at', { ascending: false })
+            .limit(1)
           
-          // Buscar estatísticas de pedidos
-          const ordersStatsQuery = `
-            SELECT 
-              COUNT(*) as total_orders,
-              COALESCE(SUM(CAST(total AS DECIMAL)), 0) as total_spent,
-              MAX(created_at) as last_order_at
-            FROM orders 
-            WHERE user_id = $1
-          `
-          const ordersStatsResult = await query(ordersStatsQuery, [customer.id])
+          console.log(`[CUSTOMERS] Cliente ${customer.id} - Endereços encontrados: ${addresses?.length || 0}`)
           
-          const stats = ordersStatsResult.rows[0] || { total_orders: 0, total_spent: 0, last_order_at: null }
-          const address = addressResult.rows[0]
+          // Buscar estatísticas de pedidos usando Supabase
+          const { data: orders } = await supabase
+            .from('orders')
+            .select('total, created_at')
+            .eq('user_id', customer.id)
+          
+          // Calcular estatísticas no frontend (aplicar lógica COALESCE)
+          const totalOrders = orders?.length || 0
+          const totalSpent = orders?.reduce((sum, order) => sum + parseFloat(order.total.toString()), 0) || 0
+          const lastOrderAt = orders && orders.length > 0 ? 
+            orders.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0].created_at : 
+            null
+          
+          const address = addresses?.[0]
           
           // Determinar status baseado na atividade
-          const totalOrders = parseInt(stats.total_orders) || 0
-          const totalSpent = parseFloat(stats.total_spent) || 0
-          
-          // Calcular diferença de datas para determinar inatividade
           const now = new Date()
           const createdAt = new Date(customer.created_at)
-          const lastOrderDate = stats.last_order_at ? new Date(stats.last_order_at) : createdAt
+          const lastOrderDate = lastOrderAt ? new Date(lastOrderAt) : createdAt
           
           // Usar a data mais recente entre criação da conta e último pedido
           const lastActivityDate = lastOrderDate > createdAt ? lastOrderDate : createdAt
@@ -76,9 +69,9 @@ export async function GET(request: NextRequest) {
             status = 'active'
           }
           
-          console.log(`[CUSTOMERS] Cliente ${customer.name} - Dias desde última atividade: ${daysSinceLastActivity}, Status: ${status}`)
+          console.log(`[CUSTOMERS] Cliente ${customer.full_name} - Dias desde última atividade: ${daysSinceLastActivity}, Status: ${status}`)
           
-          // Construir endereço completo
+          // Construir endereço completo (aplicar lógica COALESCE no frontend)
           let fullAddress = 'Endereço não cadastrado'
           if (address && address.street) {
             const parts = [
@@ -92,11 +85,11 @@ export async function GET(request: NextRequest) {
             fullAddress = parts.join(' - ')
           }
           
-          console.log(`[CUSTOMERS] Cliente ${customer.name} - Telefone: ${customer.phone}, Endereço: ${fullAddress}`)
+          console.log(`[CUSTOMERS] Cliente ${customer.full_name} - Telefone: ${customer.phone}, Endereço: ${fullAddress}`)
 
           return {
             id: customer.id,
-            name: customer.name || 'Nome não informado',
+            name: customer.full_name || 'Nome não informado',
             email: customer.email || 'Email não informado',
             phone: customer.phone || 'Telefone não informado',
             address: fullAddress,
@@ -108,7 +101,7 @@ export async function GET(request: NextRequest) {
             state: address?.state || '',
             zip_code: address?.zip_code || '',
             createdAt: customer.created_at,
-            lastOrderAt: stats.last_order_at,
+            lastOrderAt: lastOrderAt,
             totalOrders: totalOrders,
             totalSpent: totalSpent,
             status: status,
@@ -118,7 +111,7 @@ export async function GET(request: NextRequest) {
           console.warn(`[CUSTOMERS] Erro ao buscar detalhes do cliente ${customer.id}:`, error)
           return {
             id: customer.id,
-            name: customer.name || 'Nome não informado',
+            name: customer.full_name || 'Nome não informado',
             email: customer.email || 'Email não informado',
             phone: customer.phone || 'Telefone não informado',
             address: 'Endereço não cadastrado',

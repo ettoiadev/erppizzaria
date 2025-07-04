@@ -1,11 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { query } from "@/lib/db"
+import { supabase } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
-  let transactionStarted = false
-  
   try {
     console.log("=== POST /api/orders/manual - INÍCIO ===")
     
@@ -75,153 +73,167 @@ export async function POST(request: NextRequest) {
     // Usar ID do cliente real
     const userId = customerId
 
-    // Iniciar transação
-    console.log("Iniciando transação para pedido manual...")
-    await query("BEGIN")
-    transactionStarted = true
+    console.log("Verificando se o cliente existe...")
 
-    try {
-      // Verificar se o cliente existe
-      const customerCheck = await query(
-        "SELECT id, full_name, phone FROM profiles WHERE id = $1 AND role = 'customer'",
-        [userId]
-      )
+    // Verificar se o cliente existe usando Supabase
+    const { data: customer, error: customerError } = await supabase
+      .from('profiles')
+      .select('id, full_name, phone')
+      .eq('id', userId)
+      .eq('role', 'customer')
+      .single()
 
-      if (customerCheck.rows.length === 0) {
-        throw new Error("Cliente não encontrado ou inválido")
+    if (customerError) {
+      if (customerError.code === 'PGRST116') {
+        return NextResponse.json({
+          error: "Cliente não encontrado ou inválido"
+        }, { status: 404 })
       }
+      throw customerError
+    }
 
-      const customer = customerCheck.rows[0]
-      console.log("Cliente encontrado:", customer.full_name)
+    console.log("Cliente encontrado:", customer.full_name)
 
-      // Criar pedido manual
-      console.log("Criando pedido manual...")
-      const orderResult = await query(
-        `INSERT INTO orders (
-          user_id, status, total, subtotal, delivery_fee, discount,
-          payment_method, payment_status, delivery_address, delivery_phone,
-          delivery_instructions, estimated_delivery_time, customer_name,
-          created_at, updated_at
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW(), NOW())
-        RETURNING *`,
-        [
-          userId,
-          "RECEIVED",
-          total,
-          subtotal,
-          delivery_fee,
-          0, // discount
-          paymentMethod,
-          "PENDING",
-          finalDeliveryAddress,
-          customerPhone,
-          notes || null,
-          new Date(Date.now() + 45 * 60 * 1000).toISOString(), // 45 minutos
-          customerName
-        ]
-      )
+    // Criar pedido manual usando Supabase
+    console.log("Criando pedido manual...")
+    const { data: order, error: orderError } = await supabase
+      .from('orders')
+      .insert({
+        user_id: userId,
+        status: "RECEIVED",
+        total: total,
+        subtotal: subtotal,
+        delivery_fee: delivery_fee,
+        discount: 0,
+        payment_method: paymentMethod,
+        payment_status: "PENDING",
+        delivery_address: finalDeliveryAddress,
+        delivery_phone: customerPhone,
+        delivery_instructions: notes || null,
+        estimated_delivery_time: new Date(Date.now() + 45 * 60 * 1000).toISOString(), // 45 minutos
+        customer_name: customerName,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .select()
+      .single()
 
-      if (!orderResult.rows || orderResult.rows.length === 0) {
-        throw new Error("Falha ao criar pedido manual")
-      }
+    if (orderError) {
+      console.error("Erro ao criar pedido manual:", orderError)
+      throw orderError
+    }
 
-      const order = orderResult.rows[0]
-      console.log("Pedido manual criado com sucesso! ID:", order.id)
+    console.log("Pedido manual criado com sucesso! ID:", order.id)
 
-      // Inserir itens do pedido
-      console.log(`Inserindo ${items.length} itens no pedido manual...`)
+    // Inserir itens do pedido usando Supabase
+    console.log(`Inserindo ${items.length} itens no pedido manual...`)
+    
+    const orderItems = []
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i]
+      const unit_price = Number(item.price || item.unit_price || 0)
+      const quantity = Number(item.quantity || 1)
       
-      for (let i = 0; i < items.length; i++) {
-        const item = items[i]
-        const unit_price = Number(item.price || item.unit_price || 0)
-        const quantity = Number(item.quantity || 1)
-        
-        // Limpar product_id
-        let product_id = item.product_id || item.id
-        if (product_id) {
-          product_id = product_id.toString().replace(/--+$/, '').trim()
-        }
+      // Limpar product_id
+      let product_id = item.product_id || item.id
+      if (product_id) {
+        product_id = product_id.toString().replace(/--+$/, '').trim()
+      }
 
-        console.log(`Inserindo item ${i + 1}:`, {
+      console.log(`Preparando item ${i + 1}:`, {
+        product_id,
+        name: item.name,
+        quantity,
+        unit_price,
+        size: item.size,
+        toppings: item.toppings,
+        notes: item.notes,
+        isHalfAndHalf: item.isHalfAndHalf,
+        halfAndHalf: item.halfAndHalf
+      })
+
+      if (!product_id) {
+        return NextResponse.json({
+          error: `Item ${i + 1} não possui ID do produto`
+        }, { status: 400 })
+      }
+
+      // Validar UUID
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+      if (!uuidRegex.test(product_id)) {
+        return NextResponse.json({
+          error: `Item ${i + 1} possui ID de produto inválido: ${product_id}`
+        }, { status: 400 })
+      }
+
+      orderItems.push({
+        order_id: order.id,
+        product_id: product_id,
+        name: item.name || '',
+        quantity: quantity,
+        unit_price: unit_price,
+        total_price: quantity * unit_price,
+        size: item.size || null,
+        toppings: JSON.stringify(item.toppings || []),
+        special_instructions: item.notes || null,
+        half_and_half: item.halfAndHalf ? JSON.stringify(item.halfAndHalf) : null
+      })
+    }
+
+    // Inserir todos os itens de uma vez
+    const { error: itemsError } = await supabase
+      .from('order_items')
+      .insert(orderItems)
+
+    if (itemsError) {
+      console.error("Erro ao inserir itens do pedido:", itemsError)
+      
+      // Tentar deletar o pedido criado se falhar ao inserir itens
+      await supabase
+        .from('orders')
+        .delete()
+        .eq('id', order.id)
+      
+      throw itemsError
+    }
+
+    console.log("Todos os itens inseridos com sucesso!")
+
+    // Buscar pedido completo com itens para retornar
+    const { data: completeOrder, error: fetchError } = await supabase
+      .from('orders')
+      .select(`
+        *,
+        order_items (
+          id,
           product_id,
-          name: item.name,
+          name,
           quantity,
           unit_price,
-          size: item.size,
-          toppings: item.toppings,
-          notes: item.notes,
-          isHalfAndHalf: item.isHalfAndHalf,
-          halfAndHalf: item.halfAndHalf
-        })
+          total_price,
+          size,
+          toppings,
+          special_instructions,
+          half_and_half
+        )
+      `)
+      .eq('id', order.id)
+      .single()
 
-        if (!product_id) {
-          throw new Error(`Item ${i + 1} não possui ID do produto`)
-        }
-
-        // Validar UUID
-        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-        if (!uuidRegex.test(product_id)) {
-          throw new Error(`Item ${i + 1} possui ID de produto inválido: ${product_id}`)
-        }
-
-        try {
-          await query(
-            `INSERT INTO order_items (
-              order_id, product_id, name, quantity, unit_price, total_price,
-              size, toppings, special_instructions, half_and_half
-            )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-            [
-              order.id,
-              product_id,
-              item.name || '',
-              quantity,
-              unit_price,
-              quantity * unit_price,
-              item.size || null,
-              JSON.stringify(item.toppings || []),
-              item.notes || null,
-              item.halfAndHalf ? JSON.stringify(item.halfAndHalf) : null
-            ]
-          )
-          console.log(`Item ${i + 1} inserido com sucesso`)
-        } catch (insertError: any) {
-          console.error(`Erro ao inserir item ${i + 1}:`, insertError)
-          throw new Error(`Falha ao inserir item ${i + 1}: ${insertError.message}`)
-        }
-      }
-
-      // Commit da transação
-      console.log("Fazendo COMMIT da transação...")
-      await query("COMMIT")
-      transactionStarted = false
-      console.log("Pedido manual criado com sucesso!")
-
-      // Retornar resposta de sucesso
-      return NextResponse.json({
-        id: order.id,
-        status: order.status,
-        total: order.total,
-        orderType: orderType,
-        customerName: customerName,
-        customerPhone: customerPhone,
-        customerId: userId,
-        deliveryAddress: finalDeliveryAddress,
-        created_at: order.created_at,
-        message: `Pedido manual ${orderType === 'balcao' ? '(Balcão)' : '(Telefone)'} criado com sucesso!`
-      })
-      
-    } catch (innerError: any) {
-      console.error("Erro durante criação do pedido manual:", innerError)
-      
-      if (transactionStarted) {
-        console.log("Fazendo ROLLBACK da transação...")
-        await query("ROLLBACK")
-      }
-      
-      throw innerError
+    if (fetchError) {
+      console.error("Erro ao buscar pedido completo:", fetchError)
+      // Não falhar se não conseguir buscar o pedido completo
     }
+
+    console.log("Pedido manual criado com sucesso!")
+
+    return NextResponse.json({
+      success: true,
+      message: "Pedido manual criado com sucesso!",
+      order: completeOrder || order,
+      orderId: order.id
+    })
+
   } catch (error: any) {
     console.error("=== ERRO COMPLETO NO POST /api/orders/manual ===")
     console.error("Tipo:", error.constructor.name)
@@ -229,28 +241,18 @@ export async function POST(request: NextRequest) {
     console.error("Stack:", error.stack)
     
     if (error.code) {
-      console.error("Código PostgreSQL:", error.code)
-      console.error("Detalhe:", error.detail)
-      console.error("Hint:", error.hint)
+      console.error("Código:", error.code)
+      console.error("Detalhe:", error.details)
     }
-    
-    // Fazer rollback se necessário
-    if (transactionStarted) {
-      try {
-        await query("ROLLBACK")
-      } catch (rollbackError) {
-        console.error("Erro ao fazer rollback:", rollbackError)
-      }
-    }
-    
-    return NextResponse.json({ 
-      error: error.message || "Erro interno do servidor ao criar pedido manual",
+
+    return NextResponse.json({
+      success: false,
+      error: "Erro interno do servidor",
+      message: error.message || "Não foi possível criar o pedido manual",
       details: {
         type: error.constructor.name,
         code: error.code,
-        message: error.message,
-        hint: error.hint,
-        detail: error.detail
+        message: error.message
       }
     }, { status: 500 })
   }

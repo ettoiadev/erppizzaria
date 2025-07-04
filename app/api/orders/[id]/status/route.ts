@@ -1,5 +1,5 @@
-import { NextResponse, NextRequest } from "next/server"
-import { query } from "@/lib/db"
+import { NextRequest, NextResponse } from "next/server"
+import { supabase } from '@/lib/supabase'
 
 export async function PATCH(
   request: NextRequest,
@@ -9,36 +9,10 @@ export async function PATCH(
     console.log("=== PATCH /api/orders/[id]/status - INÍCIO ===")
     console.log("Order ID:", params.id)
     
-    // Parse request body
-    let body
-    try {
-      body = await request.json()
-      console.log("Request body:", body)
-    } catch (parseError) {
-      console.error("Erro ao fazer parse do body:", parseError)
-      return NextResponse.json({ 
-        error: "Corpo da requisição inválido" 
-      }, { status: 400 })
-    }
-
+    const body = await request.json()
     const { status, notes } = body
-
-    // Validate required parameters
-    if (!params.id) {
-      console.error("ID do pedido não fornecido")
-      return NextResponse.json({ 
-        error: "ID do pedido é obrigatório" 
-      }, { status: 400 })
-    }
-
-    // Validate UUID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(params.id)) {
-      console.error("ID do pedido inválido (não é UUID):", params.id)
-      return NextResponse.json({ 
-        error: "ID do pedido deve ser um UUID válido" 
-      }, { status: 400 })
-    }
+    
+    console.log("Dados recebidos:", { status, notes })
 
     // Validate status
     const validStatuses = ['RECEIVED', 'PREPARING', 'ON_THE_WAY', 'DELIVERED', 'CANCELLED']
@@ -51,21 +25,24 @@ export async function PATCH(
 
     console.log("Validação inicial concluída. Buscando pedido no banco...")
 
-    // Check if order exists and get current status
-    const orderResult = await query(
-      'SELECT id, status FROM orders WHERE id = $1',
-      [params.id]
-    )
+    // Verificar se o pedido existe e obter status atual usando Supabase
+    const { data: currentOrder, error: orderError } = await supabase
+      .from('orders')
+      .select('id, status')
+      .eq('id', params.id)
+      .single()
 
-    if (orderResult.rows.length === 0) {
-      console.error("Pedido não encontrado:", params.id)
-      return NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 })
+    if (orderError) {
+      if (orderError.code === 'PGRST116') {
+        console.error("Pedido não encontrado:", params.id)
+        return NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 })
+      }
+      throw orderError
     }
 
-    const currentOrder = orderResult.rows[0]
     console.log("Pedido encontrado:", currentOrder)
 
-    // Prevent status regression (optional business logic)
+    // Prevenir regressão de status (lógica de negócio opcional)
     const statusOrder = ['RECEIVED', 'PREPARING', 'ON_THE_WAY', 'DELIVERED']
     const currentIndex = statusOrder.indexOf(currentOrder.status)
     const newIndex = statusOrder.indexOf(status)
@@ -77,102 +54,70 @@ export async function PATCH(
       }, { status: 400 })
     }
 
-    console.log("Iniciando transação no banco...")
+    console.log("Atualizando status do pedido para:", status)
 
-    // Begin transaction
-    await query('BEGIN')
-
-    try {
-      console.log("Atualizando status do pedido para:", status)
-
-      // Verificar estrutura da tabela orders
-      const columnsResult = await query(`
-        SELECT column_name, data_type, udt_name
-        FROM information_schema.columns 
-        WHERE table_name = 'orders' 
-          AND column_name IN ('status', 'delivered_at', 'cancelled_at')
-      `)
-      
-      const columns = columnsResult.rows
-      const existingColumns = columns.map(col => col.column_name)
-      const statusColumn = columns.find(col => col.column_name === 'status')
-      
-      console.log("Colunas disponíveis:", columns)
-      console.log("Tipo da coluna status:", statusColumn)
-      
-      // Determinar como fazer cast do status baseado no tipo da coluna
-      const isEnumStatus = statusColumn?.udt_name === 'order_status' || statusColumn?.data_type === 'USER-DEFINED'
-      const statusCast = isEnumStatus ? 'CAST($1 AS order_status)' : '$1::VARCHAR'
-      const statusComparison = isEnumStatus ? 'CAST($PARAM AS order_status)' : '$PARAM::VARCHAR'
-      
-      console.log("Usando ENUM para status:", isEnumStatus)
-      
-      // Construir query UPDATE de forma segura
-      let updateQuery = `UPDATE orders SET status = ${statusCast}, updated_at = NOW()`
-      const queryParams = [status]
-      let paramCount = 2
-      
-      if (existingColumns.includes('delivered_at')) {
-        const deliveredComparison = statusComparison.replace('$PARAM', `$${paramCount}`)
-        updateQuery += `, delivered_at = CASE WHEN ${deliveredComparison} = 'DELIVERED' THEN NOW() ELSE delivered_at END`
-        queryParams.push(status)
-        paramCount++
-      }
-      
-      if (existingColumns.includes('cancelled_at')) {
-        const cancelledComparison = statusComparison.replace('$PARAM', `$${paramCount}`)
-        updateQuery += `, cancelled_at = CASE WHEN ${cancelledComparison} = 'CANCELLED' THEN NOW() ELSE cancelled_at END`
-        queryParams.push(status)
-        paramCount++
-      }
-      
-      updateQuery += ` WHERE id = $${paramCount}::UUID RETURNING *`
-      queryParams.push(params.id)
-      
-      console.log("Query final:", updateQuery)
-      console.log("Parâmetros:", queryParams)
-      
-      const updateResult = await query(updateQuery, queryParams)
-
-      if (updateResult.rows.length === 0) {
-        throw new Error("Falha ao atualizar pedido - nenhum registro retornado")
-      }
-
-      const updatedOrder = updateResult.rows[0]
-      console.log("Pedido atualizado com sucesso")
-
-      // Try to insert status history (optional - se a tabela não existir, ignorar)
-      try {
-        console.log("Tentando inserir histórico de status...")
-        
-        // Verificar se tabela order_status_history existe e qual tipo usa
-        let historyStatusCast = isEnumStatus ? 'CAST($2 AS order_status)' : '$2::VARCHAR'
-        let historyNewStatusCast = isEnumStatus ? 'CAST($3 AS order_status)' : '$3::VARCHAR'
-        
-        await query(
-          `INSERT INTO order_status_history 
-           (order_id, old_status, new_status, notes, changed_at) 
-           VALUES ($1::UUID, ${historyStatusCast}, ${historyNewStatusCast}, $4::TEXT, NOW())`,
-          [params.id, currentOrder.status, status, notes || null]
-        )
-        console.log("Histórico de status inserido com sucesso")
-      } catch (historyError: any) {
-        console.warn("Erro ao inserir histórico (ignorando):", historyError.message)
-        // Não falhar se a tabela de histórico não existir
-      }
-
-      await query('COMMIT')
-      console.log("Transação commitada com sucesso")
-
-      return NextResponse.json({
-        message: "Status do pedido atualizado com sucesso",
-        order: updatedOrder
-      })
-    } catch (error) {
-      console.error("Erro durante transação:", error)
-      await query('ROLLBACK')
-      throw error
+    // Preparar dados para atualização (aplicar lógica CASE WHEN no frontend)
+    const updateData: any = {
+      status: status,
+      updated_at: new Date().toISOString()
     }
+
+    // Aplicar lógica CASE WHEN no frontend
+    if (status === 'DELIVERED') {
+      updateData.delivered_at = new Date().toISOString()
+    }
+
+    if (status === 'CANCELLED') {
+      updateData.cancelled_at = new Date().toISOString()
+    }
+
+    console.log("Dados de atualização:", updateData)
+
+    // Atualizar pedido usando Supabase
+    const { data: updatedOrder, error: updateError } = await supabase
+      .from('orders')
+      .update(updateData)
+      .eq('id', params.id)
+      .select()
+      .single()
+
+    if (updateError) {
+      console.error("Erro ao atualizar pedido:", updateError)
+      throw updateError
+    }
+
+    console.log("Pedido atualizado com sucesso")
+
+    // Tentar inserir histórico de status (opcional - se a tabela não existir, ignorar)
+    try {
+      console.log("Tentando inserir histórico de status...")
+      
+      const { error: historyError } = await supabase
+        .from('order_status_history')
+        .insert({
+          order_id: params.id,
+          old_status: currentOrder.status,
+          new_status: status,
+          notes: notes || null,
+          changed_at: new Date().toISOString()
+        })
+
+      if (historyError) {
+        console.warn("Erro ao inserir histórico (ignorando):", historyError.message)
+      } else {
+        console.log("Histórico de status inserido com sucesso")
+      }
+    } catch (historyError: any) {
+      console.warn("Erro ao inserir histórico (ignorando):", historyError.message)
+      // Não falhar se a tabela de histórico não existir
+    }
+
+    console.log("Operação concluída com sucesso")
+
+    return NextResponse.json({
+      message: "Status do pedido atualizado com sucesso",
+      order: updatedOrder
+    })
   } catch (error: any) {
     console.error("=== ERRO COMPLETO NO PATCH /api/orders/[id]/status ===")
     console.error("Tipo:", error.constructor.name)
@@ -180,9 +125,8 @@ export async function PATCH(
     console.error("Stack:", error.stack)
     
     if (error.code) {
-      console.error("Código PostgreSQL:", error.code)
-      console.error("Detalhe:", error.detail)
-      console.error("Hint:", error.hint)
+      console.error("Código:", error.code)
+      console.error("Detalhe:", error.details)
     }
     
     return NextResponse.json({ 
