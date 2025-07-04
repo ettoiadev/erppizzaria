@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
-import { authenticateUser } from "@/lib/auth"
+import { createClient } from '@supabase/supabase-js'
 
 export const dynamic = 'force-dynamic'
+
+// Inicializar Supabase com service role para autenticação admin
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
 
 export async function GET() {
   return NextResponse.json({
@@ -41,39 +46,60 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log('🔐 Authenticating user...')
+    console.log('🔐 Authenticating user with Supabase Auth...')
 
-    // Autenticar usuário usando nova função otimizada
-    const authResult = await authenticateUser(email.trim(), password)
+    // Autenticar usando Supabase Auth
+    const { data: authData, error: authError } = await supabaseAdmin.auth.signInWithPassword({
+      email: email.trim(),
+      password: password
+    })
 
-    if (!authResult) {
-      console.log('❌ Authentication failed')
+    if (authError || !authData.user) {
+      console.log('❌ Supabase Auth failed:', authError?.message)
       return NextResponse.json(
         { error: "Credenciais inválidas" },
         { status: 401 }
       )
     }
 
-    const { user, token } = authResult
+    console.log('✅ Supabase Auth successful, user ID:', authData.user.id)
 
-    console.log('✅ User authenticated successfully:', {
-      id: user.id,
-      email: user.email,
-      role: user.role
-    })
+    // Buscar perfil do usuário usando o user_id do Supabase Auth
+    const { data: profile, error: profileError } = await supabaseAdmin
+      .from('profiles')
+      .select('id, email, full_name, role, user_id')
+      .eq('user_id', authData.user.id)
+      .single()
 
-    // Preparar resposta
-    const response = {
-      user: {
-        id: user.id,
-        email: user.email,
-        full_name: user.full_name,
-        role: user.role
-      },
-      token
+    if (profileError || !profile) {
+      console.log('❌ Profile not found:', profileError?.message)
+      return NextResponse.json(
+        { error: "Perfil de usuário não encontrado" },
+        { status: 401 }
+      )
     }
 
-    console.log('🎉 Login successful for user:', user.email)
+    console.log('✅ Profile found:', {
+      id: profile.id,
+      email: profile.email,
+      role: profile.role,
+      user_id: profile.user_id
+    })
+
+    // Preparar resposta com token do Supabase
+    const response = {
+      user: {
+        id: profile.id,
+        email: profile.email,
+        full_name: profile.full_name,
+        role: profile.role,
+        user_id: profile.user_id
+      },
+      token: authData.session?.access_token,
+      refresh_token: authData.session?.refresh_token
+    }
+
+    console.log('🎉 Login successful for user:', profile.email)
     console.log('🏁 === LOGIN API END ===')
 
     return NextResponse.json(response, {
