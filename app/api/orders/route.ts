@@ -178,17 +178,17 @@ export async function POST(request: NextRequest) {
 
     // Preparar dados do pedido usando Supabase diretamente
     const orderData = {
-      user_id,
+        user_id,
       status: "PENDING",
-      total,
-      subtotal,
-      delivery_fee,
+        total,
+        subtotal,
+        delivery_fee,
       discount: 0,
-      payment_method,
+        payment_method,
       payment_status: "PENDING",
-      delivery_address,
-      delivery_phone,
-      delivery_instructions,
+          delivery_address,
+          delivery_phone,
+          delivery_instructions,
       estimated_delivery_time: new Date(Date.now() + 45 * 60 * 1000).toISOString(),
       customer_name
     }
@@ -207,18 +207,18 @@ export async function POST(request: NextRequest) {
       throw orderError
     }
 
-    console.log("Pedido criado com sucesso! ID:", order.id)
+      console.log("Pedido criado com sucesso! ID:", order.id)
 
-    // Criar itens do pedido
+      // Criar itens do pedido
     const orderItems = items.map(item => {
-      let product_id = item.product_id || item.id
-      if (product_id) {
+        let product_id = item.product_id || item.id
+        if (product_id) {
         product_id = product_id.toString().replace(/--+$/, '').trim()
       }
 
       return {
         order_id: order.id,
-        product_id,
+              product_id,
         name: item.name || '',
         unit_price: Number(item.price || item.unit_price || 0),
         total_price: Number(item.price || item.unit_price || 0) * Number(item.quantity || 1),
@@ -242,14 +242,14 @@ export async function POST(request: NextRequest) {
     }
 
     console.log("Itens do pedido criados com sucesso!")
-    
-    return NextResponse.json({
-      id: order.id,
-      status: order.status,
-      total: order.total,
-      created_at: order.created_at,
-      message: "Pedido criado com sucesso!"
-    })
+      
+      return NextResponse.json({
+        id: order.id,
+        status: order.status,
+        total: order.total,
+        created_at: order.created_at,
+        message: "Pedido criado com sucesso!"
+      })
       
   } catch (error: any) {
     console.error("=== ERRO COMPLETO NO POST /api/orders ===")
