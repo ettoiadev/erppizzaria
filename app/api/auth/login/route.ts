@@ -3,10 +3,10 @@ import { createClient } from '@supabase/supabase-js'
 
 export const dynamic = 'force-dynamic'
 
-// Inicializar Supabase com service role para autenticação admin
+// Inicializar Supabase com anon key
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 export async function GET() {
   return NextResponse.json({
@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
     console.log('🔐 Authenticating user with Supabase Auth...')
 
     // Autenticar usando Supabase Auth
-    const { data: authData, error: authError } = await supabaseAdmin.auth.signInWithPassword({
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
       email: email.trim(),
       password: password
     })
@@ -64,8 +64,17 @@ export async function POST(request: NextRequest) {
 
     console.log('✅ Supabase Auth successful, user ID:', authData.user.id)
 
-    // Buscar perfil do usuário usando o user_id do Supabase Auth
-    const { data: profile, error: profileError } = await supabaseAdmin
+    // Criar um client autenticado com a sessão do usuário
+    const authenticatedSupabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: {
+        headers: {
+          Authorization: `Bearer ${authData.session?.access_token}`
+        }
+      }
+    })
+
+    // Buscar perfil do usuário usando o client autenticado
+    const { data: profile, error: profileError } = await authenticatedSupabase
       .from('profiles')
       .select('id, email, full_name, role, user_id')
       .eq('user_id', authData.user.id)
