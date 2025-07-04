@@ -53,20 +53,20 @@ export default function MenuPage() {
 
   // Organizar produtos por categoria
   const productsByCategory = categories.reduce((acc: Record<string, Product[]>, category: Category) => {
-    acc[category.id] = (products || []).filter((product: Product) => product.categoryId === category.id)
+    acc[category.id] = (products || []).filter((product: Product) => product.category_id === category.id)
     return acc
   }, {})
 
   // Filtrar produtos por categoria se uma categoria específica estiver selecionada
   const filteredProducts = selectedCategory === "all" 
     ? null // Quando "all" está selecionado, mostraremos por categoria
-    : (products || []).filter((product: Product) => product.categoryId === selectedCategory)
+    : (products || []).filter((product: Product) => product.category_id === selectedCategory)
 
   // Verificar se há pizzas no cardápio
   const hasPizzas = (products || []).some((product: Product) => 
     product.name.toLowerCase().includes('pizza') || 
     categories.some((cat: Category) => 
-      cat.name.toLowerCase().includes('pizza') && product.categoryId === cat.id
+      cat.name.toLowerCase().includes('pizza') && product.category_id === cat.id
     )
   )
 

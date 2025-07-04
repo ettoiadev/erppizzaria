@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { query } from '@/lib/db'
+import { supabase } from '@/lib/supabase'
 
 // API pública para buscar configurações que podem ser exibidas na página inicial
 export async function GET() {
@@ -28,18 +28,22 @@ export async function GET() {
       'freeDeliverySubtext'
     ]
 
-    const result = await query(
-      `SELECT setting_key, setting_value 
-       FROM admin_settings 
-       WHERE setting_key = ANY($1)
-       ORDER BY setting_key`,
-      [publicSettings]
-    )
+    // Buscar configurações usando Supabase
+    const { data: settings, error } = await supabase
+      .from('admin_settings')
+      .select('setting_key, setting_value')
+      .in('setting_key', publicSettings)
+      .order('setting_key', { ascending: true })
+
+    if (error) {
+      console.error('Erro ao buscar configurações:', error)
+      throw error
+    }
 
     // Converter para objeto para facilitar o uso
-    const settings: Record<string, any> = {}
-    result.rows.forEach((row) => {
-      settings[row.setting_key] = row.setting_value
+    const settingsObj: Record<string, any> = {}
+    settings?.forEach((row) => {
+      settingsObj[row.setting_key] = row.setting_value
     })
 
     // Adicionar configurações padrão se não existirem
@@ -66,7 +70,7 @@ export async function GET() {
     }
 
     // Mesclar configurações padrão com as do banco
-    const finalSettings = { ...defaultSettings, ...settings }
+    const finalSettings = { ...defaultSettings, ...settingsObj }
 
     return NextResponse.json({ 
       settings: finalSettings,

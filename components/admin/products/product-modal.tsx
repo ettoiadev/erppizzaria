@@ -29,9 +29,9 @@ export function ProductModal({ open, onOpenChange, product, categories, onSave }
     description: "",
     price: 0,
     image: "",
-    categoryId: "",
+    category_id: "",
     available: true,
-    showImage: false,
+    show_image: false,
     sizes: [] as ProductSize[],
     toppings: [] as ProductTopping[],
   })
@@ -47,9 +47,9 @@ export function ProductModal({ open, onOpenChange, product, categories, onSave }
         description: product.description || "",
         price: product.price || 0,
         image: product.image || "",
-        categoryId: product.categoryId || "",
+        category_id: product.category_id || "",
         available: Boolean(product.available),
-        showImage: Boolean(product.showImage ?? false),
+        show_image: Boolean(product.show_image ?? false),
         sizes: product.sizes || [],
         toppings: product.toppings || [],
       })
@@ -61,9 +61,9 @@ export function ProductModal({ open, onOpenChange, product, categories, onSave }
         description: "",
         price: 0,
         image: "",
-        categoryId: "",
+        category_id: "",
         available: true,
-        showImage: false,
+        show_image: false,
         sizes: [],
         toppings: [],
       })
@@ -196,7 +196,7 @@ export function ProductModal({ open, onOpenChange, product, categories, onSave }
       newErrors.push("Preço deve ser maior ou igual a zero")
     }
 
-    if (!formData.categoryId) {
+    if (!formData.category_id) {
       newErrors.push("Categoria é obrigatória")
     }
 
@@ -394,8 +394,8 @@ export function ProductModal({ open, onOpenChange, product, categories, onSave }
               <div>
                 <Label htmlFor="category">Categoria *</Label>
                 <Select
-                  value={formData.categoryId}
-                  onValueChange={(value) => setFormData((prev) => ({ ...prev, categoryId: value }))}
+                  value={formData.category_id}
+                  onValueChange={(value) => setFormData((prev) => ({ ...prev, category_id: value }))}
                   required
                 >
                   <SelectTrigger>
@@ -486,8 +486,8 @@ export function ProductModal({ open, onOpenChange, product, categories, onSave }
             <div className="flex items-center space-x-2">
               <Switch
                 id="product-show-image"
-                checked={Boolean(formData.showImage)}
-                onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, showImage: Boolean(checked) }))}
+                checked={Boolean(formData.show_image)}
+                onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, show_image: Boolean(checked) }))}
                 aria-describedby="product-show-image-description"
               />
               <Label htmlFor="product-show-image">Exibir imagem do produto</Label>

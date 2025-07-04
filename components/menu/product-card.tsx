@@ -34,7 +34,7 @@ export function ProductCard({ product, onClick }: ProductCardProps) {
     (product.image.startsWith("http") || product.image.startsWith("/"))
 
   // Determina se deve mostrar a área da imagem
-  const shouldShowImageArea = product.showImage !== false && isValidImageUrl
+  const shouldShowImageArea = product.show_image !== false && isValidImageUrl
   
   // Determina se deve mostrar a imagem real (sem erro de carregamento)
   const shouldShowImage = shouldShowImageArea && !imageError
@@ -73,7 +73,7 @@ export function ProductCard({ product, onClick }: ProductCardProps) {
       <CardContent className={shouldShowImageArea ? "p-4" : "p-6"}>
         <div onClick={onClick}>
           <h3 className={`font-semibold mb-2 line-clamp-1 ${shouldShowImageArea ? "text-lg" : "text-xl"}`}>
-            {product.productNumber ? `${product.productNumber} - ${product.name}` : product.name}
+            {product.product_number ? `${product.product_number} - ${product.name}` : product.name}
           </h3>
           <p className={`text-gray-600 mb-3 ${shouldShowImageArea ? "text-sm line-clamp-2" : "text-base line-clamp-3"}`}>
             {product.description}

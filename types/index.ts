@@ -4,12 +4,15 @@ export interface Product {
   description: string
   price: number
   image: string
-  categoryId: string
+  category_id: string // Corrigido de categoryId para category_id
   available: boolean
-  showImage?: boolean
-  productNumber?: number
+  show_image?: boolean // Corrigido de showImage para show_image
+  product_number?: number // Corrigido de productNumber para product_number
   sizes?: ProductSize[]
   toppings?: ProductTopping[]
+  active?: boolean // Adicionado campo active que existe no banco
+  created_at?: string // Adicionado campo created_at
+  updated_at?: string // Adicionado campo updated_at
 }
 
 export interface ProductSize {
