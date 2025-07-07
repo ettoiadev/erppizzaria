@@ -1,59 +1,161 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { LoadingSpinner } from "@/components/ui/loading-spinner"
 import { Heart, ShoppingCart, Star } from "lucide-react"
 import { useCart } from "@/contexts/cart-context"
 import { useToast } from "@/hooks/use-toast"
+import { useAuth } from "@/contexts/auth-context"
+
+interface FavoriteProduct {
+  id: string
+  name: string
+  description: string
+  price: number
+  image_url?: string
+  category: string
+  available: boolean
+  rating?: number
+}
 
 export default function FavoritesPage() {
   const { addItem } = useCart()
   const { toast } = useToast()
+  const { user } = useAuth()
+  const [favorites, setFavorites] = useState<FavoriteProduct[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  // Mock favorites data - replace with real API call
-  const [favorites] = useState([
-    {
-      id: "1",
-      name: "Pizza Margherita",
-      description: "Molho de tomate, mussarela, manjericão fresco",
-      price: 32.9,
-      image: "/placeholder.svg?height=200&width=300",
-      rating: 4.8,
-      category: "Pizzas Tradicionais",
-    },
-    {
-      id: "2",
-      name: "Pizza Pepperoni",
-      description: "Molho de tomate, mussarela, pepperoni",
-      price: 36.9,
-      image: "/placeholder.svg?height=200&width=300",
-      rating: 4.9,
-      category: "Pizzas Tradicionais",
-    },
-  ])
+  useEffect(() => {
+    if (user) {
+      fetchFavorites()
+    } else {
+      setLoading(false)
+    }
+  }, [user])
 
-  const handleAddToCart = (product: any) => {
+  const fetchFavorites = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      
+      const response = await fetch('/api/favorites')
+      if (!response.ok) {
+        throw new Error('Erro ao carregar favoritos')
+      }
+      
+      const data = await response.json()
+      setFavorites(data)
+    } catch (error) {
+      console.error('Erro ao buscar favoritos:', error)
+      setError('Erro ao carregar seus favoritos. Tente novamente.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleAddToCart = (product: FavoriteProduct) => {
+    if (!product.available) {
+      toast({
+        title: "Produto indisponível",
+        description: "Este produto não está disponível no momento.",
+        variant: "destructive"
+      })
+      return
+    }
+
     addItem({
       id: product.id,
       name: product.name,
       price: product.price,
       quantity: 1,
-      image: product.image,
+      image: product.image_url || "/placeholder.svg",
     })
+    
     toast({
       title: "Produto adicionado!",
       description: `${product.name} foi adicionado ao carrinho.`,
     })
   }
 
-  const handleRemoveFromFavorites = (productId: string) => {
-    // In production, make API call to remove from favorites
-    toast({
-      title: "Removido dos favoritos",
-      description: "O produto foi removido da sua lista de favoritos.",
-    })
+  const handleRemoveFromFavorites = async (productId: string) => {
+    try {
+      const response = await fetch('/api/favorites', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ productId }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Erro ao remover favorito')
+      }
+
+      // Remove from local state
+      setFavorites(favorites.filter(fav => fav.id !== productId))
+      
+      toast({
+        title: "Removido dos favoritos",
+        description: "O produto foi removido da sua lista de favoritos.",
+      })
+    } catch (error) {
+      console.error('Erro ao remover favorito:', error)
+      toast({
+        title: "Erro",
+        description: "Não foi possível remover o produto dos favoritos.",
+        variant: "destructive"
+      })
+    }
+  }
+
+  if (!user) {
+    return (
+      <AuthenticatedLayout>
+        <div className="container mx-auto px-4 py-8">
+          <div className="text-center py-12">
+            <Heart className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Faça login para ver seus favoritos</h3>
+            <p className="text-gray-600 mb-4">
+              Você precisa estar logado para gerenciar sua lista de favoritos.
+            </p>
+            <Button asChild>
+              <a href="/login">Fazer Login</a>
+            </Button>
+          </div>
+        </div>
+      </AuthenticatedLayout>
+    )
+  }
+
+  if (loading) {
+    return (
+      <AuthenticatedLayout>
+        <div className="container mx-auto px-4 py-8">
+          <div className="flex justify-center items-center py-12">
+            <LoadingSpinner size="lg" />
+          </div>
+        </div>
+      </AuthenticatedLayout>
+    )
+  }
+
+  if (error) {
+    return (
+      <AuthenticatedLayout>
+        <div className="container mx-auto px-4 py-8">
+          <div className="text-center py-12">
+            <Heart className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Erro ao carregar favoritos</h3>
+            <p className="text-gray-600 mb-4">{error}</p>
+            <Button onClick={fetchFavorites}>Tentar Novamente</Button>
+          </div>
+        </div>
+      </AuthenticatedLayout>
+    )
   }
 
   return (
@@ -70,7 +172,7 @@ export default function FavoritesPage() {
               <Card key={product.id} className="overflow-hidden hover:shadow-lg transition-shadow">
                 <div className="relative">
                   <img
-                    src={product.image || "/placeholder.svg"}
+                    src={product.image_url || "/placeholder.svg"}
                     alt={product.name}
                     className="w-full h-48 object-cover"
                   />
@@ -82,6 +184,11 @@ export default function FavoritesPage() {
                   >
                     <Heart className="w-4 h-4 text-red-500 fill-current" />
                   </Button>
+                  {!product.available && (
+                    <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+                      <span className="text-white font-semibold">Indisponível</span>
+                    </div>
+                  )}
                 </div>
                 <CardContent className="p-4">
                   <div className="mb-2">
@@ -89,13 +196,19 @@ export default function FavoritesPage() {
                   </div>
                   <h3 className="font-semibold text-lg mb-2">{product.name}</h3>
                   <p className="text-gray-600 text-sm mb-3 line-clamp-2">{product.description}</p>
-                  <div className="flex items-center mb-3">
-                    <Star className="w-4 h-4 text-yellow-400 fill-current" />
-                    <span className="text-sm text-gray-600 ml-1">{product.rating}</span>
-                  </div>
+                  {product.rating && (
+                    <div className="flex items-center mb-3">
+                      <Star className="w-4 h-4 text-yellow-400 fill-current" />
+                      <span className="text-sm text-gray-600 ml-1">{product.rating}</span>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between">
                     <span className="text-xl font-bold text-primary">R$ {Number(product.price).toFixed(2)}</span>
-                    <Button size="sm" onClick={() => handleAddToCart(product)}>
+                    <Button 
+                      size="sm" 
+                      onClick={() => handleAddToCart(product)}
+                      disabled={!product.available}
+                    >
                       <ShoppingCart className="w-4 h-4 mr-2" />
                       Adicionar
                     </Button>
