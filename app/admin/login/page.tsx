@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
@@ -18,7 +17,7 @@ export default function AdminLoginPage() {
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [showRegisterModal, setShowRegisterModal] = useState(false)
-  const { login, testAlternativeLogin } = useAuth()
+  const { login } = useAuth()
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -36,20 +35,6 @@ export default function AdminLoginPage() {
     }
   }
 
-  const handleAlternativeLogin = async () => {
-    setIsLoading(true)
-    setError("")
-
-    try {
-      await testAlternativeLogin(email, password)
-      router.push("/admin")
-    } catch (error: any) {
-      setError(`[TESTE] ${error.message || "Email ou senha inválidos"}`)
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
   const handleRegisterSuccess = () => {
     setShowRegisterModal(false)
     setError("")
@@ -60,7 +45,7 @@ export default function AdminLoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-                          <CardTitle className="text-2xl font-bold text-primary">Área Administrativa</CardTitle>
+          <CardTitle className="text-2xl font-bold text-primary">Área Administrativa</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -86,21 +71,9 @@ export default function AdminLoginPage() {
               />
             </div>
 
-            <div className="space-y-2">
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? "Entrando..." : "Entrar"}
-              </Button>
-              
-              <Button 
-                type="button" 
-                variant="outline" 
-                className="w-full" 
-                onClick={handleAlternativeLogin}
-                disabled={isLoading}
-              >
-                🧪 Testar Rota Alternativa
-              </Button>
-            </div>
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? "Entrando..." : "Entrar"}
+            </Button>
           </form>
 
           <div className="mt-6 pt-4 border-t border-gray-200">
