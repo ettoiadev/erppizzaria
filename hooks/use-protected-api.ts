@@ -1,5 +1,5 @@
 import { useCallback } from 'react'
-import { useSupabaseAuth } from '@/contexts/supabase-auth-context'
+import { useAuth } from '@/contexts/auth-context'
 import { useRouter } from 'next/navigation'
 
 interface ApiOptions {
@@ -10,7 +10,7 @@ interface ApiOptions {
 }
 
 export function useProtectedApi() {
-  const { getValidToken, session } = useSupabaseAuth()
+  const { getValidToken, session } = useAuth()
   const router = useRouter()
 
   const callApi = useCallback(async (

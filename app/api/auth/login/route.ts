@@ -1,12 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from '@supabase/supabase-js'
+import { supabase } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
-
-// Inicializar Supabase com anon key
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 export async function GET() {
   return NextResponse.json({
@@ -65,17 +60,7 @@ export async function POST(request: NextRequest) {
     console.log('✅ Supabase Auth successful, user ID:', authData.user.id)
 
     // Criar um client autenticado com a sessão do usuário
-    const authenticatedSupabase = createClient(supabaseUrl, supabaseAnonKey, {
-      global: {
-        headers: {
-          Authorization: `Bearer ${authData.session?.access_token}`
-        }
-      }
-    })
-
-    // Buscar perfil do usuário usando o client autenticado
-    const { data: profile, error: profileError } = await authenticatedSupabase
-      .from('profiles')
+    const authenticatedSupabase = supabase.from('profiles')
       .select('id, email, full_name, role, user_id')
       .eq('user_id', authData.user.id)
       .single()

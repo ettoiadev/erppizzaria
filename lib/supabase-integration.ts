@@ -1,10 +1,4 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js'
-import { supabaseAdmin } from './supabase'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-
-export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKey)
+import { supabase, supabaseAdmin, getSupabaseConfig } from './supabase'
 
 // Interface para tipagem de usuário
 export interface UserProfile {
@@ -393,7 +387,7 @@ export async function getAdminSettings(): Promise<Record<string, string>> {
     if (error) throw error
 
     const settings: Record<string, string> = {}
-    data?.forEach(setting => {
+    data?.forEach((setting: any) => {
       settings[setting.key] = setting.value
     })
 
@@ -472,12 +466,6 @@ export async function getClient() {
   }
 }
 
-// Exportar configurações
-export const getSupabaseConfig = () => ({
-  url: supabaseUrl,
-  anonKey: supabaseAnonKey
-}) 
-
 export async function ensureAdminUser() {
   const email = 'admin@williamdiskpizza.com'
   const password = 'admin123'
@@ -486,7 +474,7 @@ export async function ensureAdminUser() {
   // Verificar se já existe
   const { data: existing, error: findError } = await supabaseAdmin.auth.admin.listUsers()
   if (findError) throw findError
-  const found = existing?.users?.find(u => u.email === email)
+  const found = existing?.users?.find((u: any) => u.email === email)
   if (found) return found
 
   // Criar usuário
