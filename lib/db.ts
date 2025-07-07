@@ -205,5 +205,4 @@ export async function testConnection() {
   }
 }
 
-// Exportar o cliente Supabase
-export { supabase }; 
+// Cliente Supabase disponível apenas internamente neste arquivo 

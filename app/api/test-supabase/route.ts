@@ -4,9 +4,9 @@ import {
   getUserByEmail, 
   getProducts, 
   getCategories, 
-  getAdminSettings,
-  supabase 
+  getAdminSettings
 } from '@/lib/supabase-integration'
+import { supabase } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
 

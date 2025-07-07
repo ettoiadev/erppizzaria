@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import jwt from "jsonwebtoken"
-import { supabase } from "@/lib/supabase-integration"
+import { supabase } from "@/lib/supabase"
 import { verifyToken } from "@/lib/auth"
 import { JwtPayload } from "jsonwebtoken"
 

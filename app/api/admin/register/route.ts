@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { createUser, emailExists } from "@/lib/auth"
-import { supabase } from "@/lib/supabase-integration"
+import { supabase } from "@/lib/supabase"
 
 export async function POST(request: NextRequest) {
   try {
