@@ -12,6 +12,7 @@ import { AdminProfile } from "./admin-profile"
 import { Settings, Palette, Bike, CreditCard, Bell, Shield, User, AlertTriangle } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/contexts/auth-context"
+import { useProtectedApi } from "@/hooks/use-protected-api"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
@@ -23,7 +24,8 @@ export function SettingsManagement() {
   const [authError, setAuthError] = useState<string | null>(null)
   const [showDiagnostic, setShowDiagnostic] = useState(false)
   const { toast } = useToast()
-  const { user } = useAuth()
+  const { user, isValidating } = useAuth()
+  const api = useProtectedApi()
 
   useEffect(() => {
     loadSettings()
@@ -42,23 +44,9 @@ export function SettingsManagement() {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload)
   }, [hasUnsavedChanges])
 
-  const getAuthHeaders = () => {
-    const token = localStorage.getItem("auth-token")
-    console.log("🔑 Token encontrado:", !!token)
-    console.log("👤 Usuário atual:", user)
-    
-    return {
-      "Content-Type": "application/json",
-      ...(token && { Authorization: `Bearer ${token}` })
-    }
-  }
-
   const runDiagnostic = async () => {
     try {
-      const response = await fetch("/api/admin/debug", {
-        headers: getAuthHeaders()
-      })
-      
+      const response = await api.get("/api/admin/debug")
       const data = await response.json()
       console.log("🔍 Diagnóstico completo:", data)
       
@@ -68,6 +56,11 @@ export function SettingsManagement() {
       })
     } catch (error) {
       console.error("❌ Erro no diagnóstico:", error)
+      toast({
+        title: "Erro no Diagnóstico",
+        description: "Não foi possível executar o diagnóstico",
+        variant: "destructive",
+      })
     }
   }
 
@@ -77,59 +70,28 @@ export function SettingsManagement() {
       setAuthError(null)
       
       console.log("🔄 Carregando configurações...")
-      console.log("👤 Usuário logado:", user)
       
-      const headers = getAuthHeaders()
-      console.log("📤 Headers enviados:", headers)
+      const response = await api.get("/api/admin/settings")
+      const data = await response.json()
       
-      const response = await fetch("/api/admin/settings", {
-        headers
-      })
-
-      console.log("📥 Response status:", response.status)
-      console.log("📥 Response ok:", response.ok)
-
-      if (response.status === 401) {
-        setAuthError("Token de autenticação inválido ou expirado. Faça login novamente.")
-        toast({
-          title: "Erro de Autenticação",
-          description: "Token inválido ou expirado. Redirecionando para login...",
-          variant: "destructive",
-        })
-        setTimeout(() => window.location.href = "/admin/login", 2000)
-        return
-      }
-
-      if (response.status === 403) {
-        setAuthError("Acesso negado. Você não tem permissão de administrador.")
-        toast({
-          title: "Acesso Negado",
-          description: "Você não tem permissão para acessar esta área",
-          variant: "destructive",
-        })
-        return
-      }
-
-      if (response.ok) {
-        const data = await response.json()
-        setSettings(data.settings || {})
-        console.log("✅ Configurações carregadas:", data.settings)
-      } else {
-        const errorText = await response.text()
-        console.error("❌ Erro na resposta:", errorText)
-        
-        toast({
-          title: "Erro",
-          description: `Erro ${response.status}: Não foi possível carregar as configurações`,
-          variant: "destructive",
-        })
-      }
-    } catch (error) {
+      setSettings(data.settings || {})
+      console.log("✅ Configurações carregadas:", data.settings)
+      
+    } catch (error: any) {
       console.error("❌ Erro ao carregar configurações:", error)
-      setAuthError("Erro de conexão com o servidor")
+      
+      if (error.message.includes('session_expired') || error.message.includes('Sessão expirada')) {
+        setAuthError("Sessão expirada. Redirecionando para login...")
+        // O hook já faz o redirecionamento
+      } else if (error.message.includes('HTTP 403')) {
+        setAuthError("Acesso negado. Você não tem permissão de administrador.")
+      } else {
+        setAuthError("Erro de conexão com o servidor")
+      }
+      
       toast({
-        title: "Erro de Conexão",
-        description: "Não foi possível conectar ao servidor",
+        title: "Erro ao Carregar Configurações",
+        description: error.message || "Erro desconhecido",
         variant: "destructive",
       })
     } finally {
@@ -141,15 +103,11 @@ export function SettingsManagement() {
     try {
       const mergedSettings = { ...settings, ...newSettings }
 
-      const response = await fetch("/api/admin/settings", {
-        method: "POST",
-        headers: getAuthHeaders(),
-        body: JSON.stringify(mergedSettings),
-      })
-
+      const response = await api.post("/api/admin/settings", mergedSettings)
+      
       if (response.ok) {
         setSettings(mergedSettings)
-        setHasUnsavedChanges(false) // Limpar flag de mudanças não salvas
+        setHasUnsavedChanges(false)
         toast({
           title: "Sucesso",
           description: "Configurações salvas com sucesso",
@@ -164,11 +122,11 @@ export function SettingsManagement() {
         })
         return false
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("❌ Erro ao salvar configurações:", error)
       toast({
         title: "Erro",
-        description: "Erro de conexão ao salvar configurações",
+        description: error.message || "Erro ao salvar configurações",
         variant: "destructive",
       })
       return false
@@ -194,59 +152,50 @@ export function SettingsManagement() {
     setActiveTab(value)
   }
 
-  // Se há erro de autenticação, mostrar interface de erro
-  if (authError) {
+  // Se está validando sessão ou há erro de autenticação, mostrar interface de erro
+  if (isValidating || authError) {
     return (
       <div className="space-y-6">
-        <Card className="border-red-200 bg-red-50">
+        <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-red-800">
-              <AlertTriangle className="w-5 h-5" />
-              Erro de Autenticação
+            <CardTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-500" />
+              {isValidating ? "Validando Sessão..." : "Problema de Autenticação"}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <p className="text-red-700">{authError}</p>
-            
-            <div className="flex gap-3">
-              <Button 
-                onClick={() => window.location.href = "/admin/login"}
-                variant="destructive"
-              >
-                Ir para Login
-              </Button>
-              
-              <Button 
-                onClick={loadSettings}
-                variant="outline"
-              >
-                Tentar Novamente
-              </Button>
-              
-              <Button 
-                onClick={() => setShowDiagnostic(!showDiagnostic)}
-                variant="secondary"
-              >
-                {showDiagnostic ? "Ocultar" : "Mostrar"} Diagnóstico
-              </Button>
-            </div>
-
-            {showDiagnostic && (
-              <div className="bg-gray-100 p-4 rounded-lg text-sm">
-                <h4 className="font-semibold mb-2">Informações de Debug:</h4>
-                <ul className="space-y-1 text-gray-700">
-                  <li><strong>Usuário:</strong> {user ? `${user.email} (${user.role})` : "Não logado"}</li>
-                  <li><strong>Token:</strong> {localStorage.getItem("auth-token") ? "Presente" : "Ausente"}</li>
-                  <li><strong>User Data:</strong> {localStorage.getItem("user-data") ? "Presente" : "Ausente"}</li>
-                </ul>
-                <Button 
-                  onClick={runDiagnostic}
-                  size="sm"
-                  className="mt-3"
-                >
-                  Executar Diagnóstico Completo
-                </Button>
-              </div>
+            {isValidating ? (
+              <p className="text-muted-foreground">
+                Verificando sua sessão de administrador...
+              </p>
+            ) : (
+              <>
+                <p className="text-red-600 font-medium">{authError}</p>
+                <div className="flex gap-2">
+                  <Button onClick={() => window.location.reload()} variant="outline">
+                    Tentar Novamente
+                  </Button>
+                  <Button onClick={() => window.location.href = "/admin/login"}>
+                    Ir para Login
+                  </Button>
+                  <Button onClick={() => setShowDiagnostic(!showDiagnostic)} variant="secondary">
+                    {showDiagnostic ? "Ocultar" : "Mostrar"} Diagnóstico
+                  </Button>
+                </div>
+                {showDiagnostic && (
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <h4 className="font-medium mb-2">Diagnóstico:</h4>
+                    <ul className="text-sm space-y-1 text-muted-foreground">
+                      <li>• Usuário logado: {user ? `${user.email} (${user.role})` : "Nenhum"}</li>
+                      <li>• Token no localStorage: {localStorage.getItem("auth-token") ? "Presente" : "Ausente"}</li>
+                      <li>• URL atual: {window.location.href}</li>
+                    </ul>
+                    <Button onClick={runDiagnostic} size="sm" className="mt-2">
+                      Executar Diagnóstico Completo
+                    </Button>
+                  </div>
+                )}
+              </>
             )}
           </CardContent>
         </Card>
@@ -256,55 +205,57 @@ export function SettingsManagement() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className="space-y-6">
+        <div className="flex items-center justify-center p-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <span className="ml-2">Carregando configurações...</span>
+        </div>
       </div>
     )
   }
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Configurações</h1>
-        <p className="text-gray-600">Gerencie as configurações do sistema e seu perfil</p>
-        {hasUnsavedChanges && (
-          <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded-md">
-            <p className="text-sm text-yellow-800">
-              ⚠️ Há alterações não salvas nesta seção
-            </p>
-          </div>
-        )}
-      </div>
+      {hasUnsavedChanges && (
+        <Card className="border-amber-200 bg-amber-50">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2 text-amber-800">
+              <AlertTriangle className="w-4 h-4" />
+              <span className="text-sm">Você tem alterações não salvas</span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
-      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
         <TabsList className="grid w-full grid-cols-7">
-          <TabsTrigger value="profile" className="flex items-center gap-2">
+          <TabsTrigger value="profile" className="flex items-center gap-1">
             <User className="w-4 h-4" />
-            Perfil
+            <span className="hidden sm:inline">Perfil</span>
           </TabsTrigger>
-          <TabsTrigger value="general" className="flex items-center gap-2">
+          <TabsTrigger value="general" className="flex items-center gap-1">
             <Settings className="w-4 h-4" />
-            Geral
+            <span className="hidden sm:inline">Geral</span>
           </TabsTrigger>
-          <TabsTrigger value="appearance" className="flex items-center gap-2">
+          <TabsTrigger value="appearance" className="flex items-center gap-1">
             <Palette className="w-4 h-4" />
-            Aparência
+            <span className="hidden sm:inline">Visual</span>
           </TabsTrigger>
-          <TabsTrigger value="delivery" className="flex items-center gap-2">
+          <TabsTrigger value="delivery" className="flex items-center gap-1">
             <Bike className="w-4 h-4" />
-            Entrega
+            <span className="hidden sm:inline">Entrega</span>
           </TabsTrigger>
-          <TabsTrigger value="payment" className="flex items-center gap-2">
+          <TabsTrigger value="payment" className="flex items-center gap-1">
             <CreditCard className="w-4 h-4" />
-            Pagamento
+            <span className="hidden sm:inline">Pagamento</span>
           </TabsTrigger>
-          <TabsTrigger value="notifications" className="flex items-center gap-2">
+          <TabsTrigger value="notifications" className="flex items-center gap-1">
             <Bell className="w-4 h-4" />
-            Notificações
+            <span className="hidden sm:inline">Notificações</span>
           </TabsTrigger>
-          <TabsTrigger value="security" className="flex items-center gap-2">
+          <TabsTrigger value="security" className="flex items-center gap-1">
             <Shield className="w-4 h-4" />
-            Segurança
+            <span className="hidden sm:inline">Segurança</span>
           </TabsTrigger>
         </TabsList>
 
