@@ -1,7 +1,25 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { supabase } from '@/lib/supabase'
+import { getSupabaseAdmin } from "@/lib/supabase"
+import { verifyAdmin } from "@/lib/auth"
 
 export const dynamic = 'force-dynamic'
+
+// Função auxiliar para extrair e verificar o admin
+async function handleAdminAuth(request: NextRequest) {
+  const authHeader = request.headers.get("authorization");
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    throw new Error("Token não fornecido");
+  }
+  const token = authHeader.split(" ")[1];
+  
+  const admin = await verifyAdmin(token);
+  if (!admin) {
+    throw new Error("Acesso não autorizado");
+  }
+  return admin;
+}
+
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -40,6 +58,8 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 
 export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
   try {
+    await handleAdminAuth(request);
+    const supabaseAdmin = getSupabaseAdmin();
     console.log('PUT /api/categories/[id] - ID:', params.id)
     
     // Validar se o ID foi fornecido
@@ -76,7 +96,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     }
 
     // Verificar se a categoria existe antes de tentar atualizar
-    const { data: existingCategory, error: existsError } = await supabase
+    const { data: existingCategory, error: existsError } = await supabaseAdmin
       .from('categories')
       .select('id')
       .eq('id', params.id)
@@ -108,7 +128,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     })
 
     // Preparar dados para atualização
-    const updateData = {
+    const updateData: { [key: string]: any } = {
       name: updateName,
       description: updateDescription,
       active: updateActive,
@@ -123,7 +143,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     console.log('Dados para atualização:', updateData)
 
     // Atualizar categoria usando Supabase
-    const { data: updatedCategory, error: updateError } = await supabase
+    const { data: updatedCategory, error: updateError } = await supabaseAdmin
       .from('categories')
       .update(updateData)
       .eq('id', params.id)
@@ -155,6 +175,10 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       id: params?.id
     })
     
+    if (error.message.includes('Token não fornecido') || error.message.includes('Acesso não autorizado')) {
+        return NextResponse.json({ error: error.message }, { status: 401 });
+    }
+    
     return NextResponse.json({ 
       error: "Erro interno do servidor",
       details: process.env.NODE_ENV === 'development' ? error.message : undefined
@@ -164,6 +188,9 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   try {
+    await handleAdminAuth(request);
+    const supabaseAdmin = getSupabaseAdmin();
+
     console.log('DELETE /api/categories/[id] - ID:', params.id)
     
     // Validar se o ID foi fornecido
@@ -176,7 +203,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     }
 
     // Verificar se a categoria existe
-    const { data: existingCategory, error: existsError } = await supabase
+    const { data: existingCategory, error: existsError } = await supabaseAdmin
       .from('categories')
       .select('id, name')
       .eq('id', params.id)
@@ -196,7 +223,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     console.log('Categoria encontrada para delete:', existingCategory.name)
 
     // Verificar se há produtos associados à categoria
-    const { count: productsCount, error: countError } = await supabase
+    const { count: productsCount, error: countError } = await supabaseAdmin
       .from('products')
       .select('*', { count: 'exact', head: true })
       .eq('category_id', params.id)
@@ -218,7 +245,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     }
 
     // Deletar categoria usando Supabase
-    const { error: deleteError } = await supabase
+    const { error: deleteError } = await supabaseAdmin
       .from('categories')
       .delete()
       .eq('id', params.id)
@@ -240,6 +267,10 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
       stack: error.stack,
       id: params?.id
     })
+
+    if (error.message.includes('Token não fornecido') || error.message.includes('Acesso não autorizado')) {
+        return NextResponse.json({ error: error.message }, { status: 401 });
+    }
 
     return NextResponse.json({ 
       error: "Erro interno do servidor",
