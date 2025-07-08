@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server"
-import { query } from "@/lib/db"
 import { verifyAdmin } from "@/lib/auth"
+import { getSupabaseAdmin } from "@/lib/supabase"
 import bcrypt from "bcryptjs"
 
 // Force dynamic rendering for this route  
@@ -30,16 +30,16 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "A nova senha deve ter pelo menos 6 caracteres" }, { status: 400 })
     }
 
-    const userResult = await query(
-      'SELECT password_hash FROM profiles WHERE id = $1',
-      [admin.id]
-    )
+    const supabaseAdmin = getSupabaseAdmin()
+    const { data: user, error: userError } = await supabaseAdmin
+      .from('profiles')
+      .select('password_hash')
+      .eq('id', admin.id)
+      .single()
 
-    if (userResult.rows.length === 0) {
+    if (userError || !user) {
       return NextResponse.json({ error: "Usuário não encontrado" }, { status: 404 })
     }
-
-    const user = userResult.rows[0]
     const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.password_hash)
 
     if (!isCurrentPasswordValid) {
@@ -48,10 +48,17 @@ export async function PATCH(request: NextRequest) {
 
     const newPasswordHash = await bcrypt.hash(newPassword, 12)
 
-    await query(
-      'UPDATE profiles SET password_hash = $1, updated_at = NOW() WHERE id = $2',
-      [newPasswordHash, admin.id]
-    )
+    const { error: updateError } = await supabaseAdmin
+      .from('profiles')
+      .update({
+        password_hash: newPasswordHash,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', admin.id)
+
+    if (updateError) {
+      return NextResponse.json({ error: "Erro ao atualizar senha" }, { status: 500 })
+    }
 
     return NextResponse.json({ message: "Senha atualizada com sucesso" })
   } catch (error) {

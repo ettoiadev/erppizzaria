@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server"
-import { query } from "@/lib/db"
 import { verifyAdmin } from "@/lib/auth"
+import { getSupabaseAdmin } from "@/lib/supabase"
 
 // Force dynamic rendering for this route
 export const dynamic = 'force-dynamic'
@@ -33,22 +33,22 @@ export async function GET(request: NextRequest) {
 
     // Get admin profile
     console.log("[ADMIN_PROFILE] Buscando perfil do admin...")
-    const result = await query(
-      'SELECT id, email, full_name, phone, created_at, updated_at, role FROM profiles WHERE id = $1',
-      [admin.id]
-    )
+    const supabaseAdmin = getSupabaseAdmin()
+    const { data: profile, error: profileError } = await supabaseAdmin
+      .from('profiles')
+      .select('id, email, full_name, phone, created_at, updated_at, role')
+      .eq('id', admin.id)
+      .single()
 
     console.log("[ADMIN_PROFILE] Resultado da query:", {
-      found: result.rows.length > 0,
-      rowCount: result.rows.length
+      found: !!profile,
+      error: profileError?.message
     })
 
-    if (result.rows.length === 0) {
+    if (profileError || !profile) {
       console.log("[ADMIN_PROFILE] Erro: Perfil não encontrado para ID:", admin.id)
       return NextResponse.json({ error: "Perfil não encontrado" }, { status: 404 })
     }
-
-    const profile = result.rows[0]
     console.log("[ADMIN_PROFILE] Perfil encontrado:", profile.email)
     
     return NextResponse.json({ 
@@ -104,17 +104,22 @@ export async function PUT(request: NextRequest) {
 
     // Update profile
     console.log("[ADMIN_PROFILE] PUT: Atualizando perfil...")
-    const result = await query(
-      'UPDATE profiles SET full_name = $1, phone = $2, updated_at = NOW() WHERE id = $3 RETURNING id, email, full_name, phone, created_at, updated_at, role',
-      [full_name.trim(), phone || null, admin.id]
-    )
+    const supabaseAdmin = getSupabaseAdmin()
+    const { data: updatedProfile, error: updateError } = await supabaseAdmin
+      .from('profiles')
+      .update({
+        full_name: full_name.trim(),
+        phone: phone || null,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', admin.id)
+      .select('id, email, full_name, phone, created_at, updated_at, role')
+      .single()
 
-    if (result.rows.length === 0) {
+    if (updateError || !updatedProfile) {
       console.log("[ADMIN_PROFILE] PUT: Perfil não encontrado para atualização")
       return NextResponse.json({ error: "Perfil não encontrado" }, { status: 404 })
     }
-
-    const updatedProfile = result.rows[0]
     console.log("[ADMIN_PROFILE] PUT: Perfil atualizado com sucesso")
     
     return NextResponse.json({ 
