@@ -180,18 +180,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const initializeAuth = async () => {
       try {
         // Primeiro verificar localStorage para compatibilidade
-        const token = localStorage.getItem("auth-token")
-        const userData = localStorage.getItem("user-data")
+    const token = localStorage.getItem("auth-token")
+    const userData = localStorage.getItem("user-data")
 
-        if (token && userData) {
-          try {
-            const parsedUser = JSON.parse(userData)
-            setUser(parsedUser)
-          } catch (error) {
-            localStorage.removeItem("auth-token")
-            localStorage.removeItem("user-data")
-          }
-        }
+    if (token && userData) {
+      try {
+        const parsedUser = JSON.parse(userData)
+        setUser(parsedUser)
+      } catch (error) {
+        localStorage.removeItem("auth-token")
+        localStorage.removeItem("user-data")
+      }
+    }
 
         // Verificar sessão do Supabase
         const { data: { session: initialSession } } = await supabase.auth.getSession()
@@ -215,12 +215,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           localStorage.removeItem("user-data")
           setUser(null)
         }
-      } catch (error) {
+    } catch (error) {
         console.error('Erro na inicialização da autenticação:', error)
-      } finally {
-        setIsLoading(false)
-      }
+    } finally {
+      setIsLoading(false)
     }
+  }
 
     initializeAuth()
 
@@ -294,7 +294,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // Se Supabase Auth falhou, tentar com API legada
       console.log('🔄 Tentando com API legada...')
-      
+
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: {

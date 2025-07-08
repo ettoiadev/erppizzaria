@@ -11,11 +11,11 @@ interface AdminLayoutProps {
 export function AdminLayout({ children }: AdminLayoutProps) {
   return (
     <ProtectedRoute requireRole="ADMIN" redirectTo="/admin/login">
-      <div className="min-h-screen bg-gray-50">
-        <AdminHeader />
-        <AdminTabs />
-        <main className="container mx-auto px-6 py-6">{children}</main>
-      </div>
+    <div className="min-h-screen bg-gray-50">
+      <AdminHeader />
+      <AdminTabs />
+      <main className="container mx-auto px-6 py-6">{children}</main>
+    </div>
     </ProtectedRoute>
   )
 }

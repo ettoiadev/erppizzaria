@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 
-// Controle de logs baseado em ambiente  
+// Controle de logs baseado em ambiente
 const isDevelopment = true; // Simplificado para evitar erros de linter
 const enableQueryLogs = isDevelopment;
 const enableSlowQueryLogs = true;

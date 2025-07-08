@@ -45,7 +45,7 @@ export default function AdminLoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold text-primary">Área Administrativa</CardTitle>
+                          <CardTitle className="text-2xl font-bold text-primary">Área Administrativa</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -71,9 +71,9 @@ export default function AdminLoginPage() {
               />
             </div>
 
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? "Entrando..." : "Entrar"}
-            </Button>
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? "Entrando..." : "Entrar"}
+              </Button>
           </form>
 
           <div className="mt-6 pt-4 border-t border-gray-200">
