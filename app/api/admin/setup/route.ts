@@ -21,16 +21,40 @@ export async function POST() {
     // Verificar se o usuário já existe
     const { data: existingUser, error: findError } = await supabaseAdmin
       .from('profiles')
-      .select('id, email, full_name, role')
+      .select('id, email, full_name, role, password_hash')
       .eq('email', adminEmail)
       .single()
     
     if (existingUser) {
-      console.log('✅ Usuário admin já existe:', existingUser)
+      console.log('✅ Usuário admin já existe, atualizando senha...')
+      
+      // Atualizar senha do usuário existente
+      const { error: updateError } = await supabaseAdmin
+        .from('profiles')
+        .update({ 
+          password_hash: hashedPassword,
+          full_name: adminName 
+        })
+        .eq('email', adminEmail)
+      
+      if (updateError) {
+        console.error('❌ Erro ao atualizar usuário:', updateError)
+        throw updateError
+      }
+      
       return NextResponse.json({
         success: true,
-        message: 'Usuário admin já existe',
-        user: existingUser
+        message: 'Usuário admin atualizado com sucesso',
+        user: {
+          id: existingUser.id,
+          email: existingUser.email,
+          full_name: adminName,
+          role: existingUser.role
+        },
+        credentials: {
+          email: adminEmail,
+          password: adminPassword
+        }
       })
     }
     
