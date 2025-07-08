@@ -18,6 +18,24 @@ import { logger } from "@/lib/debug-utils"
 import { useToast } from "@/hooks/use-toast"
 import type { Product, Category } from "@/types"
 
+// Função auxiliar para obter headers de autenticação
+const getAuthHeaders = () => {
+  const token = localStorage.getItem("auth-token");
+  if (!token) {
+    // Lançar um erro ou retornar um objeto vazio pode ser uma opção,
+    // mas por enquanto, vamos logar e retornar o header,
+    // a API vai rejeitar se o token estiver ausente/inválido.
+    console.warn("Auth token não encontrado no localStorage.");
+    return {
+      "Content-Type": "application/json",
+    };
+  }
+  return {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+  };
+};
+
 export function ProductsManagement() {
   const queryClient = useQueryClient()
   const { toast } = useToast()
@@ -132,7 +150,7 @@ export function ProductsManagement() {
 
       const response = await fetch(url, {
         method,
-        headers: { "Content-Type": "application/json" },
+        headers: getAuthHeaders(),
         body: JSON.stringify(productData),
       })
 
@@ -193,7 +211,7 @@ export function ProductsManagement() {
 
       const response = await fetch(`/api/products/${productId}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ available: !product.available }),
       })
 
@@ -259,7 +277,7 @@ export function ProductsManagement() {
 
       const response = await fetch(url, {
         method,
-        headers: { "Content-Type": "application/json" },
+        headers: getAuthHeaders(),
         body: JSON.stringify(categoryData),
       })
 
@@ -339,6 +357,7 @@ export function ProductsManagement() {
 
       const response = await fetch(`/api/${endpoint}/${idToDelete}`, {
         method: "DELETE",
+        headers: getAuthHeaders(),
       })
 
       console.log('📡 Resposta da API:', response.status, response.statusText)
