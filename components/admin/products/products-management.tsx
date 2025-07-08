@@ -17,10 +17,13 @@ import { formatCurrency } from "@/lib/utils"
 import { logger } from "@/lib/debug-utils"
 import { useToast } from "@/hooks/use-toast"
 import type { Product, Category } from "@/types"
+import { supabase } from "@/lib/supabase"
 
 // Função auxiliar para obter headers de autenticação
-const getAuthHeaders = (): HeadersInit => {
-  const token = localStorage.getItem('admin-token')
+const getAuthHeaders = async (): Promise<HeadersInit> => {
+  const { data: { session } } = await supabase.auth.getSession()
+  const token = session?.access_token
+  
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
   }
@@ -108,7 +111,8 @@ export function ProductsManagement() {
     try {
       const url = editingProduct ? `/api/products/${editingProduct.id}` : "/api/products"
       const method = editingProduct ? "PUT" : "POST"
-      const response = await fetch(url, { method, headers: getAuthHeaders(), body: JSON.stringify(productData) })
+      const headers = await getAuthHeaders()
+      const response = await fetch(url, { method, headers, body: JSON.stringify(productData) })
       if (response.ok) {
         const data = await response.json()
         const savedProduct = data.product || data
@@ -137,7 +141,8 @@ export function ProductsManagement() {
     const originalAvailable = product.available
     setProducts(prev => prev.map(p => p.id === productId ? { ...p, available: !p.available } : p))
     try {
-      const response = await fetch(`/api/products/${productId}`, { method: "PATCH", headers: getAuthHeaders(), body: JSON.stringify({ available: !originalAvailable }) })
+      const headers = await getAuthHeaders()
+      const response = await fetch(`/api/products/${productId}`, { method: "PATCH", headers, body: JSON.stringify({ available: !originalAvailable }) })
       if (!response.ok) throw new Error("Falha ao alterar disponibilidade")
       await queryClient.invalidateQueries({ queryKey: ["products"] })
       toast({ title: "Sucesso", description: `Produto ${!originalAvailable ? 'ativado' : 'desativado'}!` })
@@ -158,7 +163,8 @@ export function ProductsManagement() {
     try {
       const url = editingCategory ? `/api/categories/${editingCategory.id}` : "/api/categories"
       const method = editingCategory ? "PUT" : "POST"
-      const response = await fetch(url, { method, headers: getAuthHeaders(), body: JSON.stringify(categoryData) })
+      const headers = await getAuthHeaders()
+      const response = await fetch(url, { method, headers, body: JSON.stringify(categoryData) })
       if (response.ok) {
         await loadCategories()
         await queryClient.invalidateQueries({ queryKey: ["categories", "products"] })
@@ -180,9 +186,10 @@ export function ProductsManagement() {
     const { type, id, name } = deletingItem
     const endpoint = type === "product" ? "products" : "categories"
     try {
+      const headers = await getAuthHeaders()
       const response = await fetch(`/api/${endpoint}/${id}`, { 
         method: "DELETE",
-        headers: getAuthHeaders() 
+        headers
       })
       if (response.ok) {
         if (type === "product") {
