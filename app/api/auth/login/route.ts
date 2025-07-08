@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { supabase } from '@/lib/supabase'
+import { getSupabaseAdmin } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
 
@@ -43,8 +43,9 @@ export async function POST(request: NextRequest) {
 
     console.log('🔐 Authenticating user with database...')
 
-    // Buscar usuário na tabela profiles
-    const { data: profile, error: profileError } = await supabase
+    // Buscar usuário na tabela profiles usando admin client
+    const supabaseAdmin = getSupabaseAdmin()
+    const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
       .select('id, email, full_name, role, password_hash')
       .eq('email', email.trim().toLowerCase())
