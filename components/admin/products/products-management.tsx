@@ -180,7 +180,10 @@ export function ProductsManagement() {
     const { type, id, name } = deletingItem
     const endpoint = type === "product" ? "products" : "categories"
     try {
-      const response = await fetch(`/api/${endpoint}/${id}`, { method: "DELETE", headers: getAuthHeaders() })
+      const response = await fetch(`/api/${endpoint}/${id}`, { 
+        method: "DELETE",
+        headers: getAuthHeaders() 
+      })
       if (response.ok) {
         if (type === "product") {
           setProducts(prev => prev.filter(p => p.id !== id))
