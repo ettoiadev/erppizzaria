@@ -160,6 +160,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Função para obter token válido, fazendo refresh se necessário
   const getValidToken = async (): Promise<string | null> => {
     try {
+      // Para admin logado via API legada, usar token do localStorage
+      if (user && user.role === "ADMIN") {
+        const storedToken = localStorage.getItem("auth-token")
+        if (storedToken) {
+          console.log('🔑 Usando token admin do localStorage')
+          return storedToken
+        }
+      }
+
       const isValid = await validateSession()
       
       if (!isValid) {
