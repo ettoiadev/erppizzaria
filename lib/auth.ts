@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { sign, verify } from 'jsonwebtoken';
 import { getUserByEmail, createUserProfile, UserProfile } from './supabase-integration';
-import { supabaseAdmin } from './supabase';
+import { getSupabaseAdmin } from './supabase';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'william-disk-pizza-jwt-secret-2024-production';
 
@@ -34,6 +34,7 @@ export async function createUser({
     if (role === 'admin') {
       console.log('👤 Criando admin no Supabase Auth...');
       
+      const supabaseAdmin = getSupabaseAdmin();
       const { data, error } = await supabaseAdmin.auth.admin.createUser({
         email: email.toLowerCase(),
         password,
@@ -68,6 +69,7 @@ export async function createUser({
     if (supabaseUserId && role === 'admin') {
       console.log('🔄 Sincronizando user_id...');
       
+      const supabaseAdmin = getSupabaseAdmin();
       const { error: updateError } = await supabaseAdmin
         .from('profiles')
         .update({ user_id: supabaseUserId })

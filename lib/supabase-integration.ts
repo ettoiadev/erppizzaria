@@ -1,4 +1,4 @@
-import { supabase, supabaseAdmin, getSupabaseConfig } from './supabase'
+import { supabase, getSupabaseAdmin, getSupabaseConfig } from './supabase'
 
 // Interface para tipagem de usuário
 export interface UserProfile {
@@ -470,6 +470,8 @@ export async function ensureAdminUser() {
   const email = 'admin@williamdiskpizza.com'
   const password = 'admin123'
   const nome = 'Administrador'
+
+  const supabaseAdmin = getSupabaseAdmin()
 
   // Verificar se já existe
   const { data: existing, error: findError } = await supabaseAdmin.auth.admin.listUsers()
