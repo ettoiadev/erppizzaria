@@ -41,56 +41,71 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log('🔐 Authenticating user with Supabase Auth...')
+    console.log('🔐 Authenticating user with database...')
 
-    // Autenticar usando Supabase Auth
-    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password: password
-    })
+    // Buscar usuário na tabela profiles
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, email, full_name, role, password_hash')
+      .eq('email', email.trim().toLowerCase())
+      .single()
 
-    if (authError || !authData.user) {
-      console.log('❌ Supabase Auth failed:', authError?.message)
+    if (profileError || !profile) {
+      console.log('❌ User not found:', profileError?.message)
       return NextResponse.json(
         { error: "Credenciais inválidas" },
         { status: 401 }
       )
     }
 
-    console.log('✅ Supabase Auth successful, user ID:', authData.user.id)
+    console.log('✅ User found:', {
+      id: profile.id,
+      email: profile.email,
+      role: profile.role
+    })
 
-    // Criar um client autenticado com a sessão do usuário
-    const authenticatedSupabase = supabase.from('profiles')
-      .select('id, email, full_name, role, user_id')
-      .eq('user_id', authData.user.id)
-      .single()
+    // Verificar senha
+    const bcrypt = require('bcryptjs')
+    const isValidPassword = await bcrypt.compare(password, profile.password_hash)
 
-    if (profileError || !profile) {
-      console.log('❌ Profile not found:', profileError?.message)
+    if (!isValidPassword) {
+      console.log('❌ Invalid password')
       return NextResponse.json(
-        { error: "Perfil de usuário não encontrado" },
+        { error: "Credenciais inválidas" },
         { status: 401 }
       )
     }
 
-    console.log('✅ Profile found:', {
-      id: profile.id,
-      email: profile.email,
-      role: profile.role,
-      user_id: profile.user_id
-    })
+    console.log('✅ Password valid')
 
-    // Preparar resposta com token do Supabase
+    // Gerar token JWT
+    const jwt = require('jsonwebtoken')
+    const JWT_SECRET = process.env.JWT_SECRET
+    
+    if (!JWT_SECRET) {
+      console.log('❌ JWT_SECRET not configured')
+      throw new Error('JWT_SECRET not configured')
+    }
+
+    const token = jwt.sign(
+      {
+        id: profile.id,
+        email: profile.email,
+        role: profile.role
+      },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    )
+
+    // Preparar resposta
     const response = {
       user: {
         id: profile.id,
         email: profile.email,
         full_name: profile.full_name,
-        role: profile.role,
-        user_id: profile.user_id
+        role: profile.role
       },
-      token: authData.session?.access_token,
-      refresh_token: authData.session?.refresh_token
+      token: token
     }
 
     console.log('🎉 Login successful for user:', profile.email)
