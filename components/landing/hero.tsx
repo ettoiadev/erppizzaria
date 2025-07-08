@@ -90,9 +90,9 @@ export function Hero() {
                 }`}
               >
                 <img
-                  src="https://cdn.jsdelivr.net/gh/WilliamYSB/CDN-WilliamYSB@main/pizzas/pizza-hero-sem-fundo.png"
-                  alt="Pizza deliciosa"
-                  className="max-w-xs md:max-w-sm lg:max-w-[400px] w-full h-auto rounded-xl shadow-lg"
+                  src="/pizza_calabreza_muçarela.webp"
+                  alt="Pizza de calabresa com muçarela"
+                  className="max-w-[400px] w-full h-auto rounded-xl shadow-lg object-contain"
                 />
               </div>
             </div>
