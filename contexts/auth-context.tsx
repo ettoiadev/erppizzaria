@@ -175,77 +175,59 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  // Inicialização - verificar localStorage primeiro, depois Supabase
+  // Inicialização - verificar localStorage primeiro
   useEffect(() => {
     const initializeAuth = async () => {
       try {
-        // Primeiro verificar localStorage para compatibilidade
-    const token = localStorage.getItem("auth-token")
-    const userData = localStorage.getItem("user-data")
+        console.log('🔄 Inicializando autenticação...')
+        
+        // Verificar localStorage para compatibilidade com sistema atual
+        const token = localStorage.getItem("auth-token")
+        const userData = localStorage.getItem("user-data")
 
-    if (token && userData) {
-      try {
-        const parsedUser = JSON.parse(userData)
-        setUser(parsedUser)
+        if (token && userData) {
+          try {
+            const parsedUser = JSON.parse(userData)
+            console.log('✅ Usuário encontrado no localStorage:', parsedUser.email)
+            setUser(parsedUser)
+          } catch (error) {
+            console.log('❌ Erro ao parsear dados do localStorage')
+            localStorage.removeItem("auth-token")
+            localStorage.removeItem("user-data")
+          }
+        } else {
+          console.log('🔍 Nenhum usuário encontrado no localStorage')
+        }
+        
       } catch (error) {
-        localStorage.removeItem("auth-token")
-        localStorage.removeItem("user-data")
+        console.error('Erro na inicialização da autenticação:', error)
+      } finally {
+        console.log('✅ Inicialização da autenticação concluída')
+        setIsLoading(false)
       }
     }
 
-        // Verificar sessão do Supabase
-        const { data: { session: initialSession } } = await supabase.auth.getSession()
-        
-        if (initialSession) {
-          setSession(initialSession)
-          
-          // Se não temos usuário do localStorage, carregar do Supabase
-          if (!user && initialSession.user) {
-            const userProfile = await loadUserProfile(initialSession.user.id, initialSession.user.email || '')
-            if (userProfile) {
-              setUser(userProfile)
-              // Sincronizar com localStorage
-              localStorage.setItem("auth-token", initialSession.access_token)
-              localStorage.setItem("user-data", JSON.stringify(userProfile))
-            }
-          }
-        } else {
-          // Se não há sessão no Supabase, limpar localStorage
-          localStorage.removeItem("auth-token")
-          localStorage.removeItem("user-data")
-          setUser(null)
-        }
-    } catch (error) {
-        console.error('Erro na inicialização da autenticação:', error)
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
     initializeAuth()
 
-    // Escutar mudanças de autenticação do Supabase
+    // Para compatibilidade futura com Supabase Auth, mas não obrigatório para admin
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('🔄 Auth state changed:', event)
         
-        setSession(session)
-        
+        // Só processar se realmente há uma mudança de sessão do Supabase
         if (session?.user) {
+          console.log('✅ Sessão do Supabase detectada')
+          setSession(session)
+          
           const userProfile = await loadUserProfile(session.user.id, session.user.email || '')
           if (userProfile) {
             setUser(userProfile)
-            // Sincronizar com localStorage
             localStorage.setItem("auth-token", session.access_token)
             localStorage.setItem("user-data", JSON.stringify(userProfile))
           }
-        } else {
-          setUser(null)
-          localStorage.removeItem("auth-token")
-          localStorage.removeItem("user-data")
         }
-        
-        setIsLoading(false)
+        // Não limpar o usuário automaticamente se não há sessão Supabase,
+        // pois pode ser um admin logado via API legada
       }
     )
 
@@ -254,14 +236,60 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  // Função de login melhorada
+  // Função de login melhorada - prioriza API legada para admin
   const login = async (email: string, password: string, requiredRole?: string) => {
     try {
       setIsLoading(true)
 
       console.log('🔄 Fazendo login para:', email)
 
-      // Primeiro tentar com Supabase Auth
+      // Para admin, usar sempre a API legada
+      if (requiredRole === "admin" || email.includes("admin")) {
+        console.log('🔄 Usando API legada para admin...')
+
+        const response = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ email, password }),
+        })
+
+        if (!response.ok) {
+          const text = await response.text()
+          let errorData
+          try {
+            errorData = JSON.parse(text)
+          } catch (e) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+          }
+          throw new Error(errorData.error || "Credenciais inválidas")
+        }
+
+        const responseData = await response.json()
+
+        // Verificar role se necessário
+        if (requiredRole === "admin" && responseData.user.role !== "admin") {
+          throw new Error("Acesso negado. Apenas administradores podem acessar esta área.")
+        }
+
+        // Criar objeto do usuário matching nossa interface
+        const authenticatedUser = {
+          id: responseData.user.id,
+          name: responseData.user.full_name || responseData.user.email.split("@")[0],
+          email: responseData.user.email,
+          role: responseData.user.role.toUpperCase() as "CUSTOMER" | "ADMIN" | "KITCHEN" | "DELIVERY",
+        }
+
+        setUser(authenticatedUser)
+        localStorage.setItem("auth-token", responseData.token)
+        localStorage.setItem("user-data", JSON.stringify(authenticatedUser))
+
+        console.log('✅ Login admin realizado com sucesso')
+        return
+      }
+
+      // Para outros usuários, tentar primeiro Supabase Auth
       const { data: authData, error } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password: password
@@ -270,30 +298,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (authData.user && authData.session) {
         console.log('✅ Login no Supabase Auth realizado com sucesso')
         
-        // Carregar perfil do usuário
         const userProfile = await loadUserProfile(authData.user.id, authData.user.email || '')
         
         if (!userProfile) {
           throw new Error("Perfil de usuário não encontrado")
         }
 
-        // Verificar role se necessário
-        if (requiredRole === "admin" && userProfile.role !== "ADMIN") {
-          throw new Error("Acesso negado. Apenas administradores podem acessar esta área.")
-        }
-
         setSession(authData.session)
         setUser(userProfile)
-
-        // Manter compatibilidade com localStorage
         localStorage.setItem("auth-token", authData.session.access_token)
         localStorage.setItem("user-data", JSON.stringify(userProfile))
 
         return
       }
 
-      // Se Supabase Auth falhou, tentar com API legada
-      console.log('🔄 Tentando com API legada...')
+      // Se Supabase Auth falhou, tentar com API legada como fallback
+      console.log('🔄 Tentando com API legada como fallback...')
 
       const response = await fetch("/api/auth/login", {
         method: "POST",
@@ -311,17 +331,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } catch (e) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`)
         }
-        throw new Error(errorData.error || "Failed to login")
+        throw new Error(errorData.error || "Credenciais inválidas")
       }
 
       const responseData = await response.json()
 
-      // Check if required role matches
-      if (requiredRole === "admin" && responseData.user.role !== "admin") {
-        throw new Error("Acesso negado. Apenas administradores podem acessar esta área.")
-      }
-
-      // Create user object matching our interface
       const authenticatedUser = {
         id: responseData.user.id,
         name: responseData.user.full_name || responseData.user.email.split("@")[0],
