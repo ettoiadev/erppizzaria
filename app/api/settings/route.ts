@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { getAdminSettings } from '@/lib/db-postgres'
 
 // API pública para buscar configurações que podem ser exibidas na página inicial
 export async function GET() {
@@ -28,22 +28,15 @@ export async function GET() {
       'freeDeliverySubtext'
     ]
 
-    // Buscar configurações usando Supabase
-    const { data: settings, error } = await supabase
-      .from('admin_settings')
-      .select('setting_key, setting_value')
-      .in('setting_key', publicSettings)
-      .order('setting_key', { ascending: true })
+    // Buscar configurações usando PostgreSQL
+    const allSettings = await getAdminSettings()
 
-    if (error) {
-      console.error('Erro ao buscar configurações:', error)
-      throw error
-    }
-
-    // Converter para objeto para facilitar o uso
+    // Filtrar apenas configurações públicas
     const settingsObj: Record<string, any> = {}
-    settings?.forEach((row) => {
-      settingsObj[row.setting_key] = row.setting_value
+    publicSettings.forEach((key) => {
+      if (allSettings[key]) {
+        settingsObj[key] = allSettings[key]
+      }
     })
 
     // Adicionar configurações padrão se não existirem

@@ -1,8 +1,32 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
-    domains: ["localhost", "ewoihxpitbbypqylhdkm.supabase.co"],
+    domains: ["localhost", "williamdiskpizza.vercel.app"],
     unoptimized: true,
+  },
+  experimental: {
+    serverComponentsExternalPackages: ['pg', 'mercadopago'],
+  },
+  webpack: (config, { isServer }) => {
+    // Configurações para bibliotecas do cliente
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        net: false,
+        tls: false,
+        crypto: false,
+        stream: false,
+        url: false,
+        zlib: false,
+        http: false,
+        https: false,
+        assert: false,
+        os: false,
+        path: false,
+      };
+    }
+    return config;
   },
   async headers() {
     return [
@@ -15,11 +39,15 @@ const nextConfig = {
           },
           {
             key: "Access-Control-Allow-Methods",
-            value: "GET, POST, PUT, DELETE, OPTIONS",
+            value: "GET, POST, PUT, DELETE, OPTIONS, PATCH",
           },
           {
             key: "Access-Control-Allow-Headers",
-            value: "Content-Type, Authorization",
+            value: "Content-Type, Authorization, X-Signature",
+          },
+          {
+            key: "Access-Control-Allow-Credentials",
+            value: "true",
           },
         ],
       },
@@ -46,6 +74,14 @@ const nextConfig = {
         ],
       },
     ]
+  },
+  async rewrites() {
+    return [
+      {
+        source: '/socket.io/:path*',
+        destination: '/api/socket/:path*',
+      },
+    ];
   },
   eslint: {
     ignoreDuringBuilds: true,

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getSupabaseAdmin } from '@/lib/supabase'
+import { authenticateUser } from '@/lib/auth'
+import { createAuthResponse } from '@/lib/auth-middleware'
 
 export const dynamic = 'force-dynamic'
 
@@ -8,14 +9,14 @@ export async function GET() {
     message: "Login endpoint is working",
     timestamp: new Date().toISOString(),
     method: "GET",
-    supabase_configured: !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+    database_configured: !!process.env.DATABASE_URL
   })
 }
 
 export async function POST(request: NextRequest) {
   console.log('🚀 === LOGIN API START ===')
   console.log('🌍 Environment:', process.env.NODE_ENV)
-  console.log('📡 Supabase configured:', !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY))
+  console.log('🗄️ Database configured:', !!process.env.DATABASE_URL)
 
   try {
     // Parse do body
@@ -41,81 +42,26 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log('🔐 Authenticating user with database...')
+    console.log('🔐 Authenticating user with PostgreSQL...')
 
-    // Buscar usuário na tabela profiles usando admin client
-    const supabaseAdmin = getSupabaseAdmin()
-    const { data: profile, error: profileError } = await supabaseAdmin
-      .from('profiles')
-      .select('id, email, full_name, role, password_hash')
-      .eq('email', email.trim().toLowerCase())
-      .single()
+    // Autenticar usuário usando função consolidada
+    const authResult = await authenticateUser(email.trim().toLowerCase(), password)
 
-    if (profileError || !profile) {
-      console.log('❌ User not found:', profileError?.message)
+    if (!authResult) {
+      console.log('❌ Authentication failed')
       return NextResponse.json(
         { error: "Credenciais inválidas" },
         { status: 401 }
       )
     }
 
-    console.log('✅ User found:', {
-      id: profile.id,
-      email: profile.email,
-      role: profile.role
-    })
-
-    // Verificar senha
-    const bcrypt = require('bcryptjs')
-    const isValidPassword = await bcrypt.compare(password, profile.password_hash)
-
-    if (!isValidPassword) {
-      console.log('❌ Invalid password')
-      return NextResponse.json(
-        { error: "Credenciais inválidas" },
-        { status: 401 }
-      )
-    }
-
-    console.log('✅ Password valid')
-
-    // Gerar token JWT
-    const jwt = require('jsonwebtoken')
-    const JWT_SECRET = process.env.JWT_SECRET
-    
-    if (!JWT_SECRET) {
-      console.log('❌ JWT_SECRET not configured')
-      throw new Error('JWT_SECRET not configured')
-    }
-
-    const token = jwt.sign(
-      {
-        id: profile.id,
-        email: profile.email,
-        role: profile.role
-      },
-      JWT_SECRET,
-      { expiresIn: '7d' }
-    )
-
-    // Preparar resposta
-    const response = {
-      user: {
-        id: profile.id,
-        email: profile.email,
-        full_name: profile.full_name,
-        role: profile.role
-      },
-      token: token
-    }
-
-    console.log('🎉 Login successful for user:', profile.email)
+    console.log('✅ Authentication successful for user:', authResult.user.email)
     console.log('🏁 === LOGIN API END ===')
 
-    return NextResponse.json(response, {
-      headers: {
-        'Content-Type': 'application/json'
-      }
+    // Retornar resposta com cookie de autenticação
+    return createAuthResponse(authResult.token, {
+      user: authResult.user,
+      token: authResult.token
     })
 
   } catch (error: any) {

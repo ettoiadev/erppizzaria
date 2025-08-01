@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { supabase } from '@/lib/supabase'
+import { query } from '@/lib/postgres'
 
 export const dynamic = 'force-dynamic'
 

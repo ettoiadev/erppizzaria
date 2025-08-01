@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import jwt from "jsonwebtoken"
-import { supabase } from "@/lib/supabase"
+import { getAdminSettings, updateAdminSetting } from "@/lib/db-postgres"
 import { verifyToken } from "@/lib/auth"
 import { JwtPayload } from "jsonwebtoken"
 
@@ -64,28 +64,21 @@ export async function GET(request: Request) {
 
     console.log(`[ADMIN_SETTINGS] Acesso autorizado para admin: ${decoded.email}`)
 
-    // Buscar configurações usando Supabase
-    const { data, error } = await supabase
-      .from('admin_settings')
-      .select('setting_key, setting_value')
-      .order('setting_key')
+    // Buscar configurações usando PostgreSQL
+    const settings = await getAdminSettings()
 
-    if (error) {
-      console.log("[ADMIN_SETTINGS] Erro ao buscar configurações ou tabela não existe:", error.message)
-      return NextResponse.json({ settings: {} })
-    }
-
-    const settings: Record<string, any> = {}
-    data?.forEach((row: any) => {
+    // Tentar parsear valores JSON
+    const parsedSettings: Record<string, any> = {}
+    Object.entries(settings).forEach(([key, value]) => {
       try {
-        settings[row.setting_key] = JSON.parse(row.setting_value)
+        parsedSettings[key] = JSON.parse(value)
       } catch {
-        settings[row.setting_key] = row.setting_value
+        parsedSettings[key] = value
       }
     })
 
-    console.log(`[ADMIN_SETTINGS] Retornando ${Object.keys(settings).length} configurações`)
-    return NextResponse.json({ settings })
+    console.log(`[ADMIN_SETTINGS] Retornando ${Object.keys(parsedSettings).length} configurações`)
+    return NextResponse.json({ settings: parsedSettings })
   } catch (error) {
     console.error("[ADMIN_SETTINGS] Erro interno:", error)
     return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
@@ -122,19 +115,13 @@ export async function POST(request: Request) {
     const settings = await request.json()
     console.log(`[ADMIN_SETTINGS] Atualizando ${Object.keys(settings).length} configurações`)
 
-    // Salvar configurações usando Supabase upsert
+    // Salvar configurações usando PostgreSQL
     for (const [key, value] of Object.entries(settings)) {
       const stringValue = typeof value === 'string' ? value : JSON.stringify(value)
       
-      const { error } = await supabase
-        .from('admin_settings')
-        .upsert({
-          setting_key: key,
-          setting_value: stringValue
-        })
-
-      if (error) {
-        console.error(`[ADMIN_SETTINGS] Erro ao salvar configuração ${key}:`, error.message)
+      const success = await updateAdminSetting(key, stringValue)
+      if (!success) {
+        console.error(`[ADMIN_SETTINGS] Erro ao salvar configuração ${key}`)
         return NextResponse.json({ error: `Erro ao salvar configuração ${key}` }, { status: 500 })
       }
     }

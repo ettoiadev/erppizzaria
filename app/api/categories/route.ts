@@ -1,22 +1,14 @@
 import { NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { getCategories } from '@/lib/db-postgres'
+import { query } from '@/lib/postgres'
 
 // GET handler para buscar todas as categorias
 export async function GET() {
   try {
-    console.log('🔍 Buscando categorias usando Supabase...')
+    console.log('🔍 Buscando categorias usando PostgreSQL...')
 
-    // Buscar categorias usando Supabase
-    const { data: categories, error } = await supabase
-      .from('categories')
-      .select('*')
-      .order('sort_order', { ascending: true, nullsFirst: false })
-      .order('name', { ascending: true })
-
-    if (error) {
-      console.error('Erro na query Supabase:', error)
-      throw error
-    }
+    // Buscar categorias usando PostgreSQL
+    const categories = await getCategories(true) // true = incluir inativas também
 
     console.log('🔍 Resultado da query - total de linhas:', categories?.length || 0)
     
@@ -24,7 +16,6 @@ export async function GET() {
     const normalizedCategories = (categories || []).map(category => ({
       id: category.id,
       name: category.name || '',
-      // Aplicar lógica COALESCE no frontend
       description: category.description || '',
       image: category.image || '',
       sort_order: category.sort_order || 0,
@@ -39,35 +30,10 @@ export async function GET() {
     return NextResponse.json({ categories: normalizedCategories })
   } catch (error) {
     console.error('Erro ao buscar categorias:', error)
-    
-    // Fallback: tentar query mais simples se a principal falhar
-    try {
-      console.log('Tentando fallback com query simples...')
-      const { data: fallbackCategories, error: fallbackError } = await supabase
-        .from('categories')
-        .select('id, name')
-
-      if (fallbackError) {
-        throw fallbackError
-      }
-      
-      const simplifiedCategories = (fallbackCategories || []).map(category => ({
-        id: category.id,
-        name: category.name || '',
-        description: '',
-        image: '',
-        sort_order: 0,
-        active: true
-      }))
-      
-      return NextResponse.json({ categories: simplifiedCategories })
-    } catch (fallbackError) {
-      console.error('Erro mesmo no fallback:', fallbackError)
-      return NextResponse.json(
-        { error: 'Erro interno ao buscar categorias' },
-        { status: 500 }
-      )
-    }
+    return NextResponse.json(
+      { error: 'Erro interno ao buscar categorias' },
+      { status: 500 }
+    )
   }
 }
 
@@ -85,34 +51,24 @@ export async function POST(request: Request) {
       )
     }
 
-    // Preparar dados para inserção
-    const insertData: any = {
-      name: name.trim()
+    // Inserir categoria usando PostgreSQL
+    const result = await query(
+      `INSERT INTO public.categories (name, description, image, sort_order, active) 
+       VALUES ($1, $2, $3, $4, true) 
+       RETURNING *`,
+      [
+        name.trim(),
+        description || null,
+        image || null,
+        sort_order || 0
+      ]
+    )
+
+    if (result.rows.length === 0) {
+      throw new Error('Falha ao criar categoria')
     }
 
-    if (description) {
-      insertData.description = description
-    }
-
-    if (image) {
-      insertData.image = image
-    }
-
-    if (sort_order !== undefined) {
-      insertData.sort_order = sort_order
-    }
-
-    // Inserir categoria usando Supabase
-    const { data: insertedCategory, error } = await supabase
-      .from('categories')
-      .insert(insertData)
-      .select()
-      .single()
-
-    if (error) {
-      console.error('Erro ao inserir categoria:', error)
-      throw error
-    }
+    const insertedCategory = result.rows[0]
     
     // Normalizar resposta para manter consistência
     const normalizedCategory = {
@@ -147,7 +103,7 @@ export async function PUT(request: Request) {
       )
     }
 
-    // Atualizar cada categoria individualmente usando Supabase
+    // Atualizar cada categoria individualmente usando PostgreSQL
     const updatePromises = categoryOrders.map(async (categoryOrder: any) => {
       const { id, sort_order } = categoryOrder
       
@@ -155,21 +111,14 @@ export async function PUT(request: Request) {
         throw new Error('ID e sort_order são obrigatórios')
       }
 
-      return supabase
-        .from('categories')
-        .update({ sort_order })
-        .eq('id', id)
+      return query(
+        'UPDATE public.categories SET sort_order = $1, updated_at = NOW() WHERE id = $2',
+        [sort_order, id]
+      )
     })
 
     // Executar todas as atualizações
-    const results = await Promise.all(updatePromises)
-    
-    // Verificar se houve erros
-    const errors = results.filter(result => result.error)
-    if (errors.length > 0) {
-      console.error('Erros ao atualizar categorias:', errors)
-      throw new Error('Falha ao atualizar algumas categorias')
-    }
+    await Promise.all(updatePromises)
 
     return NextResponse.json({ message: 'Ordem das categorias atualizada com sucesso' })
   } catch (error) {

@@ -17,12 +17,9 @@ import { formatCurrency } from "@/lib/utils"
 import { logger } from "@/lib/debug-utils"
 import { useToast } from "@/hooks/use-toast"
 import type { Product, Category } from "@/types"
-import { supabase } from "@/lib/supabase"
-
 // Função auxiliar para obter headers de autenticação
 const getAuthHeaders = async (): Promise<HeadersInit> => {
-  const { data: { session } } = await supabase.auth.getSession()
-  const token = session?.access_token
+  const token = localStorage.getItem("auth-token")
   
   const headers: HeadersInit = {
     'Content-Type': 'application/json',

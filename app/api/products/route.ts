@@ -1,46 +1,15 @@
 import { NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { getProducts, createProduct } from '@/lib/db-postgres'
 
 // GET handler para buscar TODOS os produtos do banco de dados
 export async function GET() {
   try {
-    console.log('🔍 Buscando produtos usando Supabase...')
+    console.log('🔍 Buscando produtos usando PostgreSQL...')
 
-    // Buscar produtos com relacionamento de categoria usando Supabase
-    const { data: products, error } = await supabase
-      .from('products')
-      .select(`
-        *,
-        categories:category_id (
-          id,
-          name
-        )
-      `)
-      .eq('active', true)
-      .order('product_number', { ascending: true, nullsFirst: false })
-      .order('created_at', { ascending: true })
-
-    if (error) {
-      console.error('Erro na query Supabase:', error)
-      throw error
-    }
+    // Buscar produtos com relacionamento de categoria usando PostgreSQL
+    const products = await getProducts(false) // false = apenas ativos
 
     console.log('Query executada, produtos encontrados:', products?.length || 0)
-    
-    // Se não houver produtos, verificar sem filtros
-    if (!products || products.length === 0) {
-      const { data: allProducts } = await supabase
-        .from('products')
-        .select('*')
-        .eq('active', true)
-      
-      console.log('Produtos sem filtro available:', allProducts?.length || 0)
-      
-      if (allProducts) {
-        const unavailable = allProducts.filter(p => !p.available)
-        console.log('Produtos indisponíveis:', unavailable.length)
-      }
-    }
 
     // Processar dados para compatibilidade com o frontend
     const processedProducts = (products || []).map((product, index) => ({
@@ -48,8 +17,7 @@ export async function GET() {
       name: product.name || "",
       description: product.description || "",
       categoryId: product.category_id || product.categoryId,
-      // Aplicar lógica COALESCE no frontend
-      category_name: product.categories?.name || '',
+      // category_name já vem da query SQL
       available: Boolean(product.available),
       showImage: Boolean(product.show_image ?? true),
       // Se product_number não existir, usar índice + 1 como fallback
@@ -92,51 +60,34 @@ export async function POST(request: Request) {
       )
     }
 
-    // Verificar se existem produtos ativos usando Supabase
-    const { count: activeCount, error: countError } = await supabase
-      .from('products')
-      .select('*', { count: 'exact', head: true })
-      .eq('active', true)
+    // Inserir produto usando PostgreSQL
+    const insertedProduct = await createProduct({
+      name: name.trim(),
+      description: description?.trim() || '',
+      price,
+      category_id: finalCategoryId,
+      image: image || null,
+      available,
+      show_image: showImage,
+      sizes: sizes ? JSON.stringify(sizes) : null,
+      toppings: toppings ? JSON.stringify(toppings) : null,
+      active: true,
+      product_number: undefined // será gerado automaticamente
+    })
 
-    if (countError) {
-      console.error('Erro ao contar produtos:', countError)
-    } else {
-      console.log(`Produtos ativos encontrados: ${activeCount || 0}`)
-    }
-
-    // Inserir produto usando Supabase
-    const { data: insertedProduct, error: insertError } = await supabase
-      .from('products')
-      .insert({
-        name: name.trim(),
-        description: description?.trim() || '',
-        price,
-        category_id: finalCategoryId,
-        image: image || null,
-        available,
-        show_image: showImage,
-        sizes: sizes ? JSON.stringify(sizes) : null,
-        toppings: toppings ? JSON.stringify(toppings) : null,
-        active: true
-      })
-      .select()
-      .single()
-
-    if (insertError) {
-      console.error('Erro ao inserir produto:', insertError)
-      throw insertError
+    if (!insertedProduct) {
+      throw new Error('Falha ao criar produto')
     }
 
     // Normalizar resposta
-    const product = insertedProduct
     const normalizedProduct = {
-      ...product,
-      categoryId: product.category_id,
-      available: Boolean(product.available),
-      showImage: Boolean(product.show_image ?? true),
-      productNumber: product.product_number,
-      sizes: product.sizes ? (typeof product.sizes === 'string' ? JSON.parse(product.sizes) : product.sizes) : [],
-      toppings: product.toppings ? (typeof product.toppings === 'string' ? JSON.parse(product.toppings) : product.toppings) : []
+      ...insertedProduct,
+      categoryId: insertedProduct.category_id,
+      available: Boolean(insertedProduct.available),
+      showImage: Boolean(insertedProduct.show_image ?? true),
+      productNumber: insertedProduct.product_number,
+      sizes: insertedProduct.sizes ? (typeof insertedProduct.sizes === 'string' ? JSON.parse(insertedProduct.sizes) : insertedProduct.sizes) : [],
+      toppings: insertedProduct.toppings ? (typeof insertedProduct.toppings === 'string' ? JSON.parse(insertedProduct.toppings) : insertedProduct.toppings) : []
     }
 
     console.log(`Produto criado com sucesso: ${normalizedProduct.name} - Número: ${normalizedProduct.productNumber}`)

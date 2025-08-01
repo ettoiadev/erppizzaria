@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { supabase } from "@/lib/supabase"
+import { getOrders, createOrder } from "@/lib/orders"
 import { verifyToken } from "@/lib/auth"
+import { notifyNewOrder } from "@/lib/socket-server"
 
 export async function GET(request: NextRequest) {
   try {
@@ -12,73 +13,29 @@ export async function GET(request: NextRequest) {
 
     console.log("GET /api/orders - Fetching orders with params:", { status, userId, limit, offset })
 
-    // Buscar pedidos usando Supabase de forma simples
-    let query = supabase
-      .from('orders')
-      .select('*')
-      .order('created_at', { ascending: false })
-
-    // Aplicar filtros
-    if (status && status !== "all") {
-      query = query.eq('status', status)
-    }
-
-    if (userId) {
-      query = query.eq('user_id', userId)
-    }
-
-    // Aplicar paginação
-    if (offset > 0) {
-      query = query.range(offset, offset + limit - 1)
-    } else {
-      query = query.limit(limit)
-    }
-
-    const { data: orders, error } = await query
-
-    if (error) {
-      console.error("Error fetching orders:", error)
-      throw error
-    }
+    // Buscar pedidos usando PostgreSQL nativo
+    const orders = await getOrders({
+      status: status && status !== "all" ? status : undefined,
+      user_id: userId || undefined,
+      limit,
+      offset
+    })
 
     console.log(`✅ ${orders?.length || 0} pedidos carregados`)
 
-    // Para cada pedido, buscar dados do cliente e itens separadamente (evitando joins complexos)
-    const processedOrders = []
-    
-    for (const order of orders || []) {
-      // Buscar dados do cliente se user_id existir
-      let customerData = null
-      if (order.user_id) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('full_name, email, phone')
-          .eq('id', order.user_id)
-          .single()
-        
-        customerData = profile
-      }
-
-      // Buscar itens do pedido
-      const { data: orderItems } = await supabase
-        .from('order_items')
-        .select('id, name, unit_price, total_price, quantity, size, toppings, special_instructions')
-        .eq('order_id', order.id)
-
-      // Processar dados para compatibilidade com o frontend
-      const processedOrder = {
-        ...order,
-        // Aplicar lógica do COALESCE no frontend
-        customer_display_name: customerData?.full_name || order.customer_name || 'Cliente',
-        customer_display_phone: order.delivery_phone || customerData?.phone || '',
-        // Adicionar itens do pedido
-        order_items: orderItems || [],
-        // Adicionar dados do cliente
-        profiles: customerData
-      }
-
-      processedOrders.push(processedOrder)
-    }
+    // Processar dados para compatibilidade com o frontend
+    const processedOrders = orders.map(order => ({
+      ...order,
+      // Aplicar lógica do COALESCE no frontend
+      customer_display_name: order.full_name || order.customer_name || 'Cliente',
+      customer_display_phone: order.delivery_phone || order.phone || '',
+      // order_items já vem da query SQL
+      profiles: order.full_name ? {
+        full_name: order.full_name,
+        email: order.email,
+        phone: order.phone
+      } : null
+    }))
 
     // Calcular estatísticas dos pedidos carregados
     const statistics = {
@@ -176,52 +133,32 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    // Preparar dados do pedido usando Supabase diretamente
+    // Preparar dados do pedido usando PostgreSQL
     const orderData = {
-        user_id,
-      status: "PENDING",
-        total,
-        subtotal,
-        delivery_fee,
-      discount: 0,
-        payment_method,
-      payment_status: "PENDING",
-          delivery_address,
-          delivery_phone,
-          delivery_instructions,
-      estimated_delivery_time: new Date(Date.now() + 45 * 60 * 1000).toISOString(),
-      customer_name
+      user_id,
+      customer_name,
+      customer_phone: delivery_phone,
+      customer_address: delivery_address,
+      total,
+      status: "PENDING" as const,
+      payment_method: payment_method as any,
+      delivery_type: "delivery" as const,
+      notes: delivery_instructions
     }
 
     console.log("Criando pedido com dados:", orderData)
 
-    // Criar o pedido
-    const { data: order, error: orderError } = await supabase
-      .from('orders')
-      .insert(orderData)
-      .select()
-      .single()
-
-    if (orderError) {
-      console.error("Erro ao criar pedido:", orderError)
-      throw orderError
-    }
-
-      console.log("Pedido criado com sucesso! ID:", order.id)
-
-      // Criar itens do pedido
+    // Preparar itens do pedido
     const orderItems = items.map(item => {
-        let product_id = item.product_id || item.id
-        if (product_id) {
+      let product_id = item.product_id || item.id
+      if (product_id) {
         product_id = product_id.toString().replace(/--+$/, '').trim()
       }
 
       return {
-        order_id: order.id,
-              product_id,
+        product_id,
         name: item.name || '',
-        unit_price: Number(item.price || item.unit_price || 0),
-        total_price: Number(item.price || item.unit_price || 0) * Number(item.quantity || 1),
+        price: Number(item.price || item.unit_price || 0),
         quantity: Number(item.quantity || 1),
         size: item.size || null,
         toppings: item.toppings || [],
@@ -230,18 +167,35 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    console.log("Criando itens do pedido:", orderItems)
+    console.log("Criando pedido com itens:", orderItems)
 
-    const { error: itemsError } = await supabase
-      .from('order_items')
-      .insert(orderItems)
+    // Criar o pedido usando PostgreSQL
+    const order = await createOrder(orderData, orderItems)
 
-    if (itemsError) {
-      console.error("Erro ao criar itens do pedido:", itemsError)
-      throw itemsError
+    if (!order) {
+      throw new Error('Falha ao criar pedido')
     }
 
-    console.log("Itens do pedido criados com sucesso!")
+    console.log("Pedido criado com sucesso! ID:", order.id)
+    
+    // Notificar via Socket.io sobre o novo pedido
+    try {
+      notifyNewOrder({
+        id: order.id,
+        status: order.status,
+        total: order.total,
+        customer_name: order.customer_name,
+        customer_phone: order.customer_phone,
+        customer_address: order.customer_address,
+        payment_method: order.payment_method,
+        created_at: order.created_at,
+        items: orderItems
+      });
+      console.log("✅ Notificação Socket.io enviada para novo pedido");
+    } catch (socketError) {
+      console.warn("⚠️ Erro ao enviar notificação Socket.io:", socketError);
+      // Não falhar o pedido por erro de notificação
+    }
       
       return NextResponse.json({
         id: order.id,
