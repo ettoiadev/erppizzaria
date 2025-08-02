@@ -5,6 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { GeneralSettings } from "./general-settings"
 import { AppearanceSettings } from "./appearance-settings"
 import { DeliverySettings } from "./delivery-settings"
+import { VisualDeliverySettings } from "./visual-delivery-settings"
 import { PaymentSettings } from "./payment-settings"
 import { NotificationSettings } from "./notification-settings"
 import { SecuritySettings } from "./security-settings"
@@ -280,7 +281,7 @@ export function SettingsManagement() {
         </TabsContent>
 
         <TabsContent value="delivery">
-          <DeliverySettings 
+          <VisualDeliverySettings 
             settings={settings} 
             onSave={saveSettings}
             onMarkUnsaved={markUnsavedChanges}
