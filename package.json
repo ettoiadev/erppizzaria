@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@emotion/is-prop-valid": "latest",
+    "@hello-pangea/dnd": "^18.0.1",
     "@radix-ui/react-alert-dialog": "latest",
     "@radix-ui/react-checkbox": "latest",
     "@radix-ui/react-dialog": "latest",

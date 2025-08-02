@@ -9,10 +9,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
-import { Clock, Phone, MapPin, CreditCard, Package, Bike, CheckCircle, XCircle, Eye, RefreshCw, Bell, Dot, Printer, Store, Truck, Settings } from "lucide-react"
+import { Clock, Phone, MapPin, CreditCard, Package, Bike, CheckCircle, XCircle, Eye, RefreshCw, Bell, Dot, Printer, Store, Truck, Settings, Grid3X3, List } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { ManualOrderForm } from "./manual-order-form"
 import { useThermalPrinter } from "@/lib/thermal-printer"
+import { SelectDriverModal } from "./select-driver-modal"
+import { OrdersKanban } from "./orders-kanban"
 
 
 const statusColors = {
@@ -118,6 +120,8 @@ export function OrdersManagement() {
   const [cancellationNotes, setCancellationNotes] = useState("")
   const [isManualOrderModalOpen, setIsManualOrderModalOpen] = useState(false)
   const [thermalPrintEnabled, setThermalPrintEnabled] = useState(false)
+  const [showSelectDriverModal, setShowSelectDriverModal] = useState<string | null>(null)
+  const [viewMode, setViewMode] = useState<'list' | 'kanban'>('kanban')
   const { toast } = useToast()
   const thermalPrinter = useThermalPrinter()
 
@@ -635,40 +639,83 @@ export function OrdersManagement() {
             Atualizar
           </Button>
 
-          <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-            <SelectTrigger className="w-48">
-              <SelectValue placeholder="Filtrar por status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos os Status</SelectItem>
-              <SelectItem value="RECEIVED">
-                <div className="flex items-center gap-2">
-                  Recebidos ({statistics.received})
-                  {statistics.received > 0 && <Badge variant="secondary" className="text-xs">{statistics.received}</Badge>}
-                </div>
-              </SelectItem>
-              <SelectItem value="PREPARING">Preparando ({statistics.preparing})</SelectItem>
-              <SelectItem value="ON_THE_WAY">Saiu para Entrega ({statistics.onTheWay})</SelectItem>
-              <SelectItem value="DELIVERED">Entregues ({statistics.delivered})</SelectItem>
-              <SelectItem value="CANCELLED">Cancelados ({statistics.cancelled})</SelectItem>
-            </SelectContent>
-          </Select>
+          {/* Toggle de visualização */}
+          <div className="flex items-center border rounded-lg p-1">
+            <Button
+              variant={viewMode === 'kanban' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('kanban')}
+              className="flex items-center gap-1"
+            >
+              <Grid3X3 className="h-4 w-4" />
+              Kanban
+            </Button>
+            <Button
+              variant={viewMode === 'list' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('list')}
+              className="flex items-center gap-1"
+            >
+              <List className="h-4 w-4" />
+              Lista
+            </Button>
+          </div>
+
+          {/* Filtro por status - apenas para visualização lista */}
+          {viewMode === 'list' && (
+            <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Filtrar por status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os Status</SelectItem>
+                <SelectItem value="RECEIVED">
+                  <div className="flex items-center gap-2">
+                    Recebidos ({statistics.received})
+                    {statistics.received > 0 && <Badge variant="secondary" className="text-xs">{statistics.received}</Badge>}
+                  </div>
+                </SelectItem>
+                <SelectItem value="PREPARING">Preparando ({statistics.preparing})</SelectItem>
+                <SelectItem value="ON_THE_WAY">Saiu para Entrega ({statistics.onTheWay})</SelectItem>
+                <SelectItem value="DELIVERED">Entregues ({statistics.delivered})</SelectItem>
+                <SelectItem value="CANCELLED">Cancelados ({statistics.cancelled})</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
         </div>
       </div>
 
-      {/* Lista de pedidos */}
-      <div className="grid gap-4">
-        {loading ? (
-          <div className="text-center py-12">
-            <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-gray-400" />
-            <p className="text-gray-600">Carregando pedidos...</p>
-          </div>
-        ) : filteredOrders.length === 0 ? (
-          <div className="text-center py-12">
-            <Package className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-            <p className="text-gray-600">Nenhum pedido encontrado.</p>
-          </div>
-        ) : (
+      {/* Visualização de pedidos */}
+      {loading ? (
+        <div className="text-center py-12">
+          <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-gray-400" />
+          <p className="text-gray-600">Carregando pedidos...</p>
+        </div>
+      ) : filteredOrders.length === 0 ? (
+        <div className="text-center py-12">
+          <Package className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+          <p className="text-gray-600">Nenhum pedido encontrado.</p>
+        </div>
+      ) : viewMode === 'kanban' ? (
+        <OrdersKanban
+          orders={orders} // Usar todos os pedidos no Kanban, não filtrados
+          onStatusUpdate={updateOrderStatus}
+          onShowSelectDriverModal={setShowSelectDriverModal}
+          onPrintKitchenReceipt={printKitchenReceipt}
+          onShowOrderDetails={setSelectedOrder}
+          updatingStatus={updatingStatus}
+          thermalPrintEnabled={thermalPrintEnabled}
+          formatCurrency={formatCurrency}
+          formatDateTime={formatDateTime}
+          mapPaymentMethodToPortuguese={mapPaymentMethodToPortuguese}
+          selectedOrder={selectedOrder}
+          setSelectedOrder={setSelectedOrder}
+          cancellationNotes={cancellationNotes}
+          setCancellationNotes={setCancellationNotes}
+        />
+      ) : (
+        <div className="grid gap-4">
+          {
           filteredOrders.map((order) => {
             const StatusIcon = getStatusIcon(order.status)
             const nextAction = getNextStatus(order.status)
@@ -938,6 +985,19 @@ export function OrdersManagement() {
                         </Button>
                       )}
 
+                      {/* Botão Atribuir Pedido - disponível para pedidos em preparo */}
+                      {order.status === "PREPARING" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setShowSelectDriverModal(order.id)}
+                          className="flex items-center gap-1 text-blue-600 hover:text-blue-700 border-blue-200 hover:border-blue-300"
+                        >
+                          <Truck className="h-4 w-4" />
+                          Atribuir Pedido
+                        </Button>
+                      )}
+
                       {order.status !== "CANCELLED" && order.status !== "DELIVERED" && (
                         <Dialog>
                           <DialogTrigger asChild>
@@ -989,8 +1049,22 @@ export function OrdersManagement() {
               </Card>
             )
           })
-        )}
-      </div>
+          }
+        </div>
+      )}
+
+      {/* Modal para selecionar entregador */}
+      {showSelectDriverModal && (
+        <SelectDriverModal
+          orderId={showSelectDriverModal}
+          isOpen={!!showSelectDriverModal}
+          onClose={() => setShowSelectDriverModal(null)}
+          onAssign={() => {
+            fetchOrders() // Recarregar pedidos após atribuição
+            setShowSelectDriverModal(null)
+          }}
+        />
+      )}
     </div>
   )
 }

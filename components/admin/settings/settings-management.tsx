@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useSearchParams } from "next/navigation"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { GeneralSettings } from "./general-settings"
 import { AppearanceSettings } from "./appearance-settings"
@@ -10,7 +11,9 @@ import { PaymentSettings } from "./payment-settings"
 import { NotificationSettings } from "./notification-settings"
 import { SecuritySettings } from "./security-settings"
 import { AdminProfile } from "./admin-profile"
-import { Settings, Palette, Bike, CreditCard, Bell, Shield, User, AlertTriangle } from "lucide-react"
+import { GeolocationSettings } from "./geolocation-settings"
+import { PrinterSettings } from "./printer-settings"
+import { Settings, Palette, Bike, CreditCard, Bell, Shield, User, AlertTriangle, MapPin, Printer } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/contexts/auth-context"
 import { useProtectedApi } from "@/hooks/use-protected-api"
@@ -18,6 +21,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 export function SettingsManagement() {
+  const searchParams = useSearchParams()
   const [activeTab, setActiveTab] = useState("profile")
   const [settings, setSettings] = useState({})
   const [isLoading, setIsLoading] = useState(true)
@@ -27,6 +31,14 @@ export function SettingsManagement() {
   const { toast } = useToast()
   const { user, isValidating } = useAuth()
   const api = useProtectedApi()
+
+  // Definir aba inicial baseada na URL
+  useEffect(() => {
+    const tab = searchParams.get('tab')
+    if (tab && ['profile', 'general', 'appearance', 'delivery', 'payment', 'geolocation', 'printer', 'notifications', 'security'].includes(tab)) {
+      setActiveTab(tab)
+    }
+  }, [searchParams])
 
   useEffect(() => {
     loadSettings()
@@ -229,7 +241,7 @@ export function SettingsManagement() {
       )}
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-        <TabsList className="grid w-full grid-cols-7">
+        <TabsList className="grid w-full grid-cols-3 lg:grid-cols-9">
           <TabsTrigger value="profile" className="flex items-center gap-1">
             <User className="w-4 h-4" />
             <span className="hidden sm:inline">Perfil</span>
@@ -249,6 +261,14 @@ export function SettingsManagement() {
           <TabsTrigger value="payment" className="flex items-center gap-1">
             <CreditCard className="w-4 h-4" />
             <span className="hidden sm:inline">Pagamento</span>
+          </TabsTrigger>
+          <TabsTrigger value="geolocation" className="flex items-center gap-1">
+            <MapPin className="w-4 h-4" />
+            <span className="hidden sm:inline">Geolocalização</span>
+          </TabsTrigger>
+          <TabsTrigger value="printer" className="flex items-center gap-1">
+            <Printer className="w-4 h-4" />
+            <span className="hidden sm:inline">Impressora</span>
           </TabsTrigger>
           <TabsTrigger value="notifications" className="flex items-center gap-1">
             <Bell className="w-4 h-4" />
@@ -290,6 +310,22 @@ export function SettingsManagement() {
 
         <TabsContent value="payment">
           <PaymentSettings 
+            settings={settings} 
+            onSave={saveSettings}
+            onMarkUnsaved={markUnsavedChanges}
+          />
+        </TabsContent>
+
+        <TabsContent value="geolocation">
+          <GeolocationSettings 
+            settings={settings} 
+            onSave={saveSettings}
+            onMarkUnsaved={markUnsavedChanges}
+          />
+        </TabsContent>
+
+        <TabsContent value="printer">
+          <PrinterSettings 
             settings={settings} 
             onSave={saveSettings}
             onMarkUnsaved={markUnsavedChanges}
