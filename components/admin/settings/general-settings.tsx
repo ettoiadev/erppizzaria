@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
 import { Upload, Save, MapPin, Phone, Mail, Clock, X, Zap, Bike } from "lucide-react"
+import { DataManagementSection } from "./data-management-section"
 
 interface GeneralSettingsProps {
   settings: Record<string, any>
@@ -545,6 +546,14 @@ export function GeneralSettings({ settings: initialSettings, onSave, onMarkUnsav
           </div>
         </CardContent>
       </Card>
+
+      {/* Seção de Gerenciamento de Dados */}
+      <DataManagementSection 
+        onDataChange={() => {
+          // Callback para revalidar dados quando houver mudanças
+          console.log('Dados alterados - revalidação necessária')
+        }}
+      />
 
       <div className="flex justify-end">
         <Button 
