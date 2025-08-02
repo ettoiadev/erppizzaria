@@ -612,17 +612,17 @@ export function ManualOrderForm({ onSuccess }: ManualOrderFormProps) {
       const orderData = {
         customerId: finalCustomerId,
         items: cartItems.map(item => ({
-          id: item.id,
-          product_id: item.id,
-          name: item.name,
-          quantity: item.quantity,
-          price: item.price,
-          unit_price: item.price,
-          size: item.size,
-          toppings: item.toppings,
-          notes: item.notes,
-          isHalfAndHalf: item.isHalfAndHalf,
-          halfAndHalf: item.halfAndHalf
+          id: item?.id || '',
+          product_id: item?.id || '',
+          name: item?.name || '',
+          quantity: item?.quantity || 1,
+          price: item?.price || 0,
+          unit_price: item?.price || 0,
+          size: item?.size || '',
+          toppings: item?.toppings || [],
+          notes: item?.notes || '',
+          isHalfAndHalf: item?.isHalfAndHalf || false,
+          halfAndHalf: item?.halfAndHalf || null
         })),
         total,
         subtotal,
@@ -654,7 +654,7 @@ export function ManualOrderForm({ onSuccess }: ManualOrderFormProps) {
       
       toast({
         title: "Sucesso",
-        description: `Pedido manual criado com sucesso! ID: #${result.id.slice(-8)}`,
+        description: `Pedido manual criado com sucesso! ID: #${result.id ? result.id.slice(-8) : 'N/A'}`,
       })
 
       // Limpar formulário

@@ -232,9 +232,13 @@ export class BematechPrinter {
    */
   async checkServer(): Promise<boolean> {
     try {
-      const response = await fetch(`${this.serverUrl}/status`);
+      const response = await fetch(`${this.serverUrl}/status`, {
+        method: 'GET',
+        signal: AbortSignal.timeout(2000) // Timeout de 2 segundos
+      });
       return response.ok;
     } catch (error) {
+      // Não logar erro para evitar spam no console quando servidor não estiver disponível
       return false;
     }
   }

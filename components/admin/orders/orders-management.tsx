@@ -259,8 +259,14 @@ export function OrdersManagement() {
   // Verificar status da impressora térmica ao carregar
   useEffect(() => {
     const checkThermalPrinter = async () => {
-      const serverRunning = await thermalPrinter.checkServer()
-      setThermalPrintEnabled(serverRunning)
+      try {
+        const serverRunning = await thermalPrinter.checkServer()
+        setThermalPrintEnabled(serverRunning)
+      } catch (error) {
+        // Silenciosamente desabilitar impressão térmica se não houver servidor
+        console.log('[THERMAL_PRINTER] Servidor de impressão térmica não disponível')
+        setThermalPrintEnabled(false)
+      }
     }
     checkThermalPrinter()
   }, [])
@@ -697,11 +703,18 @@ export function OrdersManagement() {
                 
                 <CardHeader className="pb-3">
                   <div className="flex items-center gap-4 text-sm text-gray-600">
-                    <span className="flex items-center gap-1">
+                    <div className="flex items-center gap-2">
                       <Phone className="h-4 w-4" />
-                      (order.customer_code ? `[${order.customer_code}] ` : "") + (order.customer_display_name || order.profiles?.full_name || order.customer_name || "Cliente não identificado")
-                    </span>
-                    <span>{order.customer_display_phone || order.delivery_phone || order.profiles?.phone || "Sem telefone"}</span>
+                      <div className="flex items-center gap-1">
+                        {order.customer_code && (
+                          <span>[{order.customer_code}]</span>
+                        )}
+                        <span>
+                          {order.customer_display_name || order.profiles?.full_name || order.customer_name || "Cliente não identificado"}
+                        </span>
+                      </div>
+                    </div>
+                    <span>{order.customer_display_phone || order.customer_phone || order.delivery_phone || order.profiles?.phone || "Sem telefone"}</span>
                     <span className="ml-auto font-bold text-lg text-gray-900">
                       {formatCurrency(order.total)}
                     </span>
