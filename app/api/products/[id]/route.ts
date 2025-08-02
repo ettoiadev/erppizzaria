@@ -1,6 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { supabase } from "@/lib/supabase";
-import { getSupabaseAdmin } from "@/lib/supabase";
+import { query } from '@/lib/postgres';
 import { verifyAdmin } from "@/lib/auth";
 
 // Função auxiliar para extrair e verificar o admin
@@ -24,51 +23,39 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const { data: product, error } = await supabase
-      .from("products")
-      .select(
-        `
-        *,
-        categories:category_id (
-          id,
-          name
-        )
-      `
-      )
-      .eq("id", params.id)
-      .single();
+    const productResult = await query(`
+      SELECT 
+        p.id, p.name, p.description, p.price, p.category_id, p.image_url as image,
+        p.active, p.has_sizes, p.has_toppings, p.preparation_time, p.sort_order,
+        p.created_at, p.updated_at,
+        c.name as category_name
+      FROM products p
+      LEFT JOIN categories c ON p.category_id = c.id
+      WHERE p.id = $1
+    `, [params.id]);
 
-    if (error) {
-      if (error.code === "PGRST116") {
-        return NextResponse.json(
-          { error: "Produto não encontrado" },
-          { status: 404 }
-        );
-      }
-      throw error;
+    if (productResult.rows.length === 0) {
+      return NextResponse.json(
+        { error: "Produto não encontrado" },
+        { status: 404 }
+      );
     }
+
+    const product = productResult.rows[0];
 
     const normalizedProduct = {
       ...product,
       categoryId: product.category_id,
-      category_name: product.categories?.name || "",
-      available: Boolean(product.available),
-      showImage: Boolean(product.show_image ?? true),
-      productNumber: product.product_number,
-      sizes: product.sizes
-        ? typeof product.sizes === "string"
-          ? JSON.parse(product.sizes)
-          : product.sizes
-        : [],
-      toppings: product.toppings
-        ? typeof product.toppings === "string"
-          ? JSON.parse(product.toppings)
-          : product.toppings
-        : [],
+      category_name: product.category_name || "",
+      available: Boolean(product.active),
+      showImage: true, // Default para compatibilidade
+      productNumber: product.sort_order || 0,
+      sizes: [], // Será implementado posteriormente se necessário
+      toppings: [] // Será implementado posteriormente se necessário
     };
 
     return NextResponse.json({ product: normalizedProduct });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Erro ao buscar produto:", error);
     return NextResponse.json(
       { error: "Erro interno do servidor" },
@@ -108,58 +95,70 @@ export async function PUT(
       );
     }
 
-    const supabaseAdmin = getSupabaseAdmin();
-    const { data: updatedProduct, error } = await supabaseAdmin
-      .from("products")
-      .update({
-        name,
-        description,
-        price,
-        category_id: finalCategoryId,
-        image,
-        available,
-        show_image: showImage ?? true,
-        sizes: sizes ? JSON.stringify(sizes) : null,
-        toppings: toppings ? JSON.stringify(toppings) : null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", params.id)
-      .select()
-      .single();
+    // Verificar se o produto existe
+    const existingResult = await query(`
+      SELECT id FROM products WHERE id = $1
+    `, [params.id]);
 
-    if (error) {
-      if (error.code === "PGRST116") {
-        return NextResponse.json(
-          { error: "Produto não encontrado" },
-          { status: 404 }
-        );
-      }
-      throw error;
+    if (existingResult.rows.length === 0) {
+      return NextResponse.json(
+        { error: "Produto não encontrado" },
+        { status: 404 }
+      );
     }
 
-    const product = updatedProduct;
+    // Atualizar produto
+    const updateResult = await query(`
+      UPDATE products 
+      SET 
+        name = $1,
+        description = $2,
+        price = $3,
+        category_id = $4,
+        image_url = $5,
+        active = $6,
+        updated_at = NOW()
+      WHERE id = $7
+      RETURNING 
+        id, name, description, price, category_id, image_url as image,
+        active, has_sizes, has_toppings, preparation_time, sort_order,
+        created_at, updated_at
+    `, [
+      name.trim(),
+      description?.trim() || '',
+      price,
+      finalCategoryId,
+      image || null,
+      available !== false,
+      params.id
+    ]);
+
+    if (updateResult.rows.length === 0) {
+      throw new Error('Falha ao atualizar produto');
+    }
+
+    const updatedProduct = updateResult.rows[0];
+
+    // Buscar nome da categoria
+    const categoryResult = await query(`
+      SELECT name FROM categories WHERE id = $1
+    `, [updatedProduct.category_id]);
+
     const normalizedProduct = {
-      ...product,
-      categoryId: product.category_id,
-      available: Boolean(product.available),
-      showImage: Boolean(product.show_image ?? true),
-      productNumber: product.product_number,
-      sizes: product.sizes
-        ? typeof product.sizes === "string"
-          ? JSON.parse(product.sizes)
-          : product.sizes
-        : [],
-      toppings: product.toppings
-        ? typeof product.toppings === "string"
-          ? JSON.parse(product.toppings)
-          : product.toppings
-        : [],
+      ...updatedProduct,
+      categoryId: updatedProduct.category_id,
+      category_name: categoryResult.rows[0]?.name || "",
+      available: Boolean(updatedProduct.active),
+      showImage: true,
+      productNumber: updatedProduct.sort_order || 0,
+      sizes: sizes || [],
+      toppings: toppings || []
     };
 
     return NextResponse.json({ product: normalizedProduct });
   } catch (error: any) {
     console.error("Erro ao atualizar produto:", error);
-     if (error.message.includes('Token não fornecido') || error.message.includes('Acesso não autorizado')) {
+    if (error.message.includes('Token não fornecido') || error.message.includes('Acesso não autorizado')) {
         return NextResponse.json({ error: error.message }, { status: 401 });
     }
     return NextResponse.json(
@@ -179,84 +178,78 @@ export async function PATCH(
     
     const body = await request.json();
     
-    const processedBody = { ...body };
-    if (body.categoryId && !body.category_id) {
-      processedBody.category_id = body.categoryId;
-      delete processedBody.categoryId;
-    }
-    
-    if (body.showImage !== undefined && !body.show_image) {
-      processedBody.show_image = body.showImage;
-      delete processedBody.showImage;
-    }
+    // Preparar campos para atualização
+    const updateFields = []
+    const updateValues = []
+    let paramIndex = 1
 
-    const updateData: any = {};
-    
-    const allowedFields = [
-      "name",
-      "description",
-      "price",
-      "category_id",
-      "image",
-      "available",
-      "show_image",
-      "sizes",
-      "toppings",
-    ];
-    
-    Object.entries(processedBody).forEach(([key, value]) => {
-      if (allowedFields.includes(key)) {
-        if ((key === "sizes" || key === "toppings") && Array.isArray(value)) {
-          updateData[key] = JSON.stringify(value);
-        } else {
-          updateData[key] = value;
-        }
+    const allowedFields = {
+      name: 'name',
+      description: 'description', 
+      price: 'price',
+      category_id: 'category_id',
+      categoryId: 'category_id',
+      image: 'image_url',
+      available: 'active',
+      showImage: null, // Ignorar por enquanto
+      sizes: null, // Ignorar por enquanto
+      toppings: null // Ignorar por enquanto
+    };
+
+    Object.entries(body).forEach(([key, value]) => {
+      const dbField = allowedFields[key as keyof typeof allowedFields];
+      if (dbField) {
+        updateFields.push(`${dbField} = $${paramIndex}`);
+        updateValues.push(value);
+        paramIndex++;
       }
     });
 
-    if (Object.keys(updateData).length === 0) {
+    if (updateFields.length === 0) {
       return NextResponse.json(
         { error: "Nenhum campo válido para atualização" },
         { status: 400 }
       );
     }
 
-    updateData.updated_at = new Date().toISOString();
+    // Sempre atualizar updated_at
+    updateFields.push(`updated_at = NOW()`);
 
-    const supabaseAdmin = getSupabaseAdmin();
-    const { data: updatedProduct, error } = await supabaseAdmin
-      .from("products")
-      .update(updateData)
-      .eq("id", params.id)
-      .select()
-      .single();
+    // Adicionar ID no final
+    updateValues.push(params.id);
 
-    if (error) {
-      if (error.code === "PGRST116") {
-        return NextResponse.json(
-          { error: "Produto não encontrado" },
-          { status: 404 }
-        );
-      }
-      throw error;
+    const updateResult = await query(`
+      UPDATE products 
+      SET ${updateFields.join(', ')}
+      WHERE id = $${paramIndex}
+      RETURNING 
+        id, name, description, price, category_id, image_url as image,
+        active, has_sizes, has_toppings, preparation_time, sort_order,
+        created_at, updated_at
+    `, updateValues);
+
+    if (updateResult.rows.length === 0) {
+      return NextResponse.json(
+        { error: "Produto não encontrado" },
+        { status: 404 }
+      );
     }
 
-    const product = updatedProduct;
+    const updatedProduct = updateResult.rows[0];
+
+    // Buscar nome da categoria
+    const categoryResult = await query(`
+      SELECT name FROM categories WHERE id = $1
+    `, [updatedProduct.category_id]);
+
     const normalizedProduct = {
-      ...product,
-      categoryId: product.category_id,
-      available: Boolean(product.available),
-      showImage: Boolean(product.show_image),
-      sizes: product.sizes
-        ? typeof product.sizes === "string"
-          ? JSON.parse(product.sizes)
-          : product.sizes
-        : [],
-      toppings: product.toppings
-        ? typeof product.toppings === "string"
-          ? JSON.parse(product.toppings)
-          : product.toppings
-        : [],
+      ...updatedProduct,
+      categoryId: updatedProduct.category_id,
+      category_name: categoryResult.rows[0]?.name || "",
+      available: Boolean(updatedProduct.active),
+      showImage: true,
+      sizes: [],
+      toppings: []
     };
 
     return NextResponse.json({ product: normalizedProduct });
@@ -283,29 +276,33 @@ export async function DELETE(
   try {
     await handleAdminAuth(request);
     
-    const supabaseAdmin = getSupabaseAdmin();
+    // Verificar se o produto existe
+    const existingResult = await query(`
+      SELECT id, name FROM products WHERE id = $1
+    `, [params.id]);
 
-    const { data: deletedProduct, error } = await supabaseAdmin
-      .from("products")
-      .delete()
-      .eq("id", params.id)
-      .select()
-      .single();
-
-    if (error) {
-      if (error.code === "PGRST116") {
-        return NextResponse.json(
-          { error: "Produto não encontrado" },
-          { status: 404 }
-        );
-      }
-      console.error("[DELETE_PRODUCT] Supabase error:", error);
-      throw error;
+    if (existingResult.rows.length === 0) {
+      return NextResponse.json(
+        { error: "Produto não encontrado" },
+        { status: 404 }
+      );
     }
+
+    const existingProduct = existingResult.rows[0];
+
+    // Soft delete - marcar como inativo
+    await query(`
+      UPDATE products 
+      SET active = false, updated_at = NOW()
+      WHERE id = $1
+    `, [params.id]);
 
     return NextResponse.json({
       message: "Produto excluído com sucesso",
-      product: deletedProduct,
+      product: {
+        id: params.id,
+        name: existingProduct.name
+      }
     });
   } catch (error: any) {
     console.error("Erro ao excluir produto:", error);

@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { verifyAdmin } from "@/lib/auth"
-import { getSupabaseAdmin } from "@/lib/supabase"
+import { query } from "@/lib/postgres"
 import bcrypt from "bcryptjs"
 
 // Force dynamic rendering for this route  
@@ -30,38 +30,40 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "A nova senha deve ter pelo menos 6 caracteres" }, { status: 400 })
     }
 
-    const supabaseAdmin = getSupabaseAdmin()
-    const { data: user, error: userError } = await supabaseAdmin
-      .from('profiles')
-      .select('password_hash')
-      .eq('id', admin.id)
-      .single()
+    // Buscar senha atual usando PostgreSQL
+    const userResult = await query(`
+      SELECT password_hash FROM profiles 
+      WHERE id = $1 AND role = 'admin'
+    `, [admin.id]);
 
-    if (userError || !user) {
+    if (userResult.rows.length === 0) {
       return NextResponse.json({ error: "Usuário não encontrado" }, { status: 404 })
     }
+
+    const user = userResult.rows[0];
     const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.password_hash)
 
     if (!isCurrentPasswordValid) {
       return NextResponse.json({ error: "Senha atual incorreta" }, { status: 400 })
     }
 
+    // Gerar nova senha hasheada
     const newPasswordHash = await bcrypt.hash(newPassword, 12)
 
-    const { error: updateError } = await supabaseAdmin
-      .from('profiles')
-      .update({
-        password_hash: newPasswordHash,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', admin.id)
+    // Atualizar senha usando PostgreSQL
+    const updateResult = await query(`
+      UPDATE profiles 
+      SET password_hash = $1, updated_at = NOW()
+      WHERE id = $2 AND role = 'admin'
+    `, [newPasswordHash, admin.id]);
 
-    if (updateError) {
+    if (updateResult.rowCount === 0) {
       return NextResponse.json({ error: "Erro ao atualizar senha" }, { status: 500 })
     }
 
     return NextResponse.json({ message: "Senha atualizada com sucesso" })
-  } catch (error) {
+  } catch (error: any) {
+    console.error("Erro ao alterar senha:", error);
     return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
   }
 }

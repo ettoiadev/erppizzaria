@@ -9,9 +9,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
-import { Clock, Phone, MapPin, CreditCard, Package, Bike, CheckCircle, XCircle, Eye, RefreshCw, Bell, Dot, Printer, Store, Truck } from "lucide-react"
+import { Clock, Phone, MapPin, CreditCard, Package, Bike, CheckCircle, XCircle, Eye, RefreshCw, Bell, Dot, Printer, Store, Truck, Settings } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { ManualOrderForm } from "./manual-order-form"
+import { useThermalPrinter } from "@/lib/thermal-printer"
 
 
 const statusColors = {
@@ -116,7 +117,9 @@ export function OrdersManagement() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [cancellationNotes, setCancellationNotes] = useState("")
   const [isManualOrderModalOpen, setIsManualOrderModalOpen] = useState(false)
+  const [thermalPrintEnabled, setThermalPrintEnabled] = useState(false)
   const { toast } = useToast()
+  const thermalPrinter = useThermalPrinter()
 
   const fetchOrders = async () => {
     try {
@@ -253,8 +256,48 @@ export function OrdersManagement() {
     return paymentMapping[backendValue] || backendValue
   }
 
-  // Função para imprimir pedido para a cozinha
-  const printKitchenReceipt = (order: Order) => {
+  // Verificar status da impressora térmica ao carregar
+  useEffect(() => {
+    const checkThermalPrinter = async () => {
+      const serverRunning = await thermalPrinter.checkServer()
+      setThermalPrintEnabled(serverRunning)
+    }
+    checkThermalPrinter()
+  }, [])
+
+  // Função para imprimir via impressora térmica Bematech
+  const printThermal = async (order: Order) => {
+    try {
+      const result = await thermalPrinter.printOrder(order)
+      
+      if (result.success) {
+        toast({
+          title: "Impressão Térmica",
+          description: `Pedido #${order.id.slice(-8)} impresso na Bematech MP-4200 TH`,
+        })
+      } else {
+        toast({
+          title: "Erro na Impressão Térmica",
+          description: result.message,
+          variant: "destructive"
+        })
+        // Fallback para impressão via navegador
+        printBrowserReceipt(order)
+      }
+    } catch (error) {
+      console.error('❌ Erro na impressão térmica:', error)
+      toast({
+        title: "Erro na Impressão Térmica",
+        description: "Usando impressão via navegador como alternativa",
+        variant: "destructive"
+      })
+      // Fallback para impressão via navegador
+      printBrowserReceipt(order)
+    }
+  }
+
+  // Função para imprimir via navegador (sistema original)
+  const printBrowserReceipt = (order: Order) => {
     const printWindow = window.open('', '_blank', 'width=300,height=600')
     if (!printWindow) return
 
@@ -383,7 +426,7 @@ export function OrdersManagement() {
 
         <div class="section">
           <div class="section-title">CLIENTE</div>
-          <div class="customer-info">Nome: ${order.customer_display_name || order.profiles?.full_name || order.customer_name || 'N/A'}</div>
+          <div class="customer-info">Cliente: ${order.customer_code ? `[${order.customer_code}] ` : ""}${order.customer_display_name || order.profiles?.full_name || order.customer_name || 'N/A'}</div>
           <div class="customer-info">Fone: ${order.customer_display_phone || order.delivery_phone || order.profiles?.phone || 'N/A'}</div>
         </div>
 
@@ -470,9 +513,18 @@ export function OrdersManagement() {
     }
 
     toast({
-      title: "Imprimindo",
+      title: "Imprimindo via Navegador",
       description: `Pedido #${order.id.slice(-8)} enviado para impressão`,
     })
+  }
+
+  // Função principal de impressão (escolhe automaticamente o melhor método)
+  const printKitchenReceipt = (order: Order) => {
+    if (thermalPrintEnabled) {
+      printThermal(order)
+    } else {
+      printBrowserReceipt(order)
+    }
   }
 
   const filteredOrders = orders
@@ -647,7 +699,7 @@ export function OrdersManagement() {
                   <div className="flex items-center gap-4 text-sm text-gray-600">
                     <span className="flex items-center gap-1">
                       <Phone className="h-4 w-4" />
-                      {order.customer_display_name || order.profiles?.full_name || order.customer_name || "Cliente não identificado"}
+                      (order.customer_code ? `[${order.customer_code}] ` : "") + (order.customer_display_name || order.profiles?.full_name || order.customer_name || "Cliente não identificado")
                     </span>
                     <span>{order.customer_display_phone || order.delivery_phone || order.profiles?.phone || "Sem telefone"}</span>
                     <span className="ml-auto font-bold text-lg text-gray-900">
@@ -772,11 +824,15 @@ export function OrdersManagement() {
                         variant="outline" 
                         size="sm"
                         onClick={() => printKitchenReceipt(order)}
-                        className="flex items-center gap-1 text-blue-600 hover:text-blue-700 border-blue-200 hover:border-blue-300"
-                        title="Imprimir para cozinha"
+                        className={`flex items-center gap-1 ${
+                          thermalPrintEnabled 
+                            ? 'text-green-600 hover:text-green-700 border-green-200 hover:border-green-300' 
+                            : 'text-blue-600 hover:text-blue-700 border-blue-200 hover:border-blue-300'
+                        }`}
+                        title={thermalPrintEnabled ? "Imprimir na Bematech MP-4200 TH" : "Imprimir via navegador"}
                       >
                         <Printer className="h-4 w-4" />
-                        Imprimir
+                        {thermalPrintEnabled ? 'Térmica' : 'Imprimir'}
                       </Button>
 
                       <Dialog>

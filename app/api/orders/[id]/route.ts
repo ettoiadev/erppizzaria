@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server"
-import { supabase } from '@/lib/supabase'
+import { query } from '@/lib/postgres'
 
 export async function GET(
   request: NextRequest,
@@ -8,87 +8,77 @@ export async function GET(
   try {
     console.log("GET /api/orders/[id] - Buscando pedido:", params.id)
 
-    // Buscar pedido básico usando Supabase
-    const { data: order, error: orderError } = await supabase
-      .from('orders')
-      .select('*')
-      .eq('id', params.id)
-      .single()
-
-    if (orderError) {
-      if (orderError.code === 'PGRST116') {
-        console.log("Pedido não encontrado:", params.id)
-        return NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 })
-      }
-      throw orderError
+    // Validar se o ID é um UUID válido
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(params.id)) {
+      console.log("ID inválido fornecido:", params.id)
+      return NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 })
     }
 
-    // Buscar dados do cliente se user_id existir
-    let customerData = null
-    if (order.user_id) {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('full_name, email, phone')
-        .eq('id', order.user_id)
-        .single()
-      
-      customerData = profile
+    // Buscar pedido com dados relacionados usando PostgreSQL
+    const orderResult = await query(`
+      SELECT 
+        o.*,
+        p.full_name, p.email, p.phone as profile_phone
+      FROM orders o
+      LEFT JOIN profiles p ON o.user_id = p.id
+      WHERE o.id = $1
+    `, [params.id]);
+
+    if (orderResult.rows.length === 0) {
+      console.log("Pedido não encontrado:", params.id)
+      return NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 })
     }
 
-    // Buscar itens do pedido
-    const { data: orderItems, error: itemsError } = await supabase
-      .from('order_items')
-      .select('*')
-      .eq('order_id', order.id)
+    const order = orderResult.rows[0];
 
-    if (itemsError) {
-      console.error("Erro ao buscar itens do pedido:", itemsError)
-      throw itemsError
-    }
+    // Buscar itens do pedido com dados do produto
+    const itemsResult = await query(`
+      SELECT 
+        oi.*,
+        pr.name as product_name,
+        pr.description as product_description,
+        pr.image_url as product_image
+      FROM order_items oi
+      LEFT JOIN products pr ON oi.product_id = pr.id
+      WHERE oi.order_id = $1
+      ORDER BY oi.created_at
+    `, [order.id]);
 
-    // Para cada item, buscar dados do produto
-    const processedItems = []
-    for (const item of orderItems || []) {
-      let productData = null
-      if (item.product_id) {
-        const { data: product } = await supabase
-          .from('products')
-          .select('name, description, image')
-          .eq('id', item.product_id)
-          .single()
-        
-        productData = product
-      }
+    const orderItems = itemsResult.rows;
 
-      processedItems.push({
-        id: item.id,
-        product_id: item.product_id,
-        quantity: item.quantity,
-        unit_price: item.unit_price,
-        total_price: item.total_price,
-        price: item.unit_price, // Alias para compatibilidade
-        size: item.size,
-        toppings: item.toppings,
-        special_instructions: item.special_instructions,
-        // Aplicar lógica COALESCE no frontend
-        name: productData?.name || item.name || 'Produto'
-      })
-    }
+    // Processar itens para compatibilidade
+    const processedItems = orderItems.map(item => ({
+      id: item.id,
+      product_id: item.product_id,
+      quantity: item.quantity,
+      unit_price: item.unit_price,
+      total_price: item.total_price,
+      price: item.unit_price, // Alias para compatibilidade
+      size: item.size,
+      toppings: item.toppings,
+      special_instructions: item.special_instructions,
+      half_and_half: item.half_and_half,
+      // Aplicar lógica COALESCE
+      name: item.product_name || item.name || 'Produto',
+      description: item.product_description,
+      image: item.product_image
+    }));
 
     console.log("Pedido encontrado:", order.id, "com", processedItems.length, "itens")
 
     // Normalizar dados para compatibilidade
     const normalizedOrder = {
       ...order,
-      // Aplicar lógica COALESCE no frontend
-      full_name: customerData?.full_name || null,
-      phone: customerData?.phone || null,
+      // Aplicar lógica COALESCE
+      full_name: order.full_name || null,
+      phone: order.profile_phone || null,
       order_items: processedItems,
       items: processedItems, // Adicionar alias 'items'
       customer: {
-        name: customerData?.full_name || "Cliente",
-        phone: customerData?.phone || order.delivery_phone,
-        address: order.delivery_address
+        name: order.full_name || "Cliente",
+        phone: order.profile_phone || order.customer_phone,
+        address: order.customer_address
       },
       createdAt: order.created_at,
       estimatedDelivery: order.estimated_delivery_time,
@@ -102,7 +92,7 @@ export async function GET(
     })
 
     return NextResponse.json(normalizedOrder)
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error fetching order:", error)
     return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
   }
@@ -117,46 +107,57 @@ export async function PUT(
     const { status, delivery_instructions, estimated_delivery_time } = body
 
     // Preparar dados para atualização
-    const updateData: any = {}
+    const updateFields = []
+    const updateValues = []
+    let paramIndex = 1
 
     if (status) {
-      updateData.status = status
+      updateFields.push(`status = $${paramIndex}`)
+      updateValues.push(status)
+      paramIndex++
     }
 
     if (delivery_instructions !== undefined) {
-      updateData.delivery_instructions = delivery_instructions
+      updateFields.push(`notes = $${paramIndex}`)
+      updateValues.push(delivery_instructions)
+      paramIndex++
     }
 
     if (estimated_delivery_time) {
-      updateData.estimated_delivery_time = estimated_delivery_time
+      updateFields.push(`estimated_delivery_time = $${paramIndex}`)
+      updateValues.push(estimated_delivery_time)
+      paramIndex++
     }
 
-    if (Object.keys(updateData).length === 0) {
+    if (updateFields.length === 0) {
       return NextResponse.json({ error: "Nenhum campo para atualizar" }, { status: 400 })
     }
 
-    updateData.updated_at = new Date().toISOString()
+    // Sempre atualizar updated_at
+    updateFields.push(`updated_at = NOW()`)
 
-    // Atualizar usando Supabase
-    const { data: updatedOrder, error } = await supabase
-      .from('orders')
-      .update(updateData)
-      .eq('id', params.id)
-      .select()
-      .single()
+    // Adicionar ID no final
+    updateValues.push(params.id)
 
-    if (error) {
-      if (error.code === 'PGRST116') {
-        return NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 })
-      }
-      throw error
+    // Atualizar usando PostgreSQL
+    const updateResult = await query(`
+      UPDATE orders 
+      SET ${updateFields.join(', ')}
+      WHERE id = $${paramIndex}
+      RETURNING *
+    `, updateValues);
+
+    if (updateResult.rows.length === 0) {
+      return NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 })
     }
+
+    const updatedOrder = updateResult.rows[0];
 
     return NextResponse.json({ 
       message: "Pedido atualizado com sucesso",
       order: updatedOrder 
     })
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error updating order:", error)
     return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
   }
@@ -168,18 +169,15 @@ export async function DELETE(
 ) {
   try {
     // Primeiro verificar se o pedido existe
-    const { data: order, error: checkError } = await supabase
-      .from('orders')
-      .select('status')
-      .eq('id', params.id)
-      .single()
+    const checkResult = await query(`
+      SELECT status FROM orders WHERE id = $1
+    `, [params.id]);
 
-    if (checkError) {
-      if (checkError.code === 'PGRST116') {
-        return NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 })
-      }
-      throw checkError
+    if (checkResult.rows.length === 0) {
+      return NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 })
     }
+
+    const order = checkResult.rows[0];
 
     // Apenas permitir exclusão de certos status
     if (!['RECEIVED', 'CANCELLED'].includes(order.status)) {
@@ -188,18 +186,17 @@ export async function DELETE(
       }, { status: 400 })
     }
 
-    // Excluir pedido usando Supabase (isso irá fazer cascade delete dos order_items devido à foreign key)
-    const { error: deleteError } = await supabase
-      .from('orders')
-      .delete()
-      .eq('id', params.id)
+    // Excluir pedido usando PostgreSQL (cascade delete dos order_items devido à foreign key)
+    const deleteResult = await query(`
+      DELETE FROM orders WHERE id = $1
+    `, [params.id]);
 
-    if (deleteError) {
-      throw deleteError
+    if (deleteResult.rowCount === 0) {
+      return NextResponse.json({ error: "Erro ao excluir pedido" }, { status: 500 })
     }
 
     return NextResponse.json({ message: "Pedido excluído com sucesso" })
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error deleting order:", error)
     return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
   }

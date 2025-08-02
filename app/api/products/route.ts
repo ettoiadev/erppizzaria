@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getProducts, createProduct } from '@/lib/db-postgres'
+import { query } from '@/lib/postgres'
 
 // GET handler para buscar TODOS os produtos do banco de dados
 export async function GET() {
@@ -7,27 +7,37 @@ export async function GET() {
     console.log('🔍 Buscando produtos usando PostgreSQL...')
 
     // Buscar produtos com relacionamento de categoria usando PostgreSQL
-    const products = await getProducts(false) // false = apenas ativos
+    const productsResult = await query(`
+      SELECT 
+        p.id, p.name, p.description, p.price, p.category_id, p.image_url as image,
+        p.active, p.has_sizes, p.has_toppings, p.preparation_time, p.sort_order,
+        p.created_at, p.updated_at,
+        c.name as category_name
+      FROM products p
+      LEFT JOIN categories c ON p.category_id = c.id
+      WHERE p.active = true
+      ORDER BY p.sort_order ASC NULLS LAST, p.created_at ASC
+    `);
 
-    console.log('Query executada, produtos encontrados:', products?.length || 0)
+    const products = productsResult.rows;
+    console.log('Query executada, produtos encontrados:', products.length)
 
     // Processar dados para compatibilidade com o frontend
-    const processedProducts = (products || []).map((product, index) => ({
+    const processedProducts = products.map((product, index) => ({
       ...product,
       name: product.name || "",
       description: product.description || "",
-      categoryId: product.category_id || product.categoryId,
-      // category_name já vem da query SQL
-      available: Boolean(product.available),
-      showImage: Boolean(product.show_image ?? true),
-      // Se product_number não existir, usar índice + 1 como fallback
-      productNumber: product.product_number || (index + 1),
-      sizes: product.sizes ? (typeof product.sizes === 'string' ? JSON.parse(product.sizes) : product.sizes) : [],
-      toppings: product.toppings ? (typeof product.toppings === 'string' ? JSON.parse(product.toppings) : product.toppings) : []
+      categoryId: product.category_id,
+      category_name: product.category_name || "",
+      available: Boolean(product.active),
+      showImage: true, // Default para compatibilidade
+      productNumber: product.sort_order || (index + 1),
+      sizes: [], // Será implementado posteriormente se necessário
+      toppings: [] // Será implementado posteriormente se necessário
     }))
 
     return NextResponse.json(processedProducts)
-  } catch (error) {
+  } catch (error: any) {
     console.error('Erro ao buscar produtos:', error)
     return NextResponse.json(
       { error: 'Erro interno ao buscar produtos' },
@@ -61,33 +71,44 @@ export async function POST(request: Request) {
     }
 
     // Inserir produto usando PostgreSQL
-    const insertedProduct = await createProduct({
-      name: name.trim(),
-      description: description?.trim() || '',
+    const insertResult = await query(`
+      INSERT INTO products (
+        name, description, price, category_id, image_url, active, has_sizes, has_toppings, preparation_time
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING id, name, description, price, category_id, image_url as image, active, has_sizes, has_toppings, preparation_time, sort_order, created_at, updated_at
+    `, [
+      name.trim(),
+      description?.trim() || '',
       price,
-      category_id: finalCategoryId,
-      image: image || null,
-      available,
-      show_image: showImage,
-      sizes: sizes ? JSON.stringify(sizes) : null,
-      toppings: toppings ? JSON.stringify(toppings) : null,
-      active: true,
-      product_number: undefined // será gerado automaticamente
-    })
+      finalCategoryId,
+      image || null,
+      available !== false,
+      Array.isArray(sizes) && sizes.length > 0,
+      Array.isArray(toppings) && toppings.length > 0,
+      30 // tempo padrão de preparo
+    ]);
 
-    if (!insertedProduct) {
+    if (insertResult.rows.length === 0) {
       throw new Error('Falha ao criar produto')
     }
+
+    const insertedProduct = insertResult.rows[0];
+
+    // Buscar nome da categoria
+    const categoryResult = await query(`
+      SELECT name FROM categories WHERE id = $1
+    `, [finalCategoryId]);
 
     // Normalizar resposta
     const normalizedProduct = {
       ...insertedProduct,
       categoryId: insertedProduct.category_id,
-      available: Boolean(insertedProduct.available),
-      showImage: Boolean(insertedProduct.show_image ?? true),
-      productNumber: insertedProduct.product_number,
-      sizes: insertedProduct.sizes ? (typeof insertedProduct.sizes === 'string' ? JSON.parse(insertedProduct.sizes) : insertedProduct.sizes) : [],
-      toppings: insertedProduct.toppings ? (typeof insertedProduct.toppings === 'string' ? JSON.parse(insertedProduct.toppings) : insertedProduct.toppings) : []
+      category_name: categoryResult.rows[0]?.name || "",
+      available: Boolean(insertedProduct.active),
+      showImage: true,
+      productNumber: insertedProduct.sort_order || 0,
+      sizes: sizes || [],
+      toppings: toppings || []
     }
 
     console.log(`Produto criado com sucesso: ${normalizedProduct.name} - Número: ${normalizedProduct.productNumber}`)

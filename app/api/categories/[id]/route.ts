@@ -1,6 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { supabase } from '@/lib/supabase'
-import { getSupabaseAdmin } from "@/lib/supabase"
+import { query } from '@/lib/postgres'
 import { verifyAdmin } from "@/lib/auth"
 
 export const dynamic = 'force-dynamic'
@@ -20,24 +19,22 @@ async function handleAdminAuth(request: NextRequest) {
   return admin;
 }
 
-
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     console.log('GET /api/categories/[id] - ID:', params.id)
     
-    const { data: category, error } = await supabase
-      .from('categories')
-      .select('*')
-      .eq('id', params.id)
-      .single()
+    const categoryResult = await query(`
+      SELECT id, name, description, image_url as image, sort_order, active, created_at, updated_at
+      FROM categories 
+      WHERE id = $1
+    `, [params.id]);
 
-    if (error) {
-      if (error.code === 'PGRST116') {
-        console.log('Categoria não encontrada:', params.id)
-        return NextResponse.json({ error: "Categoria não encontrada" }, { status: 404 })
-      }
-      throw error
+    if (categoryResult.rows.length === 0) {
+      console.log('Categoria não encontrada:', params.id)
+      return NextResponse.json({ error: "Categoria não encontrada" }, { status: 404 })
     }
+
+    const category = categoryResult.rows[0];
 
     const normalizedCategory = {
       id: category.id,
@@ -50,7 +47,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 
     console.log('Categoria encontrada:', normalizedCategory)
     return NextResponse.json({ category: normalizedCategory })
-  } catch (error) {
+  } catch (error: any) {
     console.error("Erro ao buscar categoria:", error)
     return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
   }
@@ -59,7 +56,6 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     await handleAdminAuth(request);
-    const supabaseAdmin = getSupabaseAdmin();
     console.log('PUT /api/categories/[id] - ID:', params.id)
     
     // Validar se o ID foi fornecido
@@ -96,21 +92,16 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     }
 
     // Verificar se a categoria existe antes de tentar atualizar
-    const { data: existingCategory, error: existsError } = await supabaseAdmin
-      .from('categories')
-      .select('id')
-      .eq('id', params.id)
-      .single()
+    const existingResult = await query(`
+      SELECT id FROM categories WHERE id = $1
+    `, [params.id]);
 
-    if (existsError) {
-      if (existsError.code === 'PGRST116') {
-        console.error('Categoria não encontrada para update:', params.id)
-        return NextResponse.json(
-          { error: "Categoria não encontrada" },
-          { status: 404 }
-        )
-      }
-      throw existsError
+    if (existingResult.rows.length === 0) {
+      console.error('Categoria não encontrada para update:', params.id)
+      return NextResponse.json(
+        { error: "Categoria não encontrada" },
+        { status: 404 }
+      )
     }
 
     // Preparar valores com valores padrão seguros
@@ -127,33 +118,24 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       id: params.id
     })
 
-    // Preparar dados para atualização
-    const updateData: { [key: string]: any } = {
-      name: updateName,
-      description: updateDescription,
-      active: updateActive,
-      updated_at: new Date().toISOString()
+    // Atualizar categoria usando PostgreSQL
+    const updateResult = await query(`
+      UPDATE categories 
+      SET 
+        name = $1,
+        description = $2,
+        image_url = $3,
+        active = $4,
+        updated_at = NOW()
+      WHERE id = $5
+      RETURNING id, name, description, image_url as image, sort_order, active, created_at, updated_at
+    `, [updateName, updateDescription, updateImage || null, updateActive, params.id]);
+
+    if (updateResult.rows.length === 0) {
+      throw new Error('Falha ao atualizar categoria');
     }
 
-    // Adicionar image se fornecida
-    if (updateImage) {
-      updateData.image = updateImage
-    }
-
-    console.log('Dados para atualização:', updateData)
-
-    // Atualizar categoria usando Supabase
-    const { data: updatedCategory, error: updateError } = await supabaseAdmin
-      .from('categories')
-      .update(updateData)
-      .eq('id', params.id)
-      .select()
-      .single()
-
-    if (updateError) {
-      console.error('Erro ao atualizar categoria:', updateError)
-      throw updateError
-    }
+    const updatedCategory = updateResult.rows[0];
 
     // Normalizar resposta para manter consistência
     const normalizedCategory = {
@@ -189,8 +171,6 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     await handleAdminAuth(request);
-    const supabaseAdmin = getSupabaseAdmin();
-
     console.log('DELETE /api/categories/[id] - ID:', params.id)
     
     // Validar se o ID foi fornecido
@@ -203,37 +183,29 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     }
 
     // Verificar se a categoria existe
-    const { data: existingCategory, error: existsError } = await supabaseAdmin
-      .from('categories')
-      .select('id, name')
-      .eq('id', params.id)
-      .single()
+    const existingResult = await query(`
+      SELECT id, name FROM categories WHERE id = $1
+    `, [params.id]);
 
-    if (existsError) {
-      if (existsError.code === 'PGRST116') {
-        console.error('Categoria não encontrada para delete:', params.id)
-        return NextResponse.json(
-          { error: "Categoria não encontrada" },
-          { status: 404 }
-        )
-      }
-      throw existsError
+    if (existingResult.rows.length === 0) {
+      console.error('Categoria não encontrada para delete:', params.id)
+      return NextResponse.json(
+        { error: "Categoria não encontrada" },
+        { status: 404 }
+      )
     }
 
+    const existingCategory = existingResult.rows[0];
     console.log('Categoria encontrada para delete:', existingCategory.name)
 
     // Verificar se há produtos associados à categoria
-    const { count: productsCount, error: countError } = await supabaseAdmin
-      .from('products')
-      .select('*', { count: 'exact', head: true })
-      .eq('category_id', params.id)
+    const productsResult = await query(`
+      SELECT COUNT(*) as count FROM products WHERE category_id = $1 AND active = true
+    `, [params.id]);
 
-    if (countError) {
-      console.error('Erro ao verificar produtos associados:', countError)
-      // Não falhar se não conseguir verificar produtos
-    }
+    const productsCount = parseInt(productsResult.rows[0].count);
 
-    if (productsCount && productsCount > 0) {
+    if (productsCount > 0) {
       console.log(`Categoria tem ${productsCount} produtos associados`)
       return NextResponse.json(
         { 
@@ -244,16 +216,12 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
       )
     }
 
-    // Deletar categoria usando Supabase
-    const { error: deleteError } = await supabaseAdmin
-      .from('categories')
-      .delete()
-      .eq('id', params.id)
-
-    if (deleteError) {
-      console.error('Erro ao deletar categoria:', deleteError)
-      throw deleteError
-    }
+    // Deletar categoria usando PostgreSQL (soft delete)
+    await query(`
+      UPDATE categories 
+      SET active = false, updated_at = NOW()
+      WHERE id = $1
+    `, [params.id]);
 
     console.log('Categoria deletada com sucesso:', params.id)
     return NextResponse.json({ 
@@ -277,4 +245,4 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
       details: process.env.NODE_ENV === 'development' ? error.message : undefined
     }, { status: 500 })
   }
-} 
+}

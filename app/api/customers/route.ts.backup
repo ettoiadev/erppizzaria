@@ -1,0 +1,156 @@
+import { NextRequest, NextResponse } from "next/server"
+import { query } from '@/lib/postgres'
+
+export async function GET(request: NextRequest) {
+  try {
+    console.log("[CUSTOMERS] Buscando clientes usando PostgreSQL")
+    
+    // Buscar todos os clientes (usuários com role 'customer') usando PostgreSQL
+    const customersResult = await query(`
+      SELECT id, email, full_name, phone, created_at, updated_at, role
+      FROM profiles 
+      WHERE role = 'customer'
+      ORDER BY created_at DESC
+    `);
+    
+    const customers = customersResult.rows;
+    console.log(`[CUSTOMERS] Encontrados ${customers.length} clientes`)
+
+    // Para cada cliente, buscar endereços e estatísticas de pedidos
+    const customersWithDetails = await Promise.all(
+      customers.map(async (customer: any) => {
+        try {
+          // Buscar endereço principal do cliente
+          const addressResult = await query(`
+            SELECT street, number, neighborhood, city, state, complement, zip_code, label, is_default
+            FROM customer_addresses 
+            WHERE user_id = $1
+            ORDER BY is_default DESC, created_at DESC
+            LIMIT 1
+          `, [customer.id]);
+          
+          const addresses = addressResult.rows;
+          console.log(`[CUSTOMERS] Cliente ${customer.id} - Endereços encontrados: ${addresses.length}`)
+          
+          // Buscar estatísticas de pedidos
+          const ordersResult = await query(`
+            SELECT total, created_at
+            FROM orders 
+            WHERE user_id = $1
+          `, [customer.id]);
+          
+          const orders = ordersResult.rows;
+          
+          // Calcular estatísticas
+          const totalOrders = orders.length;
+          const totalSpent = orders.reduce((sum, order) => sum + parseFloat(order.total.toString()), 0);
+          const lastOrderAt = orders.length > 0 ? 
+            orders.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0].created_at : 
+            null
+          
+          const address = addresses[0];
+          
+          // Montar endereço completo
+          let fullAddress = 'Endereço não cadastrado'
+          if (address) {
+            const parts = [
+              address.street,
+              address.number,
+              address.neighborhood,
+              address.city,
+              address.state
+            ].filter(Boolean)
+            
+            if (parts.length > 0) {
+              fullAddress = parts.join(', ')
+            }
+          }
+          
+          // Determinar status baseado na atividade
+          const now = new Date()
+          const createdAt = new Date(customer.created_at)
+          const lastOrderDate = lastOrderAt ? new Date(lastOrderAt) : createdAt
+          
+          // Usar a data mais recente entre criação da conta e último pedido
+          const lastActivityDate = lastOrderDate > createdAt ? lastOrderDate : createdAt
+          const daysSinceLastActivity = Math.floor((now.getTime() - lastActivityDate.getTime()) / (1000 * 60 * 60 * 24))
+          
+          let status = 'inactive'
+          
+          if (totalOrders >= 20 || totalSpent >= 500) {
+            status = 'vip'
+          } else if (totalOrders >= 5 || totalSpent >= 100) {
+            status = 'regular'
+          } else if (daysSinceLastActivity <= 30) {
+            status = 'active'
+          } else if (daysSinceLastActivity <= 90) {
+            status = 'inactive'
+          } else {
+            status = 'churned'
+          }
+          
+          console.log(`[CUSTOMERS] Cliente ${customer.full_name} - Telefone: ${customer.phone}, Endereço: ${fullAddress}`)
+
+          return {
+            id: customer.id,
+            name: customer.full_name || 'Nome não informado',
+            email: customer.email || 'Email não informado',
+            phone: customer.phone || 'Telefone não informado',
+            address: fullAddress,
+            complement: address?.complement || '',
+            street: address?.street || '',
+            number: address?.number || '',
+            neighborhood: address?.neighborhood || '',
+            city: address?.city || '',
+            state: address?.state || '',
+            zip_code: address?.zip_code || '',
+            createdAt: customer.created_at,
+            lastOrderAt: lastOrderAt,
+            totalOrders: totalOrders,
+            totalSpent: totalSpent,
+            status: status,
+            favoriteItems: [] // Será implementado posteriormente se necessário
+          }
+        } catch (error) {
+          console.warn(`[CUSTOMERS] Erro ao buscar detalhes do cliente ${customer.id}:`, error)
+          return {
+            id: customer.id,
+            name: customer.full_name || 'Nome não informado',
+            email: customer.email || 'Email não informado',
+            phone: customer.phone || 'Telefone não informado',
+            address: 'Endereço não cadastrado',
+            complement: '',
+            street: '',
+            number: '',
+            neighborhood: '',
+            city: '',
+            state: '',
+            zip_code: '',
+            createdAt: customer.created_at,
+            lastOrderAt: null,
+            totalOrders: 0,
+            totalSpent: 0,
+            status: 'inactive',
+            favoriteItems: []
+          }
+        }
+      })
+    )
+
+    console.log(`[CUSTOMERS] Retornando ${customersWithDetails.length} clientes com detalhes`)
+    
+    return NextResponse.json({
+      customers: customersWithDetails,
+      total: customersWithDetails.length
+    })
+
+  } catch (error: any) {
+    console.error("[CUSTOMERS] Erro ao buscar clientes:", error)
+    return NextResponse.json({
+      error: "Erro interno do servidor",
+      message: "Não foi possível carregar a lista de clientes",
+      customers: [],
+      total: 0
+    }, { status: 500 })
+  }
+}

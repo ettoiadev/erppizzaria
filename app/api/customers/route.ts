@@ -3,51 +3,68 @@ import { query } from '@/lib/postgres'
 
 export async function GET(request: NextRequest) {
   try {
-    console.log("[CUSTOMERS] Buscando clientes usando Supabase")
+    console.log("[CUSTOMERS] Buscando clientes usando PostgreSQL")
     
-    // Buscar todos os clientes (usuários com role 'customer') usando Supabase
-    const { data: customers, error: customersError } = await supabase
-      .from('profiles')
-      .select('id, email, full_name, phone, created_at, updated_at, role')
-      .eq('role', 'customer')
-      .order('created_at', { ascending: false })
+    // Buscar todos os clientes (usuários com role 'customer') usando PostgreSQL
+    const customersResult = await query(`
+      SELECT id, email, full_name, phone, customer_code, created_at, updated_at, role
+      FROM profiles 
+      WHERE role = 'customer'
+      ORDER BY created_at DESC
+    `);
     
-    if (customersError) {
-      console.error("[CUSTOMERS] Erro ao buscar clientes:", customersError)
-      throw customersError
-    }
-    
-    console.log(`[CUSTOMERS] Encontrados ${customers?.length || 0} clientes`)
+    const customers = customersResult.rows;
+    console.log(`[CUSTOMERS] Encontrados ${customers.length} clientes`)
 
     // Para cada cliente, buscar endereços e estatísticas de pedidos
     const customersWithDetails = await Promise.all(
-      (customers || []).map(async (customer: any) => {
+      customers.map(async (customer: any) => {
         try {
-          // Buscar endereço principal do cliente usando Supabase
-          const { data: addresses } = await supabase
-            .from('customer_addresses')
-            .select('street, number, neighborhood, city, state, complement, zip_code, label, is_default')
-            .eq('user_id', customer.id)
-            .order('is_default', { ascending: false })
-            .order('created_at', { ascending: false })
-            .limit(1)
+          // Buscar endereço principal do cliente
+          const addressResult = await query(`
+            SELECT street, number, neighborhood, city, state, complement, zip_code, label, is_default
+            FROM customer_addresses 
+            WHERE user_id = $1
+            ORDER BY is_default DESC, created_at DESC
+            LIMIT 1
+          `, [customer.id]);
           
-          console.log(`[CUSTOMERS] Cliente ${customer.id} - Endereços encontrados: ${addresses?.length || 0}`)
+          const addresses = addressResult.rows;
+          console.log(`[CUSTOMERS] Cliente ${customer.id} - Endereços encontrados: ${addresses.length}`)
           
-          // Buscar estatísticas de pedidos usando Supabase
-          const { data: orders } = await supabase
-            .from('orders')
-            .select('total, created_at')
-            .eq('user_id', customer.id)
+          // Buscar estatísticas de pedidos
+          const ordersResult = await query(`
+            SELECT total, created_at
+            FROM orders 
+            WHERE user_id = $1
+          `, [customer.id]);
           
-          // Calcular estatísticas no frontend (aplicar lógica COALESCE)
-          const totalOrders = orders?.length || 0
-          const totalSpent = orders?.reduce((sum, order) => sum + parseFloat(order.total.toString()), 0) || 0
-          const lastOrderAt = orders && orders.length > 0 ? 
+          const orders = ordersResult.rows;
+          
+          // Calcular estatísticas
+          const totalOrders = orders.length;
+          const totalSpent = orders.reduce((sum, order) => sum + parseFloat(order.total.toString()), 0);
+          const lastOrderAt = orders.length > 0 ? 
             orders.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0].created_at : 
             null
           
-          const address = addresses?.[0]
+          const address = addresses[0];
+          
+          // Montar endereço completo
+          let fullAddress = 'Endereço não cadastrado'
+          if (address) {
+            const parts = [
+              address.street,
+              address.number,
+              address.neighborhood,
+              address.city,
+              address.state
+            ].filter(Boolean)
+            
+            if (parts.length > 0) {
+              fullAddress = parts.join(', ')
+            }
+          }
           
           // Determinar status baseado na atividade
           const now = new Date()
@@ -62,33 +79,21 @@ export async function GET(request: NextRequest) {
           
           if (totalOrders >= 20 || totalSpent >= 500) {
             status = 'vip'
-          } else if (totalOrders > 0) {
+          } else if (totalOrders >= 5 || totalSpent >= 100) {
+            status = 'regular'
+          } else if (daysSinceLastActivity <= 30) {
             status = 'active'
-          } else if (daysSinceLastActivity < 30) {
-            // Cliente novo (menos de 30 dias) sem pedidos ainda é considerado ativo
-            status = 'active'
-          }
-          
-          console.log(`[CUSTOMERS] Cliente ${customer.full_name} - Dias desde última atividade: ${daysSinceLastActivity}, Status: ${status}`)
-          
-          // Construir endereço completo (aplicar lógica COALESCE no frontend)
-          let fullAddress = 'Endereço não cadastrado'
-          if (address && address.street) {
-            const parts = [
-              `${address.street}, ${address.number}`,
-              address.complement ? `(${address.complement})` : '',
-              address.neighborhood,
-              `${address.city}/${address.state}`,
-              address.zip_code ? `CEP: ${address.zip_code}` : ''
-            ].filter(Boolean)
-            
-            fullAddress = parts.join(' - ')
+          } else if (daysSinceLastActivity <= 90) {
+            status = 'inactive'
+          } else {
+            status = 'churned'
           }
           
           console.log(`[CUSTOMERS] Cliente ${customer.full_name} - Telefone: ${customer.phone}, Endereço: ${fullAddress}`)
 
           return {
             id: customer.id,
+            customer_code: customer.customer_code,
             name: customer.full_name || 'Nome não informado',
             email: customer.email || 'Email não informado',
             phone: customer.phone || 'Telefone não informado',
@@ -111,6 +116,7 @@ export async function GET(request: NextRequest) {
           console.warn(`[CUSTOMERS] Erro ao buscar detalhes do cliente ${customer.id}:`, error)
           return {
             id: customer.id,
+            customer_code: customer.customer_code,
             name: customer.full_name || 'Nome não informado',
             email: customer.email || 'Email não informado',
             phone: customer.phone || 'Telefone não informado',
@@ -142,7 +148,6 @@ export async function GET(request: NextRequest) {
 
   } catch (error: any) {
     console.error("[CUSTOMERS] Erro ao buscar clientes:", error)
-    
     return NextResponse.json({
       error: "Erro interno do servidor",
       message: "Não foi possível carregar a lista de clientes",
@@ -150,4 +155,4 @@ export async function GET(request: NextRequest) {
       total: 0
     }, { status: 500 })
   }
-} 
+}

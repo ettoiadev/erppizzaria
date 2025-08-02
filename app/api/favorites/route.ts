@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { query } from '@/lib/postgres'
 
 export async function GET(request: NextRequest) {
   try {
@@ -10,46 +10,54 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'User ID é obrigatório' }, { status: 400 })
     }
 
-    // Buscar produtos favoritos do usuário
-    const { data: favorites, error } = await supabase
-      .from('user_favorites')
-      .select(`
-        id,
-        created_at,
-        product:products (
-          id,
-          name,
-          description,
-          price,
-          image,
-          active,
-          category:categories (
-            name
-          )
-        )
-      `)
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
+    // Primeiro, garantir que a tabela user_favorites existe
+    await query(`
+      CREATE TABLE IF NOT EXISTS public.user_favorites (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
+        product_id UUID REFERENCES products(id) ON DELETE CASCADE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        UNIQUE(user_id, product_id)
+      )
+    `);
 
-    if (error) {
-      console.error('Erro ao buscar favoritos:', error)
-      return NextResponse.json({ error: 'Erro ao buscar favoritos' }, { status: 500 })
-    }
+    // Criar índices se não existem
+    await query('CREATE INDEX IF NOT EXISTS idx_user_favorites_user_id ON user_favorites(user_id)');
+    await query('CREATE INDEX IF NOT EXISTS idx_user_favorites_product_id ON user_favorites(product_id)');
+
+    // Buscar produtos favoritos do usuário
+    const favoritesResult = await query(`
+      SELECT 
+        uf.id,
+        uf.created_at,
+        p.id as product_id,
+        p.name,
+        p.description,
+        p.price,
+        p.image_url as image,
+        p.active,
+        c.name as category_name
+      FROM user_favorites uf
+      JOIN products p ON uf.product_id = p.id
+      LEFT JOIN categories c ON p.category_id = c.id
+      WHERE uf.user_id = $1 AND p.active = true
+      ORDER BY uf.created_at DESC
+    `, [userId]);
 
     // Processar dados para o formato esperado pelo frontend
-    const processedFavorites = favorites?.map(favorite => ({
-      id: favorite.product?.id || '',
-      name: favorite.product?.name || '',
-      description: favorite.product?.description || '',
-      price: Number(favorite.product?.price) || 0,
-      image: favorite.product?.image || '/placeholder.svg?height=200&width=300',
+    const processedFavorites = favoritesResult.rows.map(favorite => ({
+      id: favorite.product_id || '',
+      name: favorite.name || '',
+      description: favorite.description || '',
+      price: Number(favorite.price) || 0,
+      image: favorite.image || '/placeholder.svg?height=200&width=300',
       rating: 4.8, // Valor padrão até implementarmos avaliações
-      category: favorite.product?.category?.name || 'Sem categoria'
-    })) || []
+      category: favorite.category_name || 'Sem categoria'
+    }))
 
     return NextResponse.json({ favorites: processedFavorites })
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Erro na API de favoritos:', error)
     return NextResponse.json(
       { error: 'Erro interno do servidor' },
@@ -67,48 +75,39 @@ export async function POST(request: NextRequest) {
     }
 
     // Verificar se o produto existe
-    const { data: product, error: productError } = await supabase
-      .from('products')
-      .select('id, name')
-      .eq('id', productId)
-      .eq('active', true)
-      .single()
+    const productResult = await query(`
+      SELECT id, name FROM products 
+      WHERE id = $1 AND active = true
+    `, [productId]);
 
-    if (productError || !product) {
+    if (productResult.rows.length === 0) {
       return NextResponse.json({ error: 'Produto não encontrado' }, { status: 404 })
     }
 
-    // Verificar se já está nos favoritos
-    const { data: existingFavorite } = await supabase
-      .from('user_favorites')
-      .select('id')
-      .eq('user_id', userId)
-      .eq('product_id', productId)
-      .single()
+    const product = productResult.rows[0];
 
-    if (existingFavorite) {
+    // Verificar se já está nos favoritos
+    const existingResult = await query(`
+      SELECT id FROM user_favorites 
+      WHERE user_id = $1 AND product_id = $2
+    `, [userId, productId]);
+
+    if (existingResult.rows.length > 0) {
       return NextResponse.json({ error: 'Produto já está nos favoritos' }, { status: 400 })
     }
 
     // Adicionar aos favoritos
-    const { error: insertError } = await supabase
-      .from('user_favorites')
-      .insert({
-        user_id: userId,
-        product_id: productId
-      })
-
-    if (insertError) {
-      console.error('Erro ao adicionar favorito:', insertError)
-      return NextResponse.json({ error: 'Erro ao adicionar aos favoritos' }, { status: 500 })
-    }
+    await query(`
+      INSERT INTO user_favorites (user_id, product_id)
+      VALUES ($1, $2)
+    `, [userId, productId]);
 
     return NextResponse.json({ 
       success: true,
       message: `${product.name} foi adicionado aos favoritos`
     })
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Erro ao adicionar favorito:', error)
     return NextResponse.json(
       { error: 'Erro interno do servidor' },
@@ -128,15 +127,13 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Remover dos favoritos
-    const { error } = await supabase
-      .from('user_favorites')
-      .delete()
-      .eq('user_id', userId)
-      .eq('product_id', productId)
+    const deleteResult = await query(`
+      DELETE FROM user_favorites 
+      WHERE user_id = $1 AND product_id = $2
+    `, [userId, productId]);
 
-    if (error) {
-      console.error('Erro ao remover favorito:', error)
-      return NextResponse.json({ error: 'Erro ao remover dos favoritos' }, { status: 500 })
+    if (deleteResult.rowCount === 0) {
+      return NextResponse.json({ error: 'Favorito não encontrado' }, { status: 404 })
     }
 
     return NextResponse.json({ 
@@ -144,11 +141,11 @@ export async function DELETE(request: NextRequest) {
       message: 'Produto removido dos favoritos'
     })
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Erro ao remover favorito:', error)
     return NextResponse.json(
       { error: 'Erro interno do servidor' },
       { status: 500 }
     )
   }
-} 
+}
