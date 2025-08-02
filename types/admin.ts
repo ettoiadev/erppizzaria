@@ -1,5 +1,6 @@
 export interface Customer {
   id: string
+  customer_code?: string
   name: string
   email: string
   phone: string
@@ -15,7 +16,7 @@ export interface Customer {
   lastOrderAt?: string
   totalOrders: number
   totalSpent: number
-  status: "active" | "inactive" | "vip"
+  status: "active" | "inactive" | "vip" | "regular" | "churned"
   favoriteItems: string[]
 }
 

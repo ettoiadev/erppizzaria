@@ -9,7 +9,9 @@ import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { CustomerDetailsModal } from "./customer-details-modal"
 import { CustomerOrderHistory } from "./customer-order-history"
-import { Search, Eye, Phone, Mail, MapPin, Calendar, ShoppingBag, RefreshCw } from "lucide-react"
+import { EditCustomerModal } from "./edit-customer-modal"
+import { DeleteCustomerModal } from "./delete-customer-modal"
+import { Search, Eye, Phone, Mail, MapPin, Calendar, ShoppingBag, RefreshCw, Edit, Trash2 } from "lucide-react"
 import type { Customer } from "@/types/admin"
 
 export function CustomersManagement() {
@@ -17,6 +19,8 @@ export function CustomersManagement() {
   const [sortBy, setSortBy] = useState("recent")
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
   const [showOrderHistory, setShowOrderHistory] = useState<string | null>(null)
+  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null)
+  const [deletingCustomer, setDeletingCustomer] = useState<Customer | null>(null)
 
   // Buscar clientes reais do banco de dados PostgreSQL
   const { data: customersData, isLoading, error, refetch } = useQuery({
@@ -48,7 +52,8 @@ export function CustomersManagement() {
         (customer.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (customer.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (customer.phone || '').includes(searchTerm) ||
-        (customer.address || '').toLowerCase().includes(searchTerm.toLowerCase()),
+        (customer.address || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (customer.customer_code && customer.customer_code.toString().includes(searchTerm)),
     )
     .sort((a: Customer, b: Customer) => {
       switch (sortBy) {
@@ -91,6 +96,14 @@ export function CustomersManagement() {
   }
 
   const handleRefresh = () => {
+    refetch()
+  }
+
+  const handleEditSuccess = () => {
+    refetch()
+  }
+
+  const handleDeleteSuccess = () => {
     refetch()
   }
 
@@ -198,7 +211,7 @@ export function CustomersManagement() {
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
               <Input
-                placeholder="Buscar por nome, email ou telefone..."
+                placeholder="Buscar por código, nome, email ou telefone..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
@@ -244,6 +257,11 @@ export function CustomersManagement() {
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
+                      {customer.customer_code && (
+                        <span className="text-lg font-mono font-bold text-primary bg-primary/10 px-3 py-1 rounded-md">
+                          Cliente #{customer.customer_code.toString().padStart(4, '0')}
+                        </span>
+                      )}
                       <h3 className="text-lg font-semibold text-gray-900">{customer.name}</h3>
                       <Badge className={getStatusColor(customer.status)}>{getStatusLabel(customer.status)}</Badge>
                     </div>
@@ -277,7 +295,7 @@ export function CustomersManagement() {
                       <div className="text-sm text-gray-600">Total Gasto</div>
                       <div className="text-xl font-bold text-primary">R$ {Number(customer.totalSpent || 0).toFixed(2)}</div>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                       <Button variant="outline" size="sm" onClick={() => setSelectedCustomer(customer)}>
                         <Eye className="w-4 h-4 mr-1" />
                         Detalhes
@@ -285,6 +303,25 @@ export function CustomersManagement() {
                       <Button variant="outline" size="sm" onClick={() => setShowOrderHistory(customer.id)}>
                         <ShoppingBag className="w-4 h-4 mr-1" />
                         Pedidos
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => setEditingCustomer(customer)}
+                        className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                      >
+                        <Edit className="w-4 h-4 mr-1" />
+                        Editar
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => setDeletingCustomer(customer)}
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        disabled={customer.totalOrders > 0}
+                      >
+                        <Trash2 className="w-4 h-4 mr-1" />
+                        Excluir
                       </Button>
                     </div>
                   </div>
@@ -333,6 +370,24 @@ export function CustomersManagement() {
           onClose={() => setShowOrderHistory(null)}
         />
       )}
+
+      {/* Edit Customer Modal */}
+      {editingCustomer && (
+        <EditCustomerModal
+          customer={editingCustomer}
+          isOpen={!!editingCustomer}
+          onClose={() => setEditingCustomer(null)}
+          onSuccess={handleEditSuccess}
+        />
+      )}
+
+      {/* Delete Customer Modal */}
+      <DeleteCustomerModal
+        customer={deletingCustomer}
+        isOpen={!!deletingCustomer}
+        onClose={() => setDeletingCustomer(null)}
+        onSuccess={handleDeleteSuccess}
+      />
     </div>
   )
 } 

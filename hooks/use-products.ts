@@ -3,7 +3,7 @@
 // Hook personalizado para gerenciar produtos
 import { useState, useEffect, useCallback } from "react"
 import type { Product } from "@/types"
-import { debugLog } from "@/lib/debug-utils"
+import { logger } from "@/lib/debug-utils"
 
 export function useProducts() {
   const [products, setProducts] = useState<Product[]>([])
@@ -12,7 +12,7 @@ export function useProducts() {
 
   const loadProducts = useCallback(async () => {
     try {
-      debugLog.product.saving("Carregando produtos")
+      logger.info("Carregando produtos")
       setLoading(true)
       setError(null)
 
@@ -29,10 +29,10 @@ export function useProducts() {
       }
 
       const data = await response.json()
-      debugLog.product.success(`${data.length} produtos carregados`)
+      logger.info(`${data.length} produtos carregados`)
       setProducts(data)
     } catch (err: any) {
-      debugLog.product.error("Erro ao carregar produtos", err)
+      logger.error("Erro ao carregar produtos", err)
       setError(err.message)
       setProducts([])
     } finally {
@@ -41,7 +41,7 @@ export function useProducts() {
   }, [])
 
   const refreshProducts = useCallback(async () => {
-    debugLog.product.saving("Refresh manual solicitado")
+    logger.info("Refresh manual solicitado")
     await loadProducts()
   }, [loadProducts])
 

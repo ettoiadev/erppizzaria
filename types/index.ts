@@ -13,6 +13,11 @@ export interface Product {
   active?: boolean // Adicionado campo active que existe no banco
   created_at?: string // Adicionado campo created_at
   updated_at?: string // Adicionado campo updated_at
+  
+  // Compatibilidade com versões antigas (será removido gradualmente)
+  categoryId?: string
+  showImage?: boolean
+  productNumber?: number
 }
 
 export interface ProductSize {

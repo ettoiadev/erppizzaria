@@ -14,11 +14,11 @@ export async function GET(request: NextRequest) {
   try {
     // 1. Verificar variáveis de ambiente
     diagnostics.checks.environment = {
-      hasSupabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
-      hasSupabaseKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      hasDatabaseUrl: !!process.env.DATABASE_URL,
       hasJwtSecret: !!process.env.JWT_SECRET,
+      hasMercadoPagoToken: !!process.env.MERCADOPAGO_ACCESS_TOKEN,
       nodeEnv: process.env.NODE_ENV,
-      supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL?.substring(0, 20) + "...",
+      databaseUrl: process.env.DATABASE_URL?.substring(0, 30) + "...",
     }
 
     // 2. Verificar token se fornecido
@@ -51,23 +51,19 @@ export async function GET(request: NextRequest) {
       note: "Verificar no browser: localStorage.getItem('auth-token')"
     }
 
-    // 4. Verificar conectividade com Supabase
+    // 4. Verificar conectividade com PostgreSQL
     try {
-      const supabaseCheck = await fetch(process.env.NEXT_PUBLIC_SUPABASE_URL + '/rest/v1/', {
-        headers: {
-          'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-          'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`
-        }
-      })
+      const { testConnection } = await import('@/lib/postgres')
+      const dbTest = await testConnection()
       
-      diagnostics.checks.supabase = {
-        reachable: supabaseCheck.ok,
-        status: supabaseCheck.status,
-        statusText: supabaseCheck.statusText
+      diagnostics.checks.database = {
+        connected: dbTest.success,
+        message: dbTest.message,
+        error: dbTest.error || null
       }
     } catch (error: any) {
-      diagnostics.checks.supabase = {
-        reachable: false,
+      diagnostics.checks.database = {
+        connected: false,
         error: error.message
       }
     }

@@ -19,6 +19,7 @@ interface Product {
 export function PopularItems() {
   const [popularItems, setPopularItems] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchPopularProducts()
@@ -27,6 +28,7 @@ export function PopularItems() {
   const fetchPopularProducts = async () => {
     try {
       setLoading(true)
+      setError(null)
       const response = await fetch('/api/products?limit=3&featured=true')
       
       if (!response.ok) {
@@ -47,35 +49,10 @@ export function PopularItems() {
       }))
       
       setPopularItems(formattedProducts)
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao carregar produtos populares:', error)
-      // Fallback para produtos padrão em caso de erro
-      setPopularItems([
-        {
-          id: "1",
-          name: "Pizza Margherita",
-          description: "Molho de tomate, mussarela, manjericão fresco",
-          price: 32.9,
-          image: "/placeholder.svg?height=300&width=300",
-          rating: 4.8,
-        },
-        {
-          id: "2",
-          name: "Pizza Pepperoni",
-          description: "Molho de tomate, mussarela, pepperoni",
-          price: 38.9,
-          image: "/placeholder.svg?height=300&width=300",
-          rating: 4.9,
-        },
-        {
-          id: "3",
-          name: "Pizza Quatro Queijos",
-          description: "Mussarela, gorgonzola, parmesão, provolone",
-          price: 45.9,
-          image: "/placeholder.svg?height=300&width=300",
-          rating: 4.7,
-        },
-      ])
+      setError(error.message || 'Erro ao carregar produtos')
+      setPopularItems([])
     } finally {
       setLoading(false)
     }
@@ -111,6 +88,11 @@ export function PopularItems() {
         </div>
       </section>
     )
+  }
+
+  // Se há erro ou não há produtos, não renderizar a seção
+  if (error || popularItems.length === 0) {
+    return null
   }
 
   return (

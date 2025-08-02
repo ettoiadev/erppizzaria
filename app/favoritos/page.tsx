@@ -136,7 +136,7 @@ export default function FavoritesPage() {
       <AuthenticatedLayout>
         <div className="container mx-auto px-4 py-8">
           <div className="flex justify-center items-center py-12">
-            <LoadingSpinner size="lg" />
+            <LoadingSpinner />
           </div>
         </div>
       </AuthenticatedLayout>

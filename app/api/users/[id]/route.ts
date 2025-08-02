@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { query } from "@/lib/db"
+import { query } from "@/lib/postgres"
 
 // GET - Buscar dados de um usuário específico
 export async function GET(request: Request, { params }: { params: { id: string } }) {

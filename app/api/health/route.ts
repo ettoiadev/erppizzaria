@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { testConnection } from '@/lib/db'
+import { testConnection } from '@/lib/postgres'
 
 // Configurações para Vercel
 export const dynamic = 'force-dynamic'
@@ -16,9 +16,9 @@ export async function GET() {
     // Testar variáveis de ambiente
     const envCheck = {
       NODE_ENV: process.env.NODE_ENV,
-      hasSupabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
-      hasSupabaseKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-      hasJwtSecret: !!process.env.JWT_SECRET
+      hasDatabaseUrl: !!process.env.DATABASE_URL,
+      hasJwtSecret: !!process.env.JWT_SECRET,
+      hasMercadoPagoToken: !!process.env.MERCADOPAGO_ACCESS_TOKEN
     };
     
     console.log('🔧 Environment check:', envCheck);

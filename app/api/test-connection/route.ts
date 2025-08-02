@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { query, testConnection } from '@/lib/db-native';
+import { query, testConnection } from '@/lib/postgres';
 
 export async function GET(request: NextRequest) {
   try {

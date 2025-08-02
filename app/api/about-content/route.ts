@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { query } from "@/lib/db"
+import { query } from "@/lib/postgres"
 import { verifyToken } from "@/lib/auth"
 import { JwtPayload } from "jsonwebtoken"
 
