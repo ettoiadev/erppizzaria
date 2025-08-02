@@ -58,6 +58,29 @@ export function PaymentSettings({ settings: initialSettings, onSave, onMarkUnsav
     return cpfRegex.test(key) || cnpjRegex.test(key) || emailRegex.test(key) || phoneRegex.test(key)
   }
 
+  // Validação das chaves Stripe
+  const validateStripePublicKey = (key: string) => {
+    if (!key) return true // Opcional
+    return key.startsWith('pk_') && key.length > 10
+  }
+
+  const validateStripeSecretKey = (key: string) => {
+    if (!key) return true // Opcional
+    return key.startsWith('sk_') && key.length > 10
+  }
+
+  // Validação do token Mercado Pago
+  const validateMercadoPagoToken = (token: string) => {
+    if (!token) return true // Opcional
+    return token.startsWith('APP_USR-') && token.length > 20
+  }
+
+  // Validação do PayPal Client ID
+  const validatePayPalClientId = (id: string) => {
+    if (!id) return true // Opcional
+    return id.length > 10 && /^[A-Za-z0-9_-]+$/.test(id)
+  }
+
   const handleInputChange = (field: string, value: string | boolean) => {
     setSettings((prev) => {
       const newSettings = { ...prev, [field]: value }
@@ -74,8 +97,20 @@ export function PaymentSettings({ settings: initialSettings, onSave, onMarkUnsav
   }
 
   const handleSave = async () => {
-    // Validar chave PIX se PIX estiver habilitado
+    // Validar todas as configurações
     if (settings.pixEnabled && !validatePixKey(settings.pixKey)) {
+      return
+    }
+    if (!validateStripePublicKey(settings.stripePublicKey)) {
+      return
+    }
+    if (!validateStripeSecretKey(settings.stripeSecretKey)) {
+      return
+    }
+    if (!validateMercadoPagoToken(settings.mercadoPagoAccessToken)) {
+      return
+    }
+    if (!validatePayPalClientId(settings.paypalClientId)) {
       return
     }
 
@@ -99,6 +134,10 @@ export function PaymentSettings({ settings: initialSettings, onSave, onMarkUnsav
   const canSave = () => {
     if (!hasChanges()) return false
     if (settings.pixEnabled && !validatePixKey(settings.pixKey)) return false
+    if (!validateStripePublicKey(settings.stripePublicKey)) return false
+    if (!validateStripeSecretKey(settings.stripeSecretKey)) return false
+    if (!validateMercadoPagoToken(settings.mercadoPagoAccessToken)) return false
+    if (!validatePayPalClientId(settings.paypalClientId)) return false
     return true
   }
 
@@ -173,11 +212,11 @@ export function PaymentSettings({ settings: initialSettings, onSave, onMarkUnsav
 
       <Card>
         <CardHeader>
-          <CardTitle>Pagamentos Online (Em Desenvolvimento)</CardTitle>
+          <CardTitle>Pagamentos Online</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 border rounded-lg opacity-50">
+            <div className="flex items-center justify-between p-4 border rounded-lg">
               <div className="flex items-center gap-3">
                 <CreditCard className="w-6 h-6 text-blue-600" />
                 <div>
@@ -188,11 +227,10 @@ export function PaymentSettings({ settings: initialSettings, onSave, onMarkUnsav
               <Switch
                 checked={settings.creditCardEnabled}
                 onCheckedChange={(checked) => handleInputChange("creditCardEnabled", checked)}
-                disabled
               />
             </div>
 
-            <div className="flex items-center justify-between p-4 border rounded-lg opacity-50">
+            <div className="flex items-center justify-between p-4 border rounded-lg">
               <div className="flex items-center gap-3">
                 <Smartphone className="w-6 h-6 text-orange-600" />
                 <div>
@@ -203,15 +241,15 @@ export function PaymentSettings({ settings: initialSettings, onSave, onMarkUnsav
               <Switch
                 checked={settings.debitCardEnabled}
                 onCheckedChange={(checked) => handleInputChange("debitCardEnabled", checked)}
-                disabled
               />
             </div>
           </div>
 
           <Separator />
 
-          <div className="space-y-4 opacity-50">
-            <h4 className="font-medium">Configurações de Gateway (Em Breve)</h4>
+          <div className="space-y-4">
+            <h4 className="font-medium text-lg">Configurações de Gateway</h4>
+            <p className="text-sm text-gray-600">Configure suas chaves de integração com os gateways de pagamento.</p>
 
             <div className="grid md:grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -221,8 +259,12 @@ export function PaymentSettings({ settings: initialSettings, onSave, onMarkUnsav
                   value={settings.stripePublicKey}
                   onChange={(e) => handleInputChange("stripePublicKey", e.target.value)}
                   placeholder="pk_test_..."
-                  disabled
+                  className={!validateStripePublicKey(settings.stripePublicKey) ? "border-red-300" : ""}
                 />
+                {!validateStripePublicKey(settings.stripePublicKey) && (
+                  <p className="text-sm text-red-600">Chave pública inválida. Deve começar com 'pk_'</p>
+                )}
+                <p className="text-xs text-gray-500">Chave pública para processar pagamentos com Stripe</p>
               </div>
 
               <div className="space-y-2">
@@ -233,8 +275,12 @@ export function PaymentSettings({ settings: initialSettings, onSave, onMarkUnsav
                   value={settings.stripeSecretKey}
                   onChange={(e) => handleInputChange("stripeSecretKey", e.target.value)}
                   placeholder="sk_test_..."
-                  disabled
+                  className={!validateStripeSecretKey(settings.stripeSecretKey) ? "border-red-300" : ""}
                 />
+                {!validateStripeSecretKey(settings.stripeSecretKey) && (
+                  <p className="text-sm text-red-600">Chave secreta inválida. Deve começar com 'sk_'</p>
+                )}
+                <p className="text-xs text-gray-500">Chave secreta para autenticar com a API do Stripe</p>
               </div>
 
               <div className="space-y-2">
@@ -245,8 +291,12 @@ export function PaymentSettings({ settings: initialSettings, onSave, onMarkUnsav
                   value={settings.mercadoPagoAccessToken}
                   onChange={(e) => handleInputChange("mercadoPagoAccessToken", e.target.value)}
                   placeholder="APP_USR-..."
-                  disabled
+                  className={!validateMercadoPagoToken(settings.mercadoPagoAccessToken) ? "border-red-300" : ""}
                 />
+                {!validateMercadoPagoToken(settings.mercadoPagoAccessToken) && (
+                  <p className="text-sm text-red-600">Token inválido. Deve começar com 'APP_USR-'</p>
+                )}
+                <p className="text-xs text-gray-500">Token de acesso para integração com Mercado Pago</p>
               </div>
 
               <div className="space-y-2">
@@ -256,8 +306,12 @@ export function PaymentSettings({ settings: initialSettings, onSave, onMarkUnsav
                   value={settings.paypalClientId}
                   onChange={(e) => handleInputChange("paypalClientId", e.target.value)}
                   placeholder="AY..."
-                  disabled
+                  className={!validatePayPalClientId(settings.paypalClientId) ? "border-red-300" : ""}
                 />
+                {!validatePayPalClientId(settings.paypalClientId) && (
+                  <p className="text-sm text-red-600">Client ID inválido. Deve conter apenas letras, números, _ e -</p>
+                )}
+                <p className="text-xs text-gray-500">ID do cliente para integração com PayPal</p>
               </div>
             </div>
           </div>

@@ -1,16 +1,49 @@
 import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
+import { getAdminSettings } from './db-postgres';
 
-// Configuração do Mercado Pago
-const client = new MercadoPagoConfig({
-  accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN!,
-  options: {
-    timeout: 5000,
-    idempotencyKey: 'DEV',
+// Função para obter as configurações do Mercado Pago
+async function getMercadoPagoSettings() {
+  try {
+    const settings = await getAdminSettings();
+    const accessToken = settings.mercadoPagoAccessToken || process.env.MERCADOPAGO_ACCESS_TOKEN;
+    
+    if (!accessToken) {
+      console.warn('⚠️ Token do Mercado Pago não configurado. Configure em Admin > Configurações > Pagamentos');
+      return null;
+    }
+    
+    return {
+      accessToken,
+      environment: accessToken.includes('TEST') ? 'sandbox' : 'production'
+    };
+  } catch (error) {
+    console.error('❌ Erro ao buscar configurações do Mercado Pago:', error);
+    // Fallback para variável de ambiente
+    return {
+      accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN!,
+      environment: process.env.MERCADOPAGO_ACCESS_TOKEN?.includes('TEST') ? 'sandbox' : 'production'
+    };
   }
-});
+}
 
-const preference = new Preference(client);
-const payment = new Payment(client);
+// Função para criar cliente do Mercado Pago com configurações dinâmicas
+async function createMercadoPagoClient() {
+  const settings = await getMercadoPagoSettings();
+  
+  if (!settings?.accessToken) {
+    throw new Error('Token do Mercado Pago não configurado');
+  }
+  
+  return new MercadoPagoConfig({
+    accessToken: settings.accessToken,
+    options: {
+      timeout: 5000,
+      idempotencyKey: 'DEV',
+    }
+  });
+}
+
+// As instâncias serão criadas dinamicamente em cada função
 
 export interface PaymentData {
   orderId: string;
@@ -44,6 +77,10 @@ export async function createPaymentPreference(paymentData: PaymentData): Promise
       totalAmount: paymentData.totalAmount,
       itemsCount: paymentData.items.length
     });
+
+    // Criar cliente dinâmico com configurações atualizadas
+    const client = await createMercadoPagoClient();
+    const preference = new Preference(client);
 
     const preferenceData = {
       items: paymentData.items.map(item => ({
@@ -107,6 +144,10 @@ export async function createPaymentPreference(paymentData: PaymentData): Promise
 export async function getPaymentInfo(paymentId: string) {
   try {
     console.log('🔍 Buscando informações do pagamento:', paymentId);
+
+    // Criar cliente dinâmico com configurações atualizadas
+    const client = await createMercadoPagoClient();
+    const payment = new Payment(client);
 
     const result = await payment.get({ id: paymentId });
 
@@ -202,6 +243,10 @@ export async function createPixPayment(paymentData: PaymentData): Promise<Paymen
       totalAmount: paymentData.totalAmount
     });
 
+    // Criar cliente dinâmico com configurações atualizadas
+    const client = await createMercadoPagoClient();
+    const payment = new Payment(client);
+
     const paymentBody = {
       transaction_amount: paymentData.totalAmount,
       description: paymentData.description || `Pedido #${paymentData.orderId}`,
@@ -247,4 +292,5 @@ export async function createPixPayment(paymentData: PaymentData): Promise<Paymen
   }
 }
 
-export { client as mercadoPagoClient };
+// Exportar função para criar cliente dinâmico
+export { createMercadoPagoClient, getMercadoPagoSettings };
