@@ -127,6 +127,29 @@ export async function deleteAllProducts(): Promise<number> {
   }
 }
 
+export async function deleteAllSales(): Promise<{ deletedOrders: number; deletedOrderItems: number; totalDeleted: number }> {
+  try {
+    console.log('[DATA_MANAGEMENT] Iniciando exclusão de todos os dados de vendas...')
+
+    const response = await fetch('/api/admin/data-management/delete-sales', {
+      method: 'DELETE'
+    })
+
+    const result = await response.json()
+
+    if (!response.ok) {
+      throw new Error(result.error || 'Erro ao deletar dados de vendas')
+    }
+
+    console.log(`[DATA_MANAGEMENT] ${result.message}`)
+    return result.details
+
+  } catch (error) {
+    console.error('[DATA_MANAGEMENT] Erro ao deletar todos os dados de vendas:', error)
+    throw new Error('Erro ao excluir todos os dados de vendas')
+  }
+}
+
 // =============================================
 // FUNÇÕES UTILITÁRIAS
 // =============================================

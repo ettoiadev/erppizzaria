@@ -26,6 +26,7 @@ import {
   importClientsFromFile,
   deleteAllClients,
   deleteAllProducts,
+  deleteAllSales,
   downloadFile,
   validateFileType
 } from "@/lib/admin/data-management"
@@ -40,8 +41,10 @@ export function DataManagementSection({ onDataChange }: DataManagementSectionPro
   const [isImporting, setIsImporting] = useState(false)
   const [isDeletingClients, setIsDeletingClients] = useState(false)
   const [isDeletingProducts, setIsDeletingProducts] = useState(false)
+  const [isDeletingSales, setIsDeletingSales] = useState(false)
   const [showDeleteClientsDialog, setShowDeleteClientsDialog] = useState(false)
   const [showDeleteProductsDialog, setShowDeleteProductsDialog] = useState(false)
+  const [showDeleteSalesDialog, setShowDeleteSalesDialog] = useState(false)
   
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
@@ -213,6 +216,34 @@ export function DataManagementSection({ onDataChange }: DataManagementSectionPro
     }
   }
 
+  const handleDeleteAllSales = async () => {
+    setIsDeletingSales(true)
+    try {
+      const result = await deleteAllSales()
+      
+      toast({
+        title: "Dados de Vendas Excluídos",
+        description: `${result.totalDeleted} registros de vendas foram excluídos com sucesso. (${result.deletedOrders} pedidos e ${result.deletedOrderItems} itens)`
+      })
+
+      // Notificar mudança nos dados
+      if (onDataChange) {
+        onDataChange()
+      }
+
+    } catch (error) {
+      console.error('Erro ao deletar dados de vendas:', error)
+      toast({
+        title: "Erro na Exclusão",
+        description: "Não foi possível excluir todos os dados de vendas. Tente novamente.",
+        variant: "destructive"
+      })
+    } finally {
+      setIsDeletingSales(false)
+      setShowDeleteSalesDialog(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Seção de Gerenciamento de Dados de Clientes */}
@@ -376,6 +407,39 @@ export function DataManagementSection({ onDataChange }: DataManagementSectionPro
                 )}
               </Button>
             </div>
+
+            {/* Separador e nova seção para vendas */}
+            <div className="border-t border-red-200 mt-4 pt-4">
+              <div className="bg-red-100 p-3 rounded-lg border border-red-300 mb-3">
+                <p className="text-sm text-red-900 font-medium mb-2">
+                  <strong>🚨 Exclusão de Dados de Vendas</strong>
+                </p>
+                <p className="text-xs text-red-800">
+                  Esta ação irá excluir permanentemente TODOS os pedidos, itens de pedidos e histórico de transações. 
+                  Os clientes e produtos NÃO serão excluídos, apenas o histórico de vendas será removido.
+                </p>
+              </div>
+
+              {/* Excluir Todas as Vendas */}
+              <Button
+                onClick={() => setShowDeleteSalesDialog(true)}
+                disabled={isDeletingSales}
+                variant="destructive"
+                className="w-full"
+              >
+                {isDeletingSales ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Excluindo...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Excluir Todas as Vendas
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -458,6 +522,55 @@ export function DataManagementSection({ onDataChange }: DataManagementSectionPro
                 </>
               ) : (
                 'Sim, Excluir Todos'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Dialog de Confirmação - Excluir Vendas */}
+      <AlertDialog open={showDeleteSalesDialog} onOpenChange={setShowDeleteSalesDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-red-700">
+              <AlertTriangle className="w-5 h-5" />
+              Confirmar Exclusão de Todas as Vendas
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>
+                <strong>Esta ação irá excluir TODOS os dados de vendas do sistema.</strong>
+              </p>
+              <p>
+                • Todos os pedidos serão excluídos permanentemente<br/>
+                • Todos os itens de pedidos serão excluídos permanentemente<br/>
+                • Todo o histórico de transações será perdido<br/>
+                • Os clientes e produtos NÃO serão afetados<br/>
+                • Esta ação não pode ser desfeita
+              </p>
+              <div className="bg-red-100 p-3 rounded-lg border border-red-300">
+                <p className="text-red-800 font-medium text-sm">
+                  ⚠️ ATENÇÃO: Esta ação é irreversível e removerá permanentemente todo o histórico de vendas!
+                </p>
+              </div>
+              <p className="text-red-600 font-medium">
+                Tem certeza que deseja continuar?
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteAllSales}
+              className="bg-red-600 hover:bg-red-700"
+              disabled={isDeletingSales}
+            >
+              {isDeletingSales ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Excluindo...
+                </>
+              ) : (
+                'Sim, Excluir Todas as Vendas'
               )}
             </AlertDialogAction>
           </AlertDialogFooter>
