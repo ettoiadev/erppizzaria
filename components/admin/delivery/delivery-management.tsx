@@ -10,7 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { DeliveryPersonModal } from "./delivery-person-modal"
 import { AssignOrderModal } from "./assign-order-modal"
-import { Search, Plus, Edit, Eye, Phone, Mail, MapPin, Clock, Package, Bike, RefreshCw, Trash2 } from "lucide-react"
+import { DeliveryReport } from "./delivery-report"
+import { Search, Plus, Edit, Eye, Phone, Mail, MapPin, Clock, Package, Bike, RefreshCw, Trash2, FileText } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
 interface Driver {
@@ -51,6 +52,7 @@ export function DeliveryManagement() {
   const [showAddModal, setShowAddModal] = useState(false)
   const [showAssignModal, setShowAssignModal] = useState<string | null>(null)
   const [showDeleteModal, setShowDeleteModal] = useState<Driver | null>(null)
+  const [showReportModal, setShowReportModal] = useState(false)
   const { toast } = useToast()
   const queryClient = useQueryClient()
 
@@ -304,10 +306,16 @@ export function DeliveryManagement() {
             <h1 className="text-3xl font-bold text-gray-900">Gerenciar Entregadores</h1>
             <p className="text-gray-600">Gerencie sua equipe de entrega</p>
           </div>
-          <Button onClick={() => setShowAddModal(true)}>
-            <Plus className="w-4 h-4 mr-2" />
-            Novo Entregador
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setShowReportModal(true)}>
+              <FileText className="w-4 h-4 mr-2" />
+              Relatório
+            </Button>
+            <Button onClick={() => setShowAddModal(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Novo Entregador
+            </Button>
+          </div>
         </div>
 
         {/* Componente de Nenhum Entregador */}
@@ -478,6 +486,10 @@ export function DeliveryManagement() {
           <Button variant="outline" onClick={handleRefresh} disabled={isLoading}>
             <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
             Atualizar
+          </Button>
+          <Button variant="outline" onClick={() => setShowReportModal(true)}>
+            <FileText className="w-4 h-4 mr-2" />
+            Relatório
           </Button>
           <Button onClick={() => setShowAddModal(true)}>
             <Plus className="w-4 h-4 mr-2" />
@@ -756,6 +768,12 @@ export function DeliveryManagement() {
           }}
         />
       )}
+
+      {/* Modal de Relatório */}
+      <DeliveryReport
+        isOpen={showReportModal}
+        onClose={() => setShowReportModal(false)}
+      />
     </div>
   )
 }
