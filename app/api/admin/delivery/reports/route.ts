@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Pool } from 'pg'
+import { verifyAdmin } from '@/lib/auth'
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -15,17 +16,27 @@ export async function GET(request: NextRequest) {
   const client = await pool.connect()
   
   try {
-    // Verificar se é um admin (simplificado para este exemplo)
+    // Verificar autenticação de admin
     const authHeader = request.headers.get('authorization')
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    const token = authHeader?.split(' ')[1]
+    
+    if (!token) {
       return NextResponse.json(
         { error: 'Token de autorização necessário' },
         { status: 401 }
       )
     }
 
+    const admin = await verifyAdmin(token)
+    if (!admin) {
+      return NextResponse.json(
+        { error: 'Acesso negado - usuário não é admin' },
+        { status: 403 }
+      )
+    }
+
     // Construir query base para buscar entregas
-    let whereConditions = ["o.status = 'DELIVERED'"]
+    let whereConditions = ["o.status = 'DELIVERED'", "o.driver_id IS NOT NULL"]
     let queryParams: any[] = []
     let paramCount = 0
 
@@ -72,7 +83,7 @@ export async function GET(request: NextRequest) {
           o.subtotal
         ) as products_value
       FROM orders o
-      LEFT JOIN drivers d ON o.driver_id = d.id
+      INNER JOIN drivers d ON o.driver_id = d.id
       WHERE ${whereClause}
       ORDER BY o.delivered_at DESC
     `
@@ -84,16 +95,22 @@ export async function GET(request: NextRequest) {
     const driversQuery = `
       SELECT id, name, email, phone
       FROM drivers
-      WHERE status != 'inactive'
       ORDER BY name
     `
     const driversResult = await client.query(driversQuery)
     const drivers = driversResult.rows
 
+    console.log(`[DELIVERY_REPORT] Encontrados ${drivers.length} entregadores`)
+    console.log(`[DELIVERY_REPORT] Encontradas ${deliveries.length} entregas entregues`)
+    console.log(`[DELIVERY_REPORT] Filtros aplicados: startDate=${startDate}, endDate=${endDate}, driverId=${driverId}`)
+
     // Agrupar entregas por entregador
     const deliveriesByDriver = deliveries.reduce((acc: any, delivery: any) => {
       const driverId = delivery.driver_id
-      if (!driverId) return acc
+      if (!driverId) {
+        console.log(`[DELIVERY_REPORT] Entrega ${delivery.id} sem driver_id - ignorando`)
+        return acc
+      }
 
       if (!acc[driverId]) {
         acc[driverId] = {
