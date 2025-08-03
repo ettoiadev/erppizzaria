@@ -2,12 +2,12 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, ShoppingBag, Package, Users, Bike, Settings, BarChart3, MapPin, Printer, Store } from "lucide-react"
+import { LayoutDashboard, ShoppingBag, Package, Users, Bike, Settings, BarChart3, MapPin, Printer, Calculator } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const navigation = [
   { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
-  { name: "PDV", href: "/admin/pdv", icon: Store },
+  { name: "PDV", href: "/admin/pdv", icon: Calculator },
   { name: "Pedidos", href: "/admin/pedidos", icon: ShoppingBag },
   { name: "Entregadores", href: "/admin/entregadores", icon: Bike },
   { name: "Produtos", href: "/admin/produtos", icon: Package },
@@ -27,6 +27,7 @@ export function AdminTabs() {
         <nav className="flex space-x-8 overflow-x-auto">
           {navigation.map((item) => {
             const isActive = pathname === item.href
+            const IconComponent = item.icon
             return (
               <Link
                 key={item.name}
@@ -38,7 +39,7 @@ export function AdminTabs() {
                     : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300",
                 )}
               >
-                <item.icon className="w-5 h-5 mr-2" />
+                <IconComponent className="w-5 h-5 mr-2" />
                 {item.name}
               </Link>
             )
