@@ -318,7 +318,6 @@ export function CustomersManagement() {
                         size="sm" 
                         onClick={() => setDeletingCustomer(customer)}
                         className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                        disabled={customer.totalOrders > 0}
                       >
                         <Trash2 className="w-4 h-4 mr-1" />
                         Excluir

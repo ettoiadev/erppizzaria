@@ -217,7 +217,7 @@ export default function DeliveryCalculator({
                     <div>
                       <span className="text-gray-600">Taxa:</span>
                       <span className="ml-1 font-semibold text-green-800">
-                        {result.delivery_fee === 0 ? 'Grátis' : `R$ ${result.delivery_fee?.toFixed(2)}`}
+                        {result.delivery_fee === 0 ? 'Grátis' : `R$ ${Number(result.delivery_fee)?.toFixed(2)}`}
                       </span>
                     </div>
                   </div>
@@ -237,7 +237,7 @@ export default function DeliveryCalculator({
                 {result.distance_km && (
                   <div className="text-xs text-gray-600 border-t pt-2">
                     <div className="flex justify-between items-center">
-                      <span>Distância: {result.distance_km.toFixed(1)} km</span>
+                      <span>Distância: {Number(result.distance_km).toFixed(1)} km</span>
                       {result.formatted_address && (
                         <span className="text-right max-w-xs truncate" title={result.formatted_address}>
                           {result.formatted_address}
@@ -268,7 +268,7 @@ export default function DeliveryCalculator({
                   
                   {result.distance_km && result.max_radius_km && (
                     <div className="mt-2 text-xs text-red-600">
-                      <p>Distância: {result.distance_km.toFixed(1)} km</p>
+                      <p>Distância: {Number(result.distance_km).toFixed(1)} km</p>
                       <p>Raio máximo: {result.max_radius_km} km</p>
                     </div>
                   )}

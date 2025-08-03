@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
@@ -217,7 +217,7 @@ export function OrdersManagement() {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${localStorage.getItem("auth_token")}`,
+          "Authorization": `Bearer ${localStorage.getItem("auth-token")}`,
         },
         body: JSON.stringify({ status })
       })
@@ -659,9 +659,12 @@ export function OrdersManagement() {
                 Novo Pedido Manual
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" aria-describedby="manual-order-modal-description">
               <DialogHeader>
                 <DialogTitle>Criar Pedido Manual</DialogTitle>
+                <DialogDescription id="manual-order-modal-description">
+                  Crie um pedido manualmente para um cliente.
+                </DialogDescription>
               </DialogHeader>
               <ManualOrderForm onSuccess={handleManualOrderSuccess} />
             </DialogContent>
@@ -941,9 +944,12 @@ export function OrdersManagement() {
                             Detalhes
                           </Button>
                         </DialogTrigger>
-                        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto" aria-describedby="order-details-modal-description">
                           <DialogHeader>
                             <DialogTitle>Detalhes do Pedido #{order.id.slice(-8)}</DialogTitle>
+                            <DialogDescription id="order-details-modal-description">
+                              Visualize os detalhes completos do pedido.
+                            </DialogDescription>
                           </DialogHeader>
                           {selectedOrder && (
                             <div className="space-y-4">
@@ -1045,9 +1051,12 @@ export function OrdersManagement() {
                               Cancelar
                             </Button>
                           </DialogTrigger>
-                          <DialogContent>
+                          <DialogContent aria-describedby="cancel-order-modal-description">
                             <DialogHeader>
                               <DialogTitle>Cancelar Pedido</DialogTitle>
+                              <DialogDescription id="cancel-order-modal-description">
+                                Confirme o cancelamento do pedido e informe o motivo.
+                              </DialogDescription>
                             </DialogHeader>
                             <div className="space-y-4">
                               <p>Tem certeza que deseja cancelar este pedido?</p>

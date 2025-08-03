@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
@@ -204,7 +204,7 @@ export function EditProductModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" aria-describedby="edit-product-modal-description">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             Editar: {product.productNumber ? `${product.productNumber} - ${product.name}` : product.name}
@@ -215,6 +215,9 @@ export function EditProductModal({
               </Badge>
             )}
           </DialogTitle>
+          <DialogDescription id="edit-product-modal-description">
+            Edite as configurações do produto no seu carrinho.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6">

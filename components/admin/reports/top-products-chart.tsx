@@ -169,7 +169,7 @@ export function TopProductsChart({ dateRange }: TopProductsChartProps) {
                     <span className="text-sm font-medium">{product.name}</span>
                     <div className="text-right">
                       <div className="text-sm font-semibold">{product.sales} vendas</div>
-                      <div className="text-xs text-gray-600">R$ {product.revenue.toFixed(2)}</div>
+                      <div className="text-xs text-gray-600">R$ {Number(product.revenue).toFixed(2)}</div>
                     </div>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
@@ -185,7 +185,7 @@ export function TopProductsChart({ dateRange }: TopProductsChartProps) {
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Receita total dos top 5:</span>
                   <span className="font-semibold">
-                    R$ {topProducts.reduce((sum, product) => sum + product.revenue, 0).toFixed(2)}
+                    R$ {topProducts.reduce((sum, product) => sum + Number(product.revenue), 0).toFixed(2)}
                   </span>
                 </div>
               </div>

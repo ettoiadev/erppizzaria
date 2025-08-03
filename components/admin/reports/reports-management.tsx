@@ -180,10 +180,10 @@ export function ReportsManagement() {
         console.log('💰 Relatórios - Métricas calculadas:', {
           vendasAtual: totalSales,
           vendasAnterior: previousSales,
-          crescimentoVendas: salesGrowth.toFixed(1) + '%',
+          crescimentoVendas: Number(salesGrowth).toFixed(1) + '%',
           pedidosAtual: totalOrders,
           pedidosAnterior: previousOrdersCount,
-          crescimentoPedidos: ordersGrowth.toFixed(1) + '%'
+          crescimentoPedidos: Number(ordersGrowth).toFixed(1) + '%'
         })
       }
 
@@ -426,7 +426,7 @@ export function ReportsManagement() {
                   })}
                   <span className={`text-sm ml-1 ${getGrowthColor(stats.salesGrowth)}`}>
                     {stats.salesGrowth > 0 ? "+" : ""}
-                    {stats.salesGrowth.toFixed(1)}%
+                    {Number(stats.salesGrowth).toFixed(1)}%
                   </span>
                 </div>
               </div>
@@ -449,7 +449,7 @@ export function ReportsManagement() {
                   })}
                   <span className={`text-sm ml-1 ${getGrowthColor(stats.ordersGrowth)}`}>
                     {stats.ordersGrowth > 0 ? "+" : ""}
-                    {stats.ordersGrowth.toFixed(1)}%
+                    {Number(stats.ordersGrowth).toFixed(1)}%
                   </span>
                 </div>
               </div>
@@ -472,7 +472,7 @@ export function ReportsManagement() {
                   })}
                   <span className={`text-sm ml-1 ${getGrowthColor(stats.customersGrowth)}`}>
                     {stats.customersGrowth > 0 ? "+" : ""}
-                    {stats.customersGrowth.toFixed(1)}%
+                    {Number(stats.customersGrowth).toFixed(1)}%
                   </span>
                 </div>
               </div>
@@ -495,7 +495,7 @@ export function ReportsManagement() {
                   })}
                   <span className={`text-sm ml-1 ${getGrowthColor(-stats.deliveryTimeChange)}`}>
                     {stats.deliveryTimeChange > 0 ? "+" : ""}
-                    {stats.deliveryTimeChange.toFixed(1)}%
+                    {Number(stats.deliveryTimeChange).toFixed(1)}%
                   </span>
                 </div>
               </div>
@@ -521,7 +521,7 @@ export function ReportsManagement() {
                   })}
                   <span className={`text-sm ml-1 ${getGrowthColor(stats.orderValueGrowth)}`}>
                     {stats.orderValueGrowth > 0 ? "+" : ""}
-                    {stats.orderValueGrowth.toFixed(1)}%
+                    {Number(stats.orderValueGrowth).toFixed(1)}%
                   </span>
                 </div>
               </div>
@@ -537,7 +537,7 @@ export function ReportsManagement() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Satisfação do Cliente</p>
-                <p className="text-2xl font-bold">{stats.customerSatisfaction.toFixed(1)}</p>
+                <p className="text-2xl font-bold">{Number(stats.customerSatisfaction).toFixed(1)}</p>
                 <div className="flex items-center mt-1">
                   <span className="text-sm text-gray-600">
                     Sistema de avaliações pendente
@@ -563,7 +563,7 @@ export function ReportsManagement() {
                   })}
                   <span className={`text-sm ml-1 ${getGrowthColor(stats.deliveriesGrowth)}`}>
                     {stats.deliveriesGrowth > 0 ? "+" : ""}
-                    {stats.deliveriesGrowth.toFixed(1)}%
+                    {Number(stats.deliveriesGrowth).toFixed(1)}%
                   </span>
                 </div>
               </div>

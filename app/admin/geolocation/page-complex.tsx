@@ -171,7 +171,7 @@ export default function GeolocationPage() {
       if (result.deliverable) {
         toast({
           title: "Teste de Entrega",
-          description: `✅ Entregável! Taxa: R$ ${result.delivery_fee?.toFixed(2)} - Tempo: ${result.estimated_time}min`
+          description: `✅ Entregável! Taxa: R$ ${Number(result.delivery_fee)?.toFixed(2)} - Tempo: ${result.estimated_time}min`
         })
       } else {
         toast({
@@ -481,7 +481,7 @@ export default function GeolocationPage() {
                         <span className="text-gray-600">Taxa:</span>
                         <span className="flex items-center gap-1">
                           <DollarSign className="w-3 h-3" />
-                          R$ {zone.delivery_fee.toFixed(2)}
+                          R$ {Number(zone.delivery_fee).toFixed(2)}
                         </span>
                       </div>
                       <div className="flex justify-between items-center">
@@ -572,7 +572,7 @@ export default function GeolocationPage() {
                         <div className="grid grid-cols-2 gap-4 text-sm">
                           <div>
                             <span className="text-gray-600">Taxa:</span>
-                            <span className="ml-2 font-medium">R$ {testResult.delivery_fee?.toFixed(2)}</span>
+                            <span className="ml-2 font-medium">R$ {Number(testResult.delivery_fee)?.toFixed(2)}</span>
                           </div>
                           <div>
                             <span className="text-gray-600">Tempo:</span>
@@ -580,7 +580,7 @@ export default function GeolocationPage() {
                           </div>
                           <div>
                             <span className="text-gray-600">Distância:</span>
-                            <span className="ml-2 font-medium">{testResult.distance_km?.toFixed(1)} km</span>
+                            <span className="ml-2 font-medium">{Number(testResult.distance_km)?.toFixed(1)} km</span>
                           </div>
                           <div>
                             <span className="text-gray-600">Zona:</span>

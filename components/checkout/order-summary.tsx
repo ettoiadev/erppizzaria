@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -293,9 +293,12 @@ function EditProductModal({
   if (!product || !product.id || !product.name) {
     return (
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent>
+        <DialogContent aria-describedby="error-modal-description">
           <DialogHeader>
             <DialogTitle>Erro</DialogTitle>
+            <DialogDescription id="error-modal-description">
+              Dados do produto inválidos. Tente novamente.
+            </DialogDescription>
           </DialogHeader>
           <div className="p-4 text-center">
             <p>Dados do produto inválidos. Tente novamente.</p>
@@ -482,7 +485,7 @@ function EditProductModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" aria-describedby="edit-product-modal-description">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             Editar: {product?.productNumber ? `${product.productNumber} - ${product.name}` : (product?.name || 'Produto')}
@@ -493,6 +496,9 @@ function EditProductModal({
               </Badge>
             )}
           </DialogTitle>
+          <DialogDescription id="edit-product-modal-description">
+            Edite as configurações do produto no seu carrinho.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6">

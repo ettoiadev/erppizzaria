@@ -203,7 +203,7 @@ export function PrinterSettings({ settings, onSave, onMarkUnsaved }: PrinterSett
             <div className="space-y-2">
               <Label htmlFor="connection-type">Tipo de Conexão</Label>
               <Select
-                value={config.interface}
+                value={config.interface || 'tcp://192.168.1.100:9100'}
                 onValueChange={(value) => {
                   setConfig({ ...config, interface: value })
                   onMarkUnsaved()
@@ -231,7 +231,7 @@ export function PrinterSettings({ settings, onSave, onMarkUnsaved }: PrinterSett
                 <Input
                   id="ip-address"
                   placeholder="192.168.1.100:9100"
-                  value={config.interface.replace('tcp://', '')}
+                  value={config.interface?.replace('tcp://', '') || ''}
                   onChange={(e) => {
                     setConfig({ ...config, interface: `tcp://${e.target.value}` })
                     onMarkUnsaved()
@@ -243,7 +243,7 @@ export function PrinterSettings({ settings, onSave, onMarkUnsaved }: PrinterSett
             <div className="space-y-2">
               <Label htmlFor="character-set">Conjunto de Caracteres</Label>
               <Select
-                value={config.characterSet}
+                value={config.characterSet || 'PC860_PORTUGUESE'}
                 onValueChange={(value) => {
                   setConfig({ ...config, characterSet: value })
                   onMarkUnsaved()
@@ -268,7 +268,7 @@ export function PrinterSettings({ settings, onSave, onMarkUnsaved }: PrinterSett
                 id="timeout"
                 type="number"
                 placeholder="5000"
-                value={config.timeout}
+                value={config.timeout || ''}
                 onChange={(e) => {
                   setConfig({ ...config, timeout: parseInt(e.target.value) || 5000 })
                   onMarkUnsaved()

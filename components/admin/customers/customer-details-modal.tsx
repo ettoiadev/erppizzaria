@@ -146,12 +146,12 @@ export function CustomerDetailsModal({ customer, isOpen, onClose }: CustomerDeta
               </div>
               <div className="text-center p-4 bg-green-50 rounded-lg">
                 <DollarSign className="w-8 h-8 text-green-600 mx-auto mb-2" />
-                <div className="text-2xl font-bold text-green-600">R$ {customer.totalSpent.toFixed(2)}</div>
+                <div className="text-2xl font-bold text-green-600">R$ {Number(customer.totalSpent).toFixed(2)}</div>
                 <div className="text-sm text-gray-600">Total Gasto</div>
               </div>
               <div className="text-center p-4 bg-purple-50 rounded-lg">
                 <Star className="w-8 h-8 text-purple-600 mx-auto mb-2" />
-                <div className="text-2xl font-bold text-purple-600">R$ {averageOrderValue.toFixed(2)}</div>
+                <div className="text-2xl font-bold text-purple-600">R$ {Number(averageOrderValue).toFixed(2)}</div>
                 <div className="text-sm text-gray-600">Ticket Médio</div>
               </div>
             </div>

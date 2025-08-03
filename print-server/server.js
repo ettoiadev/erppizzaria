@@ -14,7 +14,12 @@ const io = socketIo(server, {
   }
 });
 
-app.use(cors());
+app.use(cors({
+  origin: ["http://localhost:3000", "http://127.0.0.1:3000"],
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true
+}));
 app.use(express.json());
 
 // Configuração da impressora Bematech MP-4200 TH

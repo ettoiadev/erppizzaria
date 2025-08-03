@@ -182,45 +182,67 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
 
     const hasOrders = parseInt(ordersResult.rows[0].count) > 0
 
-    if (hasOrders) {
-      return NextResponse.json({
-        error: "Não é possível excluir cliente com pedidos realizados",
-        message: "Este cliente possui pedidos registrados no sistema e não pode ser excluído"
-      }, { status: 400 })
-    }
-
     await withTransaction(async (client) => {
-      // Excluir endereços do cliente
-      await client.query(`
-        DELETE FROM customer_addresses 
-        WHERE user_id = $1
-      `, [customerId])
-
-      // Excluir o cliente
-      await client.query(`
-        DELETE FROM profiles 
-        WHERE id = $1 AND role = 'customer'
-      `, [customerId])
-
-      // Verificar se este era o último cliente na sequência de códigos
-      // e disponibilizar o código para reuso se necessário
-      if (customer.customer_code) {
-        const maxCodeResult = await client.query(`
-          SELECT MAX(customer_code) as max_code FROM profiles 
-          WHERE role = 'customer' AND customer_code IS NOT NULL
-        `)
-
-        const maxCode = maxCodeResult.rows[0]?.max_code
+      if (hasOrders) {
+        // Se tem pedidos, anonimizar os dados em vez de excluir
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
         
-        // Se o cliente excluído tinha o maior código, o próximo cliente
-        // poderá reusar esse código (isso será tratado na criação de novos clientes)
-        console.log(`[CUSTOMERS] Cliente excluído tinha código ${customer.customer_code}, máximo atual: ${maxCode}`)
+        await client.query(`
+          UPDATE profiles 
+          SET 
+            full_name = $1,
+            email = $2,
+            phone = NULL,
+            updated_at = NOW()
+          WHERE id = $3 AND role = 'customer'
+        `, [
+          `[EXCLUÍDO] Cliente #${customer.customer_code || 'N/A'}`,
+          `excluido.${timestamp}@sistema.local`,
+          customerId
+        ])
+
+        // Excluir endereços (dados sensíveis)
+        await client.query(`
+          DELETE FROM customer_addresses 
+          WHERE user_id = $1
+        `, [customerId])
+
+        console.log(`[CUSTOMERS] Cliente com pedidos anonimizado: ${customer.customer_code}`)
+        
+      } else {
+        // Se não tem pedidos, pode excluir completamente
+        // Excluir endereços do cliente
+        await client.query(`
+          DELETE FROM customer_addresses 
+          WHERE user_id = $1
+        `, [customerId])
+
+        // Excluir o cliente
+        await client.query(`
+          DELETE FROM profiles 
+          WHERE id = $1 AND role = 'customer'
+        `, [customerId])
+
+        // Verificar se este era o último cliente na sequência de códigos
+        // e disponibilizar o código para reuso se necessário
+        if (customer.customer_code) {
+          const maxCodeResult = await client.query(`
+            SELECT MAX(customer_code) as max_code FROM profiles 
+            WHERE role = 'customer' AND customer_code IS NOT NULL
+          `)
+
+          const maxCode = maxCodeResult.rows[0]?.max_code
+          
+          console.log(`[CUSTOMERS] Cliente excluído tinha código ${customer.customer_code}, máximo atual: ${maxCode}`)
+        }
       }
     })
 
     return NextResponse.json({
       success: true,
-      message: "Cliente excluído com sucesso"
+      message: hasOrders 
+        ? "Cliente anonimizado com sucesso (dados pessoais removidos, pedidos preservados)"
+        : "Cliente excluído com sucesso"
     })
 
   } catch (error: any) {

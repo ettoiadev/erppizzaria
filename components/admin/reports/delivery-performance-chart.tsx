@@ -195,7 +195,7 @@ export function DeliveryPerformanceChart({ dateRange }: DeliveryPerformanceChart
                       </div>
                       <div className="flex items-center gap-1">
                         <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-                        <span>{person.rating.toFixed(1)}</span>
+                        <span>{Number(person.rating).toFixed(1)}</span>
                       </div>
                     </div>
                   </div>
@@ -226,7 +226,7 @@ export function DeliveryPerformanceChart({ dateRange }: DeliveryPerformanceChart
                     <div className="text-gray-600">Avaliação Média</div>
                     <div className="font-semibold">
                       {deliveryData.length > 0 
-                        ? (deliveryData.reduce((sum, person) => sum + person.rating, 0) / deliveryData.length).toFixed(1)
+                        ? (deliveryData.reduce((sum, person) => sum + Number(person.rating), 0) / deliveryData.length).toFixed(1)
                         : '0.0'}
                     </div>
                   </div>

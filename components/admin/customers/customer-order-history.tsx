@@ -173,7 +173,7 @@ export function CustomerOrderHistory({ customerId, isOpen, onClose }: CustomerOr
                               <span>
                                 {item.quantity}x {item.name}
                               </span>
-                              <span>R$ {(item.price * item.quantity).toFixed(2)}</span>
+                              <span>R$ {(Number(item.price) * Number(item.quantity)).toFixed(2)}</span>
                             </div>
                           ))}
                         </div>

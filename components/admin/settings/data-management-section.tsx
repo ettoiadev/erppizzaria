@@ -452,18 +452,20 @@ export function DataManagementSection({ onDataChange }: DataManagementSectionPro
               <AlertTriangle className="w-5 h-5" />
               Confirmar Exclusão de Todos os Clientes
             </AlertDialogTitle>
-            <AlertDialogDescription className="space-y-2">
-              <p>
-                <strong>Esta ação irá excluir TODOS os clientes do sistema.</strong>
-              </p>
-              <p>
-                • Clientes com pedidos associados serão apenas desativados<br/>
-                • Clientes sem pedidos serão excluídos permanentemente<br/>
-                • Esta ação não pode ser desfeita
-              </p>
-              <p className="text-red-600 font-medium">
-                Tem certeza que deseja continuar?
-              </p>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <p>
+                  <strong>Esta ação irá excluir TODOS os clientes do sistema.</strong>
+                </p>
+                <p>
+                  • Clientes com pedidos associados serão apenas desativados<br/>
+                  • Clientes sem pedidos serão excluídos permanentemente<br/>
+                  • Esta ação não pode ser desfeita
+                </p>
+                <p className="text-red-600 font-medium">
+                  Tem certeza que deseja continuar?
+                </p>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -494,18 +496,20 @@ export function DataManagementSection({ onDataChange }: DataManagementSectionPro
               <AlertTriangle className="w-5 h-5" />
               Confirmar Exclusão de Todos os Produtos
             </AlertDialogTitle>
-            <AlertDialogDescription className="space-y-2">
-              <p>
-                <strong>Esta ação irá excluir TODOS os produtos do sistema.</strong>
-              </p>
-              <p>
-                • Produtos com pedidos associados serão apenas desativados<br/>
-                • Produtos sem pedidos serão excluídos permanentemente<br/>
-                • Esta ação não pode ser desfeita
-              </p>
-              <p className="text-red-600 font-medium">
-                Tem certeza que deseja continuar?
-              </p>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <p>
+                  <strong>Esta ação irá excluir TODOS os produtos do sistema.</strong>
+                </p>
+                <p>
+                  • Produtos com pedidos associados serão apenas desativados<br/>
+                  • Produtos sem pedidos serão excluídos permanentemente<br/>
+                  • Esta ação não pode ser desfeita
+                </p>
+                <p className="text-red-600 font-medium">
+                  Tem certeza que deseja continuar?
+                </p>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -536,25 +540,27 @@ export function DataManagementSection({ onDataChange }: DataManagementSectionPro
               <AlertTriangle className="w-5 h-5" />
               Confirmar Exclusão de Todas as Vendas
             </AlertDialogTitle>
-            <AlertDialogDescription className="space-y-2">
-              <p>
-                <strong>Esta ação irá excluir TODOS os dados de vendas do sistema.</strong>
-              </p>
-              <p>
-                • Todos os pedidos serão excluídos permanentemente<br/>
-                • Todos os itens de pedidos serão excluídos permanentemente<br/>
-                • Todo o histórico de transações será perdido<br/>
-                • Os clientes e produtos NÃO serão afetados<br/>
-                • Esta ação não pode ser desfeita
-              </p>
-              <div className="bg-red-100 p-3 rounded-lg border border-red-300">
-                <p className="text-red-800 font-medium text-sm">
-                  ⚠️ ATENÇÃO: Esta ação é irreversível e removerá permanentemente todo o histórico de vendas!
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <p>
+                  <strong>Esta ação irá excluir TODOS os dados de vendas do sistema.</strong>
+                </p>
+                <p>
+                  • Todos os pedidos serão excluídos permanentemente<br/>
+                  • Todos os itens de pedidos serão excluídos permanentemente<br/>
+                  • Todo o histórico de transações será perdido<br/>
+                  • Os clientes e produtos NÃO serão afetados<br/>
+                  • Esta ação não pode ser desfeita
+                </p>
+                <div className="bg-red-100 p-3 rounded-lg border border-red-300">
+                  <p className="text-red-800 font-medium text-sm">
+                    ⚠️ ATENÇÃO: Esta ação é irreversível e removerá permanentemente todo o histórico de vendas!
+                  </p>
+                </div>
+                <p className="text-red-600 font-medium">
+                  Tem certeza que deseja continuar?
                 </p>
               </div>
-              <p className="text-red-600 font-medium">
-                Tem certeza que deseja continuar?
-              </p>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
@@ -237,7 +237,7 @@ export function OrdersKanban({
                             title={`Arquivar todos os pedidos ${statusLabels[status].toLowerCase()}`}
                           >
                             <Archive className="h-3 w-3 mr-1" />
-                            Archive All
+                            Arquivar Tudo
                           </Button>
                         )}
                       </div>
@@ -458,9 +458,12 @@ function OrderCard({
                 <Eye className="h-3 w-3" />
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+            <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto" aria-describedby="order-details-modal-description">
               <DialogHeader>
                 <DialogTitle>Detalhes do Pedido #{order.id.slice(-8)}</DialogTitle>
+                <DialogDescription id="order-details-modal-description">
+                  Visualize os detalhes completos do pedido.
+                </DialogDescription>
               </DialogHeader>
               {selectedOrder && (
                 <div className="space-y-4">
@@ -561,9 +564,12 @@ function OrderCard({
                   <XCircle className="h-3 w-3" />
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent aria-describedby="cancel-order-modal-description">
                 <DialogHeader>
                   <DialogTitle>Cancelar Pedido</DialogTitle>
+                  <DialogDescription id="cancel-order-modal-description">
+                    Confirme o cancelamento do pedido e informe o motivo.
+                  </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4">
                   <p>Tem certeza que deseja cancelar este pedido?</p>

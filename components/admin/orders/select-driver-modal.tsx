@@ -221,7 +221,7 @@ export function SelectDriverModal({ orderId, isOpen, onClose, onAssign }: Select
                             <div className="text-xs text-gray-600">Avaliação</div>
                             <div className="font-bold text-yellow-600 flex items-center gap-1">
                               <Star className="w-3 h-3" />
-                              {driver.average_rating.toFixed(1)}
+                              {Number(driver.average_rating).toFixed(1)}
                             </div>
                           </div>
                           <div>

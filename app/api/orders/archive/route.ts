@@ -13,6 +13,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const admin = await verifyAdmin(token)
+    
     if (!admin) {
       return NextResponse.json({ error: 'Acesso negado - usuário não é admin' }, { status: 403 })
     }

@@ -234,7 +234,12 @@ export class BematechPrinter {
     try {
       const response = await fetch(`${this.serverUrl}/status`, {
         method: 'GET',
-        signal: AbortSignal.timeout(2000) // Timeout de 2 segundos
+        signal: AbortSignal.timeout(2000), // Timeout de 2 segundos
+        mode: 'cors', // Adicionar modo CORS
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        }
       });
       return response.ok;
     } catch (error) {

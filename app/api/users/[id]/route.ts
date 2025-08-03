@@ -8,16 +8,13 @@ export async function GET(request: Request, { params }: { params: { id: string }
 
     const result = await query(
       `SELECT 
-        u.id,
-        u.email,
-        p.full_name as name,
-        p.phone,
-        p.role,
-        p.email_verified,
-        p.profile_completed
-      FROM auth.users u 
-      LEFT JOIN profiles p ON u.id = p.id 
-      WHERE u.id = $1`,
+        id,
+        email,
+        full_name as name,
+        phone,
+        role
+      FROM profiles 
+      WHERE id = $1`,
       [params.id]
     )
 
@@ -35,9 +32,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
         name: userData.name,
         full_name: userData.name,
         phone: userData.phone,
-        role: userData.role,
-        email_verified: userData.email_verified,
-        profile_completed: userData.profile_completed
+        role: userData.role
       }
     })
   } catch (error) {
@@ -82,7 +77,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
 
     // Verificar se o usuário existe
     const userCheck = await query(
-      "SELECT id FROM auth.users WHERE id = $1",
+      "SELECT id FROM profiles WHERE id = $1",
       [params.id]
     )
 
@@ -94,25 +89,12 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     await query("BEGIN")
 
     try {
-      // Atualizar email na tabela auth.users se necessário
-      const currentUserResult = await query(
-        "SELECT email FROM auth.users WHERE id = $1",
-        [params.id]
-      )
-      
-      if (currentUserResult.rows[0]?.email !== email) {
-        await query(
-          "UPDATE auth.users SET email = $1, updated_at = NOW() WHERE id = $2",
-          [email, params.id]
-        )
-      }
-
-      // Atualizar dados na tabela profiles (salvar telefone limpo - apenas números)
+      // Atualizar dados na tabela profiles
       await query(
         `UPDATE profiles 
-         SET full_name = $1, phone = $2, updated_at = NOW() 
-         WHERE id = $3`,
-        [name.trim(), cleanPhone, params.id]
+         SET full_name = $1, email = $2, phone = $3, updated_at = NOW() 
+         WHERE id = $4`,
+        [name.trim(), email, cleanPhone, params.id]
       )
 
       await query("COMMIT")

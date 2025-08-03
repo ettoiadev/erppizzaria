@@ -137,7 +137,7 @@ export function Dashboard() {
       // Log apenas em desenvolvimento
       if (process.env.NODE_ENV === 'development') {
         console.log('📈 Dashboard - Crescimento calculado:', {
-          crescimento: revenueGrowth.toFixed(1) + '%'
+          crescimento: Number(revenueGrowth).toFixed(1) + '%'
         })
       }
 
@@ -294,7 +294,7 @@ export function Dashboard() {
           <CardContent>
             <div className="text-2xl font-bold text-green-900">{formatCurrency(stats.dailySales)}</div>
             <p className="text-xs text-green-700">
-              {stats.revenueGrowth >= 0 ? '+' : ''}{stats.revenueGrowth.toFixed(1)}% em relação a ontem
+              {stats.revenueGrowth >= 0 ? '+' : ''}{Number(stats.revenueGrowth).toFixed(1)}% em relação a ontem
             </p>
           </CardContent>
         </Card>
@@ -436,7 +436,7 @@ export function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className={`text-2xl font-bold ${stats.revenueGrowth >= 0 ? 'text-emerald-900' : 'text-red-900'}`}>
-              {stats.revenueGrowth >= 0 ? '+' : ''}{stats.revenueGrowth.toFixed(1)}%
+              {stats.revenueGrowth >= 0 ? '+' : ''}{Number(stats.revenueGrowth).toFixed(1)}%
             </div>
             <p className={`text-xs ${stats.revenueGrowth >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
               {stats.revenueGrowth === 0 ? 'Sem variação' : 'Vendas vs. ontem'}

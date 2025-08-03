@@ -237,7 +237,7 @@ export function DeliveryReport({ isOpen, onClose }: DeliveryReportProps) {
                   <div className="space-y-2">
                     <Label>Método</Label>
                     <Select 
-                      value={earningsConfig.method} 
+                      value={earningsConfig.method || 'fixed'} 
                       onValueChange={(value: 'fixed' | 'percentage' | 'delivery_fee') => 
                         setEarningsConfig(prev => ({ ...prev, method: value }))
                       }
@@ -260,7 +260,7 @@ export function DeliveryReport({ isOpen, onClose }: DeliveryReportProps) {
                         type="number"
                         step="0.01"
                         min="0"
-                        value={earningsConfig.fixedAmount}
+                        value={earningsConfig.fixedAmount || ''}
                         onChange={(e) => setEarningsConfig(prev => ({ 
                           ...prev, 
                           fixedAmount: parseFloat(e.target.value) || 0 
@@ -277,7 +277,7 @@ export function DeliveryReport({ isOpen, onClose }: DeliveryReportProps) {
                         step="0.1"
                         min="0"
                         max="100"
-                        value={earningsConfig.percentage}
+                        value={earningsConfig.percentage || ''}
                         onChange={(e) => setEarningsConfig(prev => ({ 
                           ...prev, 
                           percentage: parseFloat(e.target.value) || 0 

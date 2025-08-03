@@ -534,3 +534,42 @@ export async function testConnection(): Promise<{ success: boolean; message: str
     }
   }
 }
+
+export async function saveCustomerAddress(userId: string, addressData: any): Promise<boolean> {
+  try {
+    console.log('📍 Salvando endereço para usuário:', userId);
+    
+    const result = await query(
+      `INSERT INTO customer_addresses (
+        user_id, 
+        label, 
+        zip_code, 
+        street, 
+        neighborhood, 
+        city, 
+        state, 
+        number, 
+        complement,
+        is_default
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      [
+        userId,
+        'Endereço Principal',
+        addressData.zipCode,
+        addressData.street,
+        addressData.neighborhood,
+        addressData.city,
+        addressData.state,
+        addressData.number,
+        addressData.complement || '',
+        true // Primeiro endereço como padrão
+      ]
+    );
+
+    console.log('✅ Endereço salvo com sucesso');
+    return true;
+  } catch (error: any) {
+    console.error('❌ Erro ao salvar endereço:', error.message);
+    return false;
+  }
+}

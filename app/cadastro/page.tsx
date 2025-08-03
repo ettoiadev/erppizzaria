@@ -103,7 +103,7 @@ export default function RegisterPage() {
       setError("Senha deve ter pelo menos 6 caracteres")
       return false
     }
-    if (!/(?=.*[a-z])(?=.*[A-Z])|(?=.*\d)/.test(formData.password)) {
+    if (!/(?=.*[a-z])(?=.*[A-Z])/.test(formData.password) && !/(?=.*\d)/.test(formData.password)) {
       setError("Senha deve conter pelo menos uma letra maiúscula e uma minúscula, ou um número")
       return false
     }
@@ -156,9 +156,15 @@ export default function RegisterPage() {
         email: formData.email.trim().toLowerCase(),
         password: formData.password,
         full_name: formData.name.trim(),
+        phone: formData.phone.replace(/\D/g, ""), // Remove formatação, manter apenas números
+        address: formData.address
       }
 
-      console.log("Registering user with payload:", { ...payload, password: "[HIDDEN]" })
+      console.log("Registering user with payload:", { 
+        ...payload, 
+        password: "[HIDDEN]",
+        address: formData.address 
+      })
 
       // Use AuthContext register method for automatic login and redirect
       await register(payload)

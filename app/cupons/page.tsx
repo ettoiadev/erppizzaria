@@ -152,7 +152,7 @@ export default function CouponsPage() {
                         <span className="text-2xl font-bold text-primary">{coupon.discount}</span>
                         <div className="text-right">
                           <p className="text-xs text-gray-500">Pedido mínimo</p>
-                          <p className="text-sm font-medium">R$ {coupon.minValue?.toFixed(2)}</p>
+                          <p className="text-sm font-medium">R$ {Number(coupon.minValue)?.toFixed(2)}</p>
                         </div>
                       </div>
                     </div>

@@ -17,11 +17,13 @@ export async function createUser({
   email, 
   password, 
   full_name, 
+  phone,
   role = 'customer' 
 }: {
   email: string;
   password: string;
   full_name: string;
+  phone?: string;
   role?: string;
 }): Promise<UserProfile | null> {
   try {
@@ -33,7 +35,8 @@ export async function createUser({
       email: email.toLowerCase(),
       full_name,
       role,
-      password_hash: hashedPassword
+      password_hash: hashedPassword,
+      phone
     });
 
     if (!user) {
@@ -46,6 +49,7 @@ export async function createUser({
       id: user.id,
       email: user.email,
       full_name: user.full_name,
+      phone: user.phone,
       role: user.role as 'customer' | 'admin' | 'kitchen' | 'delivery'
     };
   } catch (error: any) {
@@ -93,8 +97,8 @@ export async function verifyAdmin(token: string): Promise<any> {
   try {
     const payload = await verifyToken(token);
     
-    if (!payload || typeof payload === 'string' || payload.role !== 'admin') {
-      console.log('❌ Token não é de administrador');
+    if (!payload || typeof payload === 'string' || (payload.role !== 'admin' && payload.role !== 'ADMIN')) {
+      console.log('❌ Token não é de administrador:', payload?.role);
       return null;
     }
 

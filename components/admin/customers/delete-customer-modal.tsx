@@ -3,7 +3,8 @@
 import { useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { AlertTriangle, Loader2, Trash2, X } from "lucide-react"
+import { Checkbox } from "@/components/ui/checkbox"
+import { AlertTriangle, Loader2, Trash2, X, ShoppingBag } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import type { Customer } from "@/types/admin"
 
@@ -16,6 +17,7 @@ interface DeleteCustomerModalProps {
 
 export function DeleteCustomerModal({ customer, isOpen, onClose, onSuccess }: DeleteCustomerModalProps) {
   const [loading, setLoading] = useState(false)
+  const [confirmDeletion, setConfirmDeletion] = useState(false)
 
   if (!customer) return null
 
@@ -39,7 +41,7 @@ export function DeleteCustomerModal({ customer, isOpen, onClose, onSuccess }: De
       })
 
       onSuccess()
-      onClose()
+      handleClose()
       
     } catch (error: any) {
       console.error('Erro ao excluir cliente:', error)
@@ -53,8 +55,13 @@ export function DeleteCustomerModal({ customer, isOpen, onClose, onSuccess }: De
     }
   }
 
+  const handleClose = () => {
+    setConfirmDeletion(false)
+    onClose()
+  }
+
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-red-600">
@@ -82,21 +89,35 @@ export function DeleteCustomerModal({ customer, isOpen, onClose, onSuccess }: De
               <div><strong>Email:</strong> {customer.email}</div>
               <div><strong>Telefone:</strong> {customer.phone}</div>
               <div><strong>Total de Pedidos:</strong> {customer.totalOrders}</div>
-              <div><strong>Total Gasto:</strong> R$ {customer.totalSpent.toFixed(2)}</div>
+              <div><strong>Total Gasto:</strong> R$ {Number(customer.totalSpent).toFixed(2)}</div>
             </div>
           </div>
 
           {/* Aviso sobre pedidos */}
           {customer.totalOrders > 0 && (
-            <div className="bg-yellow-50 border border-yellow-200 p-3 rounded-lg">
-              <div className="flex items-center gap-2 text-yellow-800">
-                <AlertTriangle className="w-4 h-4" />
-                <span className="text-sm font-semibold">Atenção</span>
+            <div className="bg-red-50 border border-red-200 p-3 rounded-lg">
+              <div className="flex items-center gap-2 text-red-800">
+                <ShoppingBag className="w-4 h-4" />
+                <span className="text-sm font-semibold">Atenção - Cliente com Pedidos</span>
               </div>
-              <p className="text-sm text-yellow-700 mt-1">
-                Este cliente possui {customer.totalOrders} pedido(s) registrado(s). 
-                Clientes com pedidos não podem ser excluídos para manter a integridade dos dados.
+              <p className="text-sm text-red-700 mt-1">
+                Este cliente possui <strong>{customer.totalOrders} pedido(s)</strong> registrado(s). 
+                Para preservar a integridade dos dados, o cliente será <strong>anonimizado</strong> 
+                (dados pessoais removidos, mas pedidos preservados no sistema).
               </p>
+              <div className="flex items-center space-x-2 mt-3">
+                <Checkbox 
+                  id="confirm-deletion" 
+                  checked={confirmDeletion}
+                  onCheckedChange={(checked) => setConfirmDeletion(checked as boolean)}
+                />
+                <label 
+                  htmlFor="confirm-deletion" 
+                  className="text-sm text-red-700 cursor-pointer"
+                >
+                  Entendo que o cliente será anonimizado e desejo continuar
+                </label>
+              </div>
             </div>
           )}
 
@@ -118,7 +139,7 @@ export function DeleteCustomerModal({ customer, isOpen, onClose, onSuccess }: De
             <Button
               type="button"
               variant="outline"
-              onClick={onClose}
+              onClick={handleClose}
               disabled={loading}
             >
               <X className="w-4 h-4 mr-2" />
@@ -127,7 +148,7 @@ export function DeleteCustomerModal({ customer, isOpen, onClose, onSuccess }: De
             
             <Button
               onClick={handleDelete}
-              disabled={loading || customer.totalOrders > 0}
+              disabled={loading || (customer.totalOrders > 0 && !confirmDeletion)}
               variant="destructive"
               className="min-w-[120px]"
             >
@@ -139,15 +160,15 @@ export function DeleteCustomerModal({ customer, isOpen, onClose, onSuccess }: De
               ) : (
                 <>
                   <Trash2 className="w-4 h-4 mr-2" />
-                  Excluir
+                  {customer.totalOrders > 0 ? "Anonimizar" : "Excluir"}
                 </>
               )}
             </Button>
           </div>
 
-          {customer.totalOrders > 0 && (
-            <p className="text-xs text-gray-500 text-center">
-              Clientes com pedidos não podem ser excluídos
+          {customer.totalOrders > 0 && !confirmDeletion && (
+            <p className="text-xs text-red-500 text-center">
+              Marque a confirmação acima para habilitar a anonimização
             </p>
           )}
         </div>
