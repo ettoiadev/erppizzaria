@@ -188,13 +188,14 @@ export function ReportsManagement() {
       }
 
       // Calcular tempo médio de entrega com validação aprimorada
-      let avgDeliveryTime = 35 // Valor padrão baseado no sistema
+      let avgDeliveryTime = 0 // Usar 0 se não há dados reais
       if (deliveredOrders.length > 0) {
         const validDeliveryTimes: number[] = []
         
         deliveredOrders.forEach((order: any) => {
           const created = new Date(order.created_at)
-          const delivered = new Date(order.updated_at)
+          // Usar delivered_at se existir, senão usar updated_at
+          const delivered = new Date(order.delivered_at || order.updated_at)
           
           if (created && delivered && !isNaN(created.getTime()) && !isNaN(delivered.getTime())) {
             const deliveryTimeMinutes = (delivered.getTime() - created.getTime()) / (1000 * 60)
@@ -212,13 +213,14 @@ export function ReportsManagement() {
 
       // Tempo médio anterior com mesma validação
       const previousDelivered = previousOrders.filter((order: any) => order.status === 'DELIVERED')
-      let previousAvgDeliveryTime = 35 // Valor padrão
+      let previousAvgDeliveryTime = 0 // Usar 0 se não há dados reais
       if (previousDelivered.length > 0) {
         const validPreviousTimes: number[] = []
         
         previousDelivered.forEach((order: any) => {
           const created = new Date(order.created_at)
-          const delivered = new Date(order.updated_at)
+          // Usar delivered_at se existir, senão usar updated_at
+          const delivered = new Date(order.delivered_at || order.updated_at)
           
           if (created && delivered && !isNaN(created.getTime()) && !isNaN(delivered.getTime())) {
             const deliveryTimeMinutes = (delivered.getTime() - created.getTime()) / (1000 * 60)
@@ -286,7 +288,7 @@ export function ReportsManagement() {
         deliveryTimeChange: Math.round(deliveryTimeChange * 100) / 100,
         avgOrderValue: Math.round(avgOrderValue * 100) / 100,
         orderValueGrowth: Math.round(orderValueGrowth * 100) / 100,
-        customerSatisfaction: 4.5, // Placeholder - seria necessário um sistema de avaliações
+        customerSatisfaction: 0, // Sem sistema de avaliações implementado
         satisfactionChange: 0,
         totalDeliveries,
         deliveriesGrowth: Math.round(deliveriesGrowth * 100) / 100,

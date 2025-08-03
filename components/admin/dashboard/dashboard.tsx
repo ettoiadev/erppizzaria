@@ -169,6 +169,22 @@ export function Dashboard() {
           revenue: p.revenue
         }))
 
+      // Calcular tempo médio de entrega baseado em pedidos entregues
+      const deliveredOrders = orders.filter((order: any) => 
+        order.status === 'DELIVERED' && order.created_at && order.delivered_at
+      )
+      
+      let avgDeliveryTime = 0
+      if (deliveredOrders.length > 0) {
+        const totalDeliveryTime = deliveredOrders.reduce((sum: number, order: any) => {
+          const createdAt = new Date(order.created_at).getTime()
+          const deliveredAt = new Date(order.delivered_at).getTime()
+          const deliveryTimeMinutes = (deliveredAt - createdAt) / (1000 * 60) // em minutos
+          return sum + deliveryTimeMinutes
+        }, 0)
+        avgDeliveryTime = Math.round(totalDeliveryTime / deliveredOrders.length)
+      }
+
       // Pedidos recentes (últimos 5)
       const recentOrders = orders
         .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
@@ -187,7 +203,7 @@ export function Dashboard() {
         totalOrders: orders.length,
         todayOrders: todayOrders.length,
         activeCustomers: customersData.customers?.length || 0,
-        avgDeliveryTime: 35, // Valor padrão por enquanto
+        avgDeliveryTime,
         totalProducts: Array.isArray(productsData) ? productsData.length : (productsData.products?.length || 0),
         totalCategories: categoriesData.categories?.length || 0,
         revenueGrowth
