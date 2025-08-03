@@ -154,34 +154,7 @@ export function DeliveryReport({ isOpen, onClose }: DeliveryReportProps) {
     })
   }
 
-  const handleCreateTestData = async () => {
-    try {
-      const response = await api('/api/admin/delivery/create-test-data', {
-        method: 'POST'
-      })
 
-      if (!response.ok) {
-        throw new Error('Erro ao criar dados de teste')
-      }
-
-      const result = await response.json()
-      
-      toast({
-        title: "Dados de Teste Criados",
-        description: `${result.data.driversCreated} entregadores e ${result.data.ordersCreated} entregas criados`
-      })
-
-      // Recarregar dados após criar dados de teste
-      refetch()
-    } catch (error) {
-      console.error('Erro ao criar dados de teste:', error)
-      toast({
-        title: "Erro",
-        description: "Não foi possível criar os dados de teste",
-        variant: "destructive"
-      })
-    }
-  }
 
   if (!isOpen) return null
 
@@ -314,15 +287,8 @@ export function DeliveryReport({ isOpen, onClose }: DeliveryReportProps) {
                   )}
 
                   <div className="flex items-end gap-2">
-                    <Button onClick={handleApplyFilters} className="flex-1">
+                    <Button onClick={handleApplyFilters} className="w-full">
                       Aplicar Filtros
-                    </Button>
-                    <Button 
-                      onClick={handleCreateTestData} 
-                      variant="outline" 
-                      className="flex-1"
-                    >
-                      Criar Dados de Teste
                     </Button>
                   </div>
                 </div>
