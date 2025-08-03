@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { useRouter } from "next/navigation"
 import { Minus, Plus, Trash2, Edit, Pizza } from "lucide-react"
 import { useCart } from "@/contexts/cart-context"
+import { useAppSettings, calculateDeliveryFee } from "@/hooks/use-app-settings"
 import type { CartItem, Product } from "@/types"
 
 interface OrderSummaryProps {
@@ -24,11 +25,12 @@ interface OrderSummaryProps {
 export function OrderSummary({ items, total }: OrderSummaryProps) {
   const router = useRouter()
   const { removeItem, updateQuantity, updateItemByIndex } = useCart()
+  const { settings } = useAppSettings()
   const [editingItem, setEditingItem] = useState<{ item: CartItem; index: number } | null>(null)
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   
-  const deliveryFee = total >= 50 ? 0 : 5.9
+  const deliveryFee = calculateDeliveryFee(total, settings)
   const finalTotal = total + deliveryFee
 
   // Função para buscar dados do produto e abrir modal de edição

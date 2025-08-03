@@ -9,6 +9,7 @@ import { OrderSummary } from "@/components/checkout/order-summary"
 import { useCart } from "@/contexts/cart-context"
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/hooks/use-toast"
+import { useAppSettings, calculateDeliveryFee } from "@/hooks/use-app-settings"
 
 export default function CheckoutPage() {
   const router = useRouter()
@@ -17,6 +18,7 @@ export default function CheckoutPage() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const { settings } = useAppSettings()
 
   console.log("CheckoutPage - Current user:", user)
   console.log("CheckoutPage - Cart items:", items)
@@ -37,8 +39,8 @@ export default function CheckoutPage() {
       setIsSubmitting(true)
       console.log("CheckoutPage - Submitting order:", orderData)
 
-      // Calcular taxa de entrega
-      const deliveryFee = total >= 50 ? 0 : 5.9
+      // Calcular taxa de entrega usando configurações
+      const deliveryFee = calculateDeliveryFee(total, settings)
       const finalTotal = total + deliveryFee
       
       // Preparar dados do pedido

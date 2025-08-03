@@ -44,6 +44,7 @@ interface GeolocationSettings {
 
 interface StaticDeliverySettings {
   deliveryEnabled: boolean
+  freeDeliveryEnabled: boolean
   freeDeliveryMinimum: number
   defaultDeliveryFee: number
   maxDeliveryDistance: number
@@ -69,6 +70,7 @@ export function VisualDeliverySettings({
   const [deliveryMode, setDeliveryMode] = useState<'static' | 'geolocation'>('static')
   const [staticSettings, setStaticSettings] = useState<StaticDeliverySettings>({
     deliveryEnabled: initialSettings.deliveryEnabled ?? true,
+    freeDeliveryEnabled: initialSettings.freeDeliveryEnabled ?? true,
     freeDeliveryMinimum: initialSettings.freeDeliveryMinimum || 50.0,
     defaultDeliveryFee: initialSettings.defaultDeliveryFee || 5.9,
     maxDeliveryDistance: initialSettings.maxDeliveryDistance || 10,
@@ -407,6 +409,19 @@ export function VisualDeliverySettings({
 
               <Separator />
 
+              <div className="flex items-center space-x-2">
+                <Switch
+                  checked={staticSettings.freeDeliveryEnabled}
+                  onCheckedChange={(checked) => {
+                    setStaticSettings(prev => ({ ...prev, freeDeliveryEnabled: checked }))
+                    if (onMarkUnsaved) onMarkUnsaved()
+                  }}
+                />
+                <Label>Habilitar Frete Grátis</Label>
+              </div>
+
+              <Separator />
+
               <div className="grid md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="freeDeliveryMinimum" className="flex items-center gap-2">
@@ -422,7 +437,12 @@ export function VisualDeliverySettings({
                       setStaticSettings(prev => ({ ...prev, freeDeliveryMinimum: parseFloat(e.target.value) }))
                       if (onMarkUnsaved) onMarkUnsaved()
                     }}
+                    disabled={!staticSettings.freeDeliveryEnabled}
+                    className={!staticSettings.freeDeliveryEnabled ? "opacity-50" : ""}
                   />
+                  {!staticSettings.freeDeliveryEnabled && (
+                    <p className="text-xs text-gray-500">Campo desabilitado - frete grátis está inativo</p>
+                  )}
                 </div>
 
                 <div className="space-y-2">

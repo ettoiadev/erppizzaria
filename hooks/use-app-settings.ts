@@ -21,6 +21,7 @@ export interface AppSettings {
   freeDeliveryEnabled?: string
   freeDeliveryTitle?: string
   freeDeliverySubtext?: string
+  freeDeliveryMinimum?: string // Adicionado para o novo cálculo
 }
 
 const defaultSettings: AppSettings = {
@@ -42,7 +43,8 @@ const defaultSettings: AppSettings = {
   fastDeliverySubtext: 'Em até 30 minutos',
   freeDeliveryEnabled: 'true',
   freeDeliveryTitle: 'Frete Grátis',
-  freeDeliverySubtext: 'Pedidos acima de R$ 50'
+  freeDeliverySubtext: 'Pedidos acima de R$ 50',
+  freeDeliveryMinimum: '50' // Adicionado para o novo cálculo
 }
 
 // Cache global para as configurações
@@ -145,4 +147,17 @@ export const isRestaurantOpen = (settings: AppSettings): boolean => {
   }
   
   return true
+} 
+
+export const calculateDeliveryFee = (subtotal: number, settings: AppSettings): number => {
+  // Se o frete grátis estiver desabilitado, sempre cobrar taxa padrão
+  if (settings.freeDeliveryEnabled === 'false') {
+    return parseFloat(settings.delivery_fee || '5.9')
+  }
+
+  // Se o frete grátis estiver habilitado, aplicar lógica de valor mínimo
+  const freeDeliveryMinimum = parseFloat(settings.freeDeliveryMinimum || '50')
+  const defaultDeliveryFee = parseFloat(settings.delivery_fee || '5.9')
+  
+  return subtotal >= freeDeliveryMinimum ? 0 : defaultDeliveryFee
 } 

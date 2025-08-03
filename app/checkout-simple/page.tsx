@@ -8,12 +8,14 @@ import { OrderSummary } from "@/components/checkout/order-summary"
 import { useCart } from "@/contexts/cart-context"
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/hooks/use-toast"
+import { useAppSettings, calculateDeliveryFee } from "@/hooks/use-app-settings"
 
 export default function SimpleCheckoutPage() {
   const router = useRouter()
   const { items, total, clearCart } = useCart()
   const { user } = useAuth()
   const { toast } = useToast()
+  const { settings } = useAppSettings()
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const handleOrderSubmit = async (orderData: any) => {
@@ -39,8 +41,8 @@ export default function SimpleCheckoutPage() {
     try {
       setIsSubmitting(true)
       
-      // Calcular valores
-      const deliveryFee = total >= 50 ? 0 : 5.9
+      // Calcular valores usando configurações
+      const deliveryFee = calculateDeliveryFee(total, settings)
       const finalTotal = total + deliveryFee
       
       // Preparar payload simplificado

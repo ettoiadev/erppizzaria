@@ -17,6 +17,7 @@ interface DeliverySettingsProps {
 export function DeliverySettings({ settings: initialSettings, onSave }: DeliverySettingsProps) {
   const [settings, setSettings] = useState({
     deliveryEnabled: initialSettings.deliveryEnabled ?? true,
+    freeDeliveryEnabled: initialSettings.freeDeliveryEnabled ?? true,
     freeDeliveryMinimum: initialSettings.freeDeliveryMinimum || 50.0,
     defaultDeliveryFee: initialSettings.defaultDeliveryFee || 5.9,
     maxDeliveryDistance: initialSettings.maxDeliveryDistance || 10,
@@ -91,6 +92,20 @@ export function DeliverySettings({ settings: initialSettings, onSave }: Delivery
 
           <Separator />
 
+          <div className="flex items-center justify-between">
+            <div>
+              <Label htmlFor="freeDeliveryEnabled">Frete Grátis Ativo</Label>
+              <p className="text-sm text-gray-600">Habilita ou desabilita a condição de frete grátis</p>
+            </div>
+            <Switch
+              id="freeDeliveryEnabled"
+              checked={settings.freeDeliveryEnabled}
+              onCheckedChange={(checked) => handleInputChange("freeDeliveryEnabled", checked)}
+            />
+          </div>
+
+          <Separator />
+
           <div className="grid md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="freeDeliveryMinimum" className="flex items-center gap-2">
@@ -103,7 +118,12 @@ export function DeliverySettings({ settings: initialSettings, onSave }: Delivery
                 step="0.01"
                 value={settings.freeDeliveryMinimum}
                 onChange={(e) => handleInputChange("freeDeliveryMinimum", Number.parseFloat(e.target.value))}
+                disabled={!settings.freeDeliveryEnabled}
+                className={!settings.freeDeliveryEnabled ? "opacity-50" : ""}
               />
+              {!settings.freeDeliveryEnabled && (
+                <p className="text-xs text-gray-500">Campo desabilitado - frete grátis está inativo</p>
+              )}
             </div>
 
             <div className="space-y-2">

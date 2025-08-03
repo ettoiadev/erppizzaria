@@ -25,7 +25,8 @@ export async function GET() {
       'fastDeliverySubtext',
       'freeDeliveryEnabled',
       'freeDeliveryTitle',
-      'freeDeliverySubtext'
+      'freeDeliverySubtext',
+      'freeDeliveryMinimum'
     ]
 
     // Buscar configurações usando PostgreSQL
@@ -59,7 +60,8 @@ export async function GET() {
       fastDeliverySubtext: 'Entrega expressa em até 30 minutos ou sua pizza é grátis',
       freeDeliveryEnabled: 'true',
       freeDeliveryTitle: 'Frete Grátis',
-      freeDeliverySubtext: 'Entrega gratuita para pedidos acima de R$ 50,00'
+      freeDeliverySubtext: 'Entrega gratuita para pedidos acima de R$ 50,00',
+      freeDeliveryMinimum: '50.00'
     }
 
     // Mesclar configurações padrão com as do banco
