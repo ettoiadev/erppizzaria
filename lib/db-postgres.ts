@@ -483,7 +483,7 @@ export async function updateOrderStatus(orderId: number, status: Order['status']
 
 export async function getAdminSettings(): Promise<Record<string, string>> {
   try {
-    const result = await query('SELECT key, value FROM public.admin_settings')
+    const result = await query('SELECT setting_key as key, setting_value as value FROM public.admin_settings')
 
     const settings: Record<string, string> = {}
     result.rows.forEach((setting: any) => {
@@ -499,17 +499,24 @@ export async function getAdminSettings(): Promise<Record<string, string>> {
 
 export async function updateAdminSetting(key: string, value: string): Promise<boolean> {
   try {
-    await query(
-      `INSERT INTO public.admin_settings (key, value) 
+    console.log(`🔄 Tentando atualizar configuração: ${key} = ${value}`)
+    
+    const result = await query(
+      `INSERT INTO public.admin_settings (setting_key, setting_value) 
        VALUES ($1, $2) 
-       ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()`,
+       ON CONFLICT (setting_key) DO UPDATE SET setting_value = $2, updated_at = NOW()`,
       [key, value]
     )
     
-    console.log('✅ Configuração atualizada:', { key, value })
+    console.log('✅ Configuração atualizada com sucesso:', { key, value })
     return true
   } catch (error: any) {
-    console.error('❌ Erro ao atualizar configuração:', error.message)
+    console.error('❌ Erro ao atualizar configuração:', {
+      key,
+      value,
+      error: error.message,
+      stack: error.stack
+    })
     return false
   }
 }

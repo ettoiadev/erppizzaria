@@ -114,10 +114,24 @@ export async function POST(request: Request) {
 
     const settings = await request.json()
     console.log(`[ADMIN_SETTINGS] Atualizando ${Object.keys(settings).length} configurações`)
+    console.log(`[ADMIN_SETTINGS] Dados recebidos:`, settings)
 
     // Salvar configurações usando PostgreSQL
     for (const [key, value] of Object.entries(settings)) {
-      const stringValue = typeof value === 'string' ? value : JSON.stringify(value)
+      let stringValue: string
+      
+      // Tratar diferentes tipos de dados
+      if (typeof value === 'boolean') {
+        stringValue = value ? 'true' : 'false'
+      } else if (typeof value === 'number') {
+        stringValue = value.toString()
+      } else if (typeof value === 'object') {
+        stringValue = JSON.stringify(value)
+      } else {
+        stringValue = String(value)
+      }
+      
+      console.log(`[ADMIN_SETTINGS] Salvando ${key}: ${stringValue}`)
       
       const success = await updateAdminSetting(key, stringValue)
       if (!success) {
