@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useQuery } from "@tanstack/react-query"
+import { useProtectedApi } from "@/hooks/use-protected-api"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -89,6 +90,7 @@ export function DeliveryReport({ isOpen, onClose }: DeliveryReportProps) {
   })
 
   const { toast } = useToast()
+  const api = useProtectedApi()
 
   // Buscar dados do relatório
   const { data: reportData, isLoading, refetch } = useQuery<ReportData>({
@@ -100,7 +102,7 @@ export function DeliveryReport({ isOpen, onClose }: DeliveryReportProps) {
         driverId: selectedDriverId
       })
 
-      const response = await fetch(`/api/admin/delivery/reports?${params}`)
+      const response = await api(`/api/admin/delivery/reports?${params}`)
       
       if (!response.ok) {
         throw new Error('Erro ao buscar relatório')
