@@ -719,105 +719,50 @@ export function PDVInterface() {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-200px)]">
-      {/* Coluna Esquerda: Produtos e Categorias */}
-      <div className="lg:col-span-2 space-y-4 overflow-y-auto">
-        {/* Filtro de Categorias */}
+      {/* Coluna Esquerda: Pedido e Cliente */}
+      <div className="lg:col-span-1 space-y-4 overflow-y-auto">
+        {/* Tipo de Pedido - Primeiro no topo */}
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-lg">
-              <Filter className="h-5 w-5" />
-              Filtrar por Categoria
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                variant={selectedCategory === "all" ? "default" : "outline"}
-                onClick={() => setSelectedCategory("all")}
-                className="h-12 px-6 text-base font-medium"
-              >
-                <Grid3X3 className="h-4 w-4 mr-2" />
-                Todas
-              </Button>
-              {categories.map((category) => (
-                <Button
-                  key={category.id}
-                  variant={selectedCategory === category.id ? "default" : "outline"}
-                  onClick={() => setSelectedCategory(category.id)}
-                  className="h-12 px-6 text-base font-medium"
-                >
-                  {category.name}
-                </Button>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Grid de Produtos */}
-        <Card ref={productsRef}>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-lg">
               <Package className="h-5 w-5" />
-              Produtos {selectedCategory !== "all" && `- ${categories.find(c => c.id === selectedCategory)?.name}`}
-              <Badge variant="secondary" className="ml-2">
-                {filteredProducts.length} itens
-              </Badge>
+              Tipo de Pedido
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 max-h-96 overflow-y-auto">
-              {filteredProducts.map((product) => (
-                <div
-                  key={product.id}
-                  className="border rounded-lg p-4 hover:shadow-lg transition-all cursor-pointer bg-white hover:bg-gray-50"
-                  onClick={() => openProductModal(product)}
-                >
-                  <div className="space-y-3">
-                    {product.showImage && product.image && (
-                      <img
-                        src={product.image}
-                        alt={product.name}
-                        className="w-full h-20 object-cover rounded"
-                      />
-                    )}
-                    <div>
-                      <h4 className="font-semibold text-base leading-tight">
-                        {product.productNumber ? `${product.productNumber} - ${product.name}` : product.name}
-                      </h4>
-                      <p className="text-lg font-bold text-primary mt-1">
-                        {formatCurrency(product.price)}
-                      </p>
-                      {product.category_name && (
-                        <Badge variant="outline" className="text-xs mt-1">
-                          {product.category_name}
-                        </Badge>
-                      )}
-                    </div>
-                    <Button size="sm" className="w-full h-10 text-base font-medium">
-                      <Plus className="h-4 w-4 mr-2" />
-                      Adicionar
-                    </Button>
-                  </div>
-                </div>
-              ))}
+            <div className="grid grid-cols-2 gap-3">
+              {/* Balcão */}
+              <Button
+                type="button"
+                variant={orderType === "balcao" ? "default" : "outline"}
+                onClick={() => setOrderType("balcao")}
+                className={`h-16 flex flex-col items-center justify-center gap-2 transition-all duration-200 ${
+                  orderType === "balcao"
+                    ? "bg-teal-600 hover:bg-teal-700 text-white border-teal-600 shadow-lg scale-105"
+                    : "border-teal-200 text-teal-700 hover:bg-teal-50 hover:border-teal-300"
+                }`}
+              >
+                <Store className="h-6 w-6" />
+                <span className="text-sm font-semibold">Balcão</span>
+              </Button>
+
+              {/* Telefone */}
+              <Button
+                type="button"
+                variant={orderType === "telefone" ? "default" : "outline"}
+                onClick={() => setOrderType("telefone")}
+                className={`h-16 flex flex-col items-center justify-center gap-2 transition-all duration-200 ${
+                  orderType === "telefone"
+                    ? "bg-orange-600 hover:bg-orange-700 text-white border-orange-600 shadow-lg scale-105"
+                    : "border-orange-200 text-orange-700 hover:bg-orange-50 hover:border-orange-300"
+                }`}
+              >
+                <Phone className="h-6 w-6" />
+                <span className="text-sm font-semibold">Entrega</span>
+              </Button>
             </div>
-            {filteredProducts.length === 0 && (
-              <div className="text-center py-12">
-                <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-500 text-lg">
-                  {selectedCategory === "all" 
-                    ? "Nenhum produto disponível" 
-                    : "Nenhum produto encontrado nesta categoria"
-                  }
-                </p>
-              </div>
-            )}
           </CardContent>
         </Card>
-      </div>
-
-      {/* Coluna Direita: Pedido e Cliente */}
-      <div className="space-y-4 overflow-y-auto">
         {/* Dados do Cliente - Simplificado para PDV */}
         <Card>
           <CardHeader className="pb-3">
@@ -1013,48 +958,7 @@ export function PDVInterface() {
           </CardContent>
         </Card>
 
-        {/* Tipo de Pedido - Simplificado */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Package className="h-5 w-5" />
-              Tipo de Pedido
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-3">
-              {/* Balcão */}
-              <Button
-                type="button"
-                variant={orderType === "balcao" ? "default" : "outline"}
-                onClick={() => setOrderType("balcao")}
-                className={`h-16 flex flex-col items-center justify-center gap-2 transition-all duration-200 ${
-                  orderType === "balcao"
-                    ? "bg-teal-600 hover:bg-teal-700 text-white border-teal-600 shadow-lg scale-105"
-                    : "border-teal-200 text-teal-700 hover:bg-teal-50 hover:border-teal-300"
-                }`}
-              >
-                <Store className="h-6 w-6" />
-                <span className="text-sm font-semibold">Balcão</span>
-              </Button>
 
-              {/* Telefone */}
-              <Button
-                type="button"
-                variant={orderType === "telefone" ? "default" : "outline"}
-                onClick={() => setOrderType("telefone")}
-                className={`h-16 flex flex-col items-center justify-center gap-2 transition-all duration-200 ${
-                  orderType === "telefone"
-                    ? "bg-orange-600 hover:bg-orange-700 text-white border-orange-600 shadow-lg scale-105"
-                    : "border-orange-200 text-orange-700 hover:bg-orange-50 hover:border-orange-300"
-                }`}
-              >
-                <Phone className="h-6 w-6" />
-                <span className="text-sm font-semibold">Entrega</span>
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
 
         {/* Carrinho */}
         <Card>
@@ -1210,6 +1114,24 @@ export function PDVInterface() {
           </CardContent>
         </Card>
 
+        {/* Observações */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Edit3 className="h-5 w-5" />
+              Observações (Opcional)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Observações do pedido..."
+              className="resize-none h-20 text-base"
+            />
+          </CardContent>
+        </Card>
+
         {/* Botão de Finalizar */}
         <div ref={submitRef}>
           <Button
@@ -1237,6 +1159,103 @@ export function PDVInterface() {
             )}
           </Button>
         </div>
+      </div>
+
+      {/* Coluna Direita: Filtro de Categorias e Produtos */}
+      <div className="lg:col-span-2 space-y-4 overflow-y-auto">
+        {/* Filtro de Categorias */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Filter className="h-5 w-5" />
+              Filtrar por Categoria
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant={selectedCategory === "all" ? "default" : "outline"}
+                onClick={() => setSelectedCategory("all")}
+                className="h-12 px-6 text-base font-medium"
+              >
+                <Grid3X3 className="h-4 w-4 mr-2" />
+                Todas
+              </Button>
+              {categories.map((category) => (
+                <Button
+                  key={category.id}
+                  variant={selectedCategory === category.id ? "default" : "outline"}
+                  onClick={() => setSelectedCategory(category.id)}
+                  className="h-12 px-6 text-base font-medium"
+                >
+                  {category.name}
+                </Button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Grid de Produtos */}
+        <Card ref={productsRef}>
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Package className="h-5 w-5" />
+              Produtos {selectedCategory !== "all" && `- ${categories.find(c => c.id === selectedCategory)?.name}`}
+              <Badge variant="secondary" className="ml-2">
+                {filteredProducts.length} itens
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 max-h-96 overflow-y-auto">
+              {filteredProducts.map((product) => (
+                <div
+                  key={product.id}
+                  className="border rounded-lg p-4 hover:shadow-lg transition-all cursor-pointer bg-white hover:bg-gray-50"
+                  onClick={() => openProductModal(product)}
+                >
+                  <div className="space-y-3">
+                    {product.showImage && product.image && (
+                      <img
+                        src={product.image}
+                        alt={product.name}
+                        className="w-full h-20 object-cover rounded"
+                      />
+                    )}
+                    <div>
+                      <h4 className="font-semibold text-base leading-tight">
+                        {product.productNumber ? `${product.productNumber} - ${product.name}` : product.name}
+                      </h4>
+                      <p className="text-lg font-bold text-primary mt-1">
+                        {formatCurrency(product.price)}
+                      </p>
+                      {product.category_name && (
+                        <Badge variant="outline" className="text-xs mt-1">
+                          {product.category_name}
+                        </Badge>
+                      )}
+                    </div>
+                    <Button size="sm" className="w-full h-10 text-base font-medium">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Adicionar
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {filteredProducts.length === 0 && (
+              <div className="text-center py-12">
+                <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-500 text-lg">
+                  {selectedCategory === "all" 
+                    ? "Nenhum produto disponível" 
+                    : "Nenhum produto encontrado nesta categoria"
+                  }
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       {/* Modal de Produto - Reutiliza o mesmo modal do ManualOrderForm */}
