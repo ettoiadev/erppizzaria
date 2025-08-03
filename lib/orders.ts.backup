@@ -147,7 +147,6 @@ export async function getOrders(filters: {
   offset?: number;
   start_date?: Date;
   end_date?: Date;
-  include_archived?: boolean;
 } = {}): Promise<Order[]> {
   let whereConditions = [];
   let params = [];
@@ -175,11 +174,6 @@ export async function getOrders(filters: {
     whereConditions.push(`o.created_at <= $${paramIndex}`);
     params.push(filters.end_date);
     paramIndex++;
-  }
-  
-  // Filtrar pedidos não arquivados por padrão (exceto se explicitamente solicitado)
-  if (!filters.include_archived) {
-    whereConditions.push(`o.archived_at IS NULL`);
   }
   
   const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';

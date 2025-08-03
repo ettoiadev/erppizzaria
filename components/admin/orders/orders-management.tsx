@@ -208,6 +208,44 @@ export function OrdersManagement() {
     }
   }
 
+  // Função para arquivar pedidos em lote
+  const handleArchiveOrders = async (status: string) => {
+    try {
+      setLoading(true)
+      
+      const response = await fetch("/api/orders/archive", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem("auth_token")}`,
+        },
+        body: JSON.stringify({ status })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Erro ao arquivar pedidos")
+      }
+
+      const result = await response.json()
+      console.log(`Arquivados ${result.archivedCount} pedidos com status ${status}`)
+      
+      // Recarregar pedidos após arquivamento
+      await fetchOrders()
+      
+    } catch (error: any) {
+      console.error("Erro ao arquivar pedidos:", error)
+      toast({
+        title: "Erro ao Arquivar",
+        description: error.message || "Não foi possível arquivar os pedidos. Tente novamente.",
+        variant: "destructive"
+      })
+      throw error
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const getStatusIcon = (status: string) => {
     const icons = {
       RECEIVED: Package,
@@ -712,6 +750,7 @@ export function OrdersManagement() {
           setSelectedOrder={setSelectedOrder}
           cancellationNotes={cancellationNotes}
           setCancellationNotes={setCancellationNotes}
+          onArchiveOrders={handleArchiveOrders}
         />
       ) : (
         <div className="grid gap-4">

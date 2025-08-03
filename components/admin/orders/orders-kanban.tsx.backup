@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
-import { Clock, Phone, MapPin, CreditCard, Package, Bike, CheckCircle, XCircle, Eye, RefreshCw, Printer, Store, Truck, Archive } from "lucide-react"
+import { Clock, Phone, MapPin, CreditCard, Package, Bike, CheckCircle, XCircle, Eye, RefreshCw, Printer, Store, Truck } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
 // Tipos e interfaces
@@ -80,7 +80,6 @@ interface OrdersKanbanProps {
   setSelectedOrder: (order: Order | null) => void
   cancellationNotes: string
   setCancellationNotes: (notes: string) => void
-  onArchiveOrders: (status: string) => Promise<void>
 }
 
 // Configurações de status
@@ -124,8 +123,7 @@ export function OrdersKanban({
   selectedOrder,
   setSelectedOrder,
   cancellationNotes,
-  setCancellationNotes,
-  onArchiveOrders,
+  setCancellationNotes
 }: OrdersKanbanProps) {
   const { toast } = useToast()
 
@@ -169,40 +167,6 @@ export function OrdersKanban({
     }
   }, [onStatusUpdate, toast])
 
-  // Handler para arquivar todos os pedidos de um status
-  const handleArchiveAll = useCallback(async (status: string) => {
-    const ordersToArchive = ordersByStatus[status]?.length || 0
-    
-    if (ordersToArchive === 0) {
-      toast({
-        title: "Nenhum pedido para arquivar",
-        description: `Não há pedidos ${statusLabels[status].toLowerCase()} para arquivar.`,
-        variant: "destructive"
-      })
-      return
-    }
-
-    const confirmed = window.confirm(
-      `Tem certeza que deseja arquivar todos os ${ordersToArchive} pedidos ${statusLabels[status].toLowerCase()}?\n\nEles não aparecerão mais no Kanban, mas permanecerão disponíveis nos relatórios.`
-    )
-
-    if (!confirmed) return
-
-    try {
-      await onArchiveOrders(status)
-      toast({
-        title: "Pedidos Arquivados",
-        description: `${ordersToArchive} pedidos ${statusLabels[status].toLowerCase()} foram arquivados com sucesso.`,
-      })
-    } catch (error) {
-      toast({
-        title: "Erro ao Arquivar",
-        description: "Não foi possível arquivar os pedidos. Tente novamente.",
-        variant: "destructive"
-      })
-    }
-  }, [ordersByStatus, onArchiveOrders, toast])
-
   // Contar pedidos por status
   const getOrderCount = (status: string) => ordersByStatus[status]?.length || 0
 
@@ -225,22 +189,9 @@ export function OrdersKanban({
                         <span className="hidden sm:inline">{statusLabels[status]}</span>
                         <span className="sm:hidden">{statusLabels[status].split(' ')[0]}</span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="secondary" className="bg-white/20 text-current">
-                          {getOrderCount(status)}
-                        </Badge>
-                        {(status === "DELIVERED" || status === "CANCELLED") && getOrderCount(status) > 0 && (
-                          <Button
-                            size="sm"
-                            onClick={() => handleArchiveAll(status)}
-                            className="bg-orange-500 hover:bg-orange-600 text-white text-xs px-2 py-1 h-6"
-                            title={`Arquivar todos os pedidos ${statusLabels[status].toLowerCase()}`}
-                          >
-                            <Archive className="h-3 w-3 mr-1" />
-                            Archive All
-                          </Button>
-                        )}
-                      </div>
+                      <Badge variant="secondary" className="bg-white/20 text-current">
+                        {getOrderCount(status)}
+                      </Badge>
                     </CardTitle>
                   </CardHeader>
                 </Card>
