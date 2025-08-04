@@ -7,11 +7,13 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const searchTerm = searchParams.get('q')?.trim() || ''
+    const codeSearch = searchParams.get('code')?.trim() || ''
     const limit = parseInt(searchParams.get('limit') || '10')
 
-    console.log(`[CUSTOMER_SEARCH] Termo de busca: "${searchTerm}", Limite: ${limit}`)
+    console.log(`[CUSTOMER_SEARCH] Termo de busca: "${searchTerm}", Código: "${codeSearch}", Limite: ${limit}`)
 
-    if (!searchTerm) {
+    // Se não há termo de busca nem código, retornar vazio
+    if (!searchTerm && !codeSearch) {
       return NextResponse.json({ customers: [] })
     }
 
@@ -27,7 +29,7 @@ export async function GET(request: NextRequest) {
     const normalizedSearchTerm = normalizeString(searchTerm)
     const phoneOnlyNumbers = searchTerm.replace(/\D/g, '') // Apenas números do telefone
 
-    console.log(`[CUSTOMER_SEARCH] Termo normalizado: "${normalizedSearchTerm}", Telefone: "${phoneOnlyNumbers}"`)
+    console.log(`[CUSTOMER_SEARCH] Termo normalizado: "${normalizedSearchTerm}", Telefone: "${phoneOnlyNumbers}", Código: "${codeSearch}"`)
 
     // Buscar clientes usando PostgreSQL
     const profilesResult = await query(`
@@ -50,12 +52,23 @@ export async function GET(request: NextRequest) {
         const profilePhoneNumbers = (profile.phone || '').replace(/\D/g, '')
 
         // Verificar se há match
-        const nameMatch = normalizedName.includes(normalizedSearchTerm)
-        const emailMatch = normalizedEmail.includes(normalizedSearchTerm)
-        const phoneMatch = phoneOnlyNumbers && profilePhoneNumbers.includes(phoneOnlyNumbers)
-        const codeMatch = profile.customer_code && profile.customer_code.includes(searchTerm.toUpperCase())
+        let shouldInclude = false
 
-        if (nameMatch || emailMatch || phoneMatch || codeMatch) {
+        if (codeSearch) {
+          // Busca específica por código
+          const codeMatch = profile.customer_code && profile.customer_code.toUpperCase().includes(codeSearch.toUpperCase())
+          shouldInclude = codeMatch
+        } else {
+          // Busca normal por nome, email, telefone ou código
+          const nameMatch = normalizedName.includes(normalizedSearchTerm)
+          const emailMatch = normalizedEmail.includes(normalizedSearchTerm)
+          const phoneMatch = phoneOnlyNumbers && profilePhoneNumbers.includes(phoneOnlyNumbers)
+          const codeMatch = profile.customer_code && profile.customer_code.toUpperCase().includes(searchTerm.toUpperCase())
+          
+          shouldInclude = nameMatch || emailMatch || phoneMatch || codeMatch
+        }
+
+        if (shouldInclude) {
           // Buscar endereço principal
           const addressResult = await query(`
             SELECT street, number, neighborhood, city, state, complement, zip_code

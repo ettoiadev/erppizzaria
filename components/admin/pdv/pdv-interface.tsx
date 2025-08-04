@@ -69,6 +69,7 @@ interface Customer {
   name: string
   phone: string
   email: string
+  customer_code?: string
   primaryAddress?: {
     id: string
     street: string
@@ -79,7 +80,7 @@ interface Customer {
     state: string
     zip_code: string
     label: string
-    is_default: boolean
+    is_default: boolean | null
   } | null
   totalOrders: number
   createdAt: string
@@ -125,6 +126,12 @@ export function PDVInterface() {
   const [isSearching, setIsSearching] = useState(false)
   const [showResults, setShowResults] = useState(false)
   
+  // Estados para busca por código de cliente
+  const [customerCodeSearch, setCustomerCodeSearch] = useState("")
+  const [customerCodeResults, setCustomerCodeResults] = useState<Customer[]>([])
+  const [isSearchingCode, setIsSearchingCode] = useState(false)
+  const [showCodeResults, setShowCodeResults] = useState(false)
+  
   // Estados de endereço
   const [customerAddress, setCustomerAddress] = useState<CustomerAddress>({
     street: "",
@@ -154,6 +161,7 @@ export function PDVInterface() {
   
   const { toast } = useToast()
   const searchTimeoutRef = useRef<NodeJS.Timeout>()
+  const searchCodeTimeoutRef = useRef<NodeJS.Timeout>()
 
   // Função para rolagem suave com offset
   const scrollToSection = (ref: React.RefObject<HTMLDivElement>, offset = 100) => {
@@ -202,6 +210,36 @@ export function PDVInterface() {
       }
     }
   }, [searchTerm, selectedCustomer, isEditingCustomer])
+
+  // Buscar clientes por código com debounce
+  useEffect(() => {
+    if (searchCodeTimeoutRef.current) {
+      clearTimeout(searchCodeTimeoutRef.current)
+    }
+
+    // Não buscar se já temos um cliente selecionado e não estamos editando
+    if (selectedCustomer && !isEditingCustomer) {
+      setCustomerCodeResults([])
+      setShowCodeResults(false)
+      return
+    }
+
+    if (customerCodeSearch.trim().length < 1) {
+      setCustomerCodeResults([])
+      setShowCodeResults(false)
+      return
+    }
+
+    searchCodeTimeoutRef.current = setTimeout(() => {
+      searchCustomersByCode(customerCodeSearch.trim())
+    }, 300)
+
+    return () => {
+      if (searchCodeTimeoutRef.current) {
+        clearTimeout(searchCodeTimeoutRef.current)
+      }
+    }
+  }, [customerCodeSearch, selectedCustomer, isEditingCustomer])
 
   // Rolagem automática para botão de criar pedido quando forma de pagamento é selecionada
   useEffect(() => {
@@ -269,6 +307,27 @@ export function PDVInterface() {
     }
   }
 
+  const searchCustomersByCode = async (code: string) => {
+    try {
+      setIsSearchingCode(true)
+      const response = await fetch(`/api/customers/search?code=${encodeURIComponent(code)}&limit=10`)
+      
+      if (response.ok) {
+        const data = await response.json()
+        setCustomerCodeResults(data.customers || [])
+        setShowCodeResults(true)
+      } else {
+        console.error('Erro na busca de clientes por código')
+        setCustomerCodeResults([])
+      }
+    } catch (error) {
+      console.error('Erro ao buscar clientes por código:', error)
+      setCustomerCodeResults([])
+    } finally {
+      setIsSearchingCode(false)
+    }
+  }
+
   const handleCustomerSelect = (customer: Customer) => {
     setSelectedCustomer(customer)
     setCustomerName(customer.name)
@@ -278,6 +337,11 @@ export function PDVInterface() {
     setSearchResults([]) // Limpar resultados
     setShowResults(false)
     setIsEditingCustomer(false)
+
+    // Limpar busca por código também
+    setCustomerCodeSearch("")
+    setCustomerCodeResults([])
+    setShowCodeResults(false)
 
     // Remover foco do campo de busca
     const searchInput = document.getElementById('customer-search') as HTMLInputElement
@@ -313,6 +377,11 @@ export function PDVInterface() {
     setTimeout(() => {
       scrollToSection(productsRef, 80)
     }, 300)
+  }
+
+  const handleCustomerSelectByCode = (customer: Customer) => {
+    // Usar a mesma função de seleção
+    handleCustomerSelect(customer)
   }
 
   const handleNewCustomer = () => {
@@ -365,8 +434,10 @@ export function PDVInterface() {
     setCustomerPhone("")
     setCustomerEmail("")
     setSearchTerm("")
+    setCustomerCodeSearch("")
     setIsEditingCustomer(false)
     setShowResults(false)
+    setShowCodeResults(false)
     
     // Limpar endereço
     setCustomerAddress({
@@ -779,17 +850,17 @@ export function PDVInterface() {
               </Label>
               <div className="relative mt-1">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                <Input
-                  id="customer-search"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder={selectedCustomer && !isEditingCustomer 
-                    ? `${selectedCustomer.name} - ${selectedCustomer.phone}` 
-                    : "Digite nome ou telefone..."
-                  }
-                  disabled={selectedCustomer && !isEditingCustomer}
-                  className="pl-10 h-12 text-base"
-                />
+                                   <Input
+                     id="customer-search"
+                     value={searchTerm}
+                     onChange={(e) => setSearchTerm(e.target.value)}
+                     placeholder={selectedCustomer && !isEditingCustomer 
+                       ? `${selectedCustomer.name} - ${selectedCustomer.phone}` 
+                       : "Digite nome ou telefone..."
+                     }
+                     disabled={Boolean(selectedCustomer && !isEditingCustomer)}
+                     className="pl-10 h-12 text-base"
+                   />
                 {isSearching && (
                   <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
                     <div className="animate-spin h-5 w-5 border-2 border-blue-600 border-t-transparent rounded-full"></div>
@@ -859,6 +930,85 @@ export function PDVInterface() {
                     {searchResults.length === 0 && (
                       <div className="p-4 text-center text-gray-500">
                         Nenhum cliente encontrado com "{searchTerm}"
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+
+            {/* Busca por Código de Cliente */}
+            <div className="relative">
+              <Label htmlFor="customer-code-search" className="text-base font-medium">
+                Buscar por Código
+              </Label>
+              <div className="relative mt-1">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                                   <Input
+                     id="customer-code-search"
+                     value={customerCodeSearch}
+                     onChange={(e) => setCustomerCodeSearch(e.target.value)}
+                     placeholder="Digite o código do cliente..."
+                     disabled={Boolean(selectedCustomer && !isEditingCustomer)}
+                     className="pl-10 h-12 text-base"
+                   />
+                {isSearchingCode && (
+                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                    <div className="animate-spin h-5 w-5 border-2 border-blue-600 border-t-transparent rounded-full"></div>
+                  </div>
+                )}
+              </div>
+
+              {/* Resultados da busca por código */}
+              {showCodeResults && customerCodeSearch.length >= 1 && (
+                <Card className="absolute z-50 w-full mt-1 max-h-80 overflow-y-auto shadow-lg border-2">
+                  <CardContent className="p-0">
+                    {/* Lista de clientes encontrados por código */}
+                    {customerCodeResults.length > 0 && (
+                      <>
+                        {customerCodeResults.map((customer) => (
+                          <div
+                            key={customer.id}
+                            onMouseDown={(e) => {
+                              e.preventDefault() // Evita que o input perca foco antes do clique
+                              handleCustomerSelectByCode(customer)
+                            }}
+                            className="p-4 hover:bg-gray-50 cursor-pointer border-b last:border-b-0 transition-colors"
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-3">
+                                  <User className="h-5 w-5 text-blue-600" />
+                                  <span className="font-medium text-base">{customer.name}</span>
+                                  {customer.customer_code && (
+                                    <Badge variant="outline" className="text-sm bg-green-100 text-green-800 border-green-300">
+                                      {customer.customer_code}
+                                    </Badge>
+                                  )}
+                                  {customer.totalOrders > 0 && (
+                                    <Badge variant="secondary" className="text-sm">
+                                      <Package className="h-3 w-3 mr-1" />
+                                      {customer.totalOrders} pedidos
+                                    </Badge>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
+                                  <span className="flex items-center gap-1">
+                                    <Phone className="h-4 w-4" />
+                                    {customer.phone}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </>
+                    )}
+
+                    {/* Mensagem quando não há resultados */}
+                    {customerCodeResults.length === 0 && (
+                      <div className="p-4 text-center text-gray-500">
+                        Nenhum cliente encontrado com código "{customerCodeSearch}"
                       </div>
                     )}
                   </CardContent>
