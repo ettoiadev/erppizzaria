@@ -183,8 +183,10 @@ export default function RegisterPage() {
     }
   }
 
-  const formatPhone = (value: string) => {
-    const numbers = value.replace(/\D/g, "")
+  const formatPhone = (value: string | number | undefined | null) => {
+    // Garantir que value seja string
+    const stringValue = String(value || "")
+    const numbers = stringValue.replace(/\D/g, "")
     if (numbers.length <= 10) {
       return numbers.replace(/(\d{2})(\d{4})(\d{4})/, "($1) $2-$3")
     }

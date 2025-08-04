@@ -144,8 +144,10 @@ export default function AccountPage() {
     if (success) setSuccess("")
   }
 
-  const formatPhone = (value: string) => {
-    const numbers = value.replace(/\D/g, "")
+  const formatPhone = (value: string | number | undefined | null) => {
+    // Garantir que value seja string
+    const stringValue = String(value || "")
+    const numbers = stringValue.replace(/\D/g, "")
     if (numbers.length === 0) return ""
     if (numbers.length <= 2) return `(${numbers}`
     if (numbers.length <= 6) return `(${numbers.slice(0, 2)}) ${numbers.slice(2)}`

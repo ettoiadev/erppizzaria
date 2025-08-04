@@ -102,18 +102,6 @@ export function GeneralSettings({ settings: initialSettings, onSave, onMarkUnsav
     setSettings((prev) => {
       const newSettings = { ...prev, [field]: value }
       
-      // Validações em tempo real
-      if (field === "email") {
-        const error = validateEmail(value as string)
-        setValidationErrors(prev => ({ ...prev, email: error }))
-      } else if (field === "restaurant_phone") {
-        const error = validatePhone(value as string)
-        setValidationErrors(prev => ({ ...prev, restaurant_phone: error }))
-      } else if (field === "website") {
-        const error = validateWebsite(value as string)
-        setValidationErrors(prev => ({ ...prev, website: error }))
-      }
-      
       // Marcar como não salvo se houve mudança
       setTimeout(() => {
         if (onMarkUnsaved && hasChanges()) {
@@ -123,17 +111,31 @@ export function GeneralSettings({ settings: initialSettings, onSave, onMarkUnsav
       
       return newSettings
     })
+
+    // Validações em tempo real (fora do setSettings para evitar warning)
+    if (field === "email") {
+      const error = validateEmail(value as string)
+      setValidationErrors(prev => ({ ...prev, email: error }))
+    } else if (field === "restaurant_phone") {
+      const error = validatePhone(value as string)
+      setValidationErrors(prev => ({ ...prev, restaurant_phone: error }))
+    } else if (field === "website") {
+      const error = validateWebsite(value as string)
+      setValidationErrors(prev => ({ ...prev, website: error }))
+    }
   }
 
   // Função para formatar telefone
-  const formatPhone = (value: string) => {
-    const numbers = value.replace(/\D/g, '')
+  const formatPhone = (value: string | number | undefined | null) => {
+    // Garantir que value seja string
+    const stringValue = String(value || "")
+    const numbers = stringValue.replace(/\D/g, '')
     if (numbers.length <= 11) {
       return numbers
         .replace(/(\d{2})(\d)/, '($1) $2')
         .replace(/(\d{4,5})(\d{4})$/, '$1-$2')
     }
-    return value
+    return stringValue
   }
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -410,7 +412,7 @@ export function GeneralSettings({ settings: initialSettings, onSave, onMarkUnsav
                 <Input
                   id="restaurant_phone"
                   className={`pl-10 ${validationErrors.restaurant_phone ? "border-red-300" : ""}`}
-                  value={formatPhone(settings.restaurant_phone || "")}
+                  value={formatPhone(settings.restaurant_phone)}
                   onChange={(e) => handleInputChange("restaurant_phone", e.target.value)}
                   placeholder="(11) 99999-9999"
                 />

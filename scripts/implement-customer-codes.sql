@@ -6,7 +6,7 @@
 -- 1. Adicionar coluna customer_code na tabela profiles
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS customer_code VARCHAR(10) UNIQUE;
 
--- 2. Criar sequência para códigos
+-- 2. Criar sequência para códigos (mantida para compatibilidade)
 CREATE SEQUENCE IF NOT EXISTS customer_code_seq 
 START WITH 1 
 INCREMENT BY 1 
@@ -14,21 +14,30 @@ MINVALUE 1
 MAXVALUE 9999 
 CACHE 1;
 
--- 3. Função para gerar código formatado
+-- 3. Função para gerar código sequencial (sem gaps)
 CREATE OR REPLACE FUNCTION generate_customer_code()
 RETURNS VARCHAR(10) AS $$
 DECLARE
-    next_val INTEGER;
+    next_number INTEGER;
     formatted_code VARCHAR(10);
 BEGIN
-    SELECT nextval('customer_code_seq') INTO next_val;
-    formatted_code := LPAD(next_val::TEXT, 4, '0');
+    -- Encontrar o próximo número sequencial disponível
+    -- Considerar apenas clientes ativos (active = true ou NULL)
+    SELECT COALESCE(MAX(CAST(customer_code AS INTEGER)), 0) + 1
+    INTO next_number
+    FROM profiles 
+    WHERE role = 'customer' 
+    AND customer_code IS NOT NULL 
+    AND customer_code ~ '^[0-9]+$'
+    AND (active = true OR active IS NULL);
     
-    -- Verificar se o código já existe
-    WHILE EXISTS (SELECT 1 FROM profiles WHERE customer_code = formatted_code) LOOP
-        SELECT nextval('customer_code_seq') INTO next_val;
-        formatted_code := LPAD(next_val::TEXT, 4, '0');
-    END LOOP;
+    -- Se não há clientes ativos, começar do 1
+    IF next_number IS NULL THEN
+        next_number := 1;
+    END IF;
+    
+    -- Formatar com zeros à esquerda (4 dígitos)
+    formatted_code := LPAD(next_number::TEXT, 4, '0');
     
     RETURN formatted_code;
 END;
@@ -51,11 +60,12 @@ CREATE TRIGGER trigger_set_customer_code
     FOR EACH ROW
     EXECUTE FUNCTION set_customer_code();
 
--- 5. Migrar clientes existentes
+-- 5. Migrar clientes existentes (se necessário)
 UPDATE profiles 
 SET customer_code = generate_customer_code()
 WHERE role = 'customer' 
-AND (customer_code IS NULL OR customer_code = '');
+AND (customer_code IS NULL OR customer_code = '')
+AND (active = true OR active IS NULL);
 
 -- 6. Adicionar customer_code na tabela orders
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS customer_code VARCHAR(10);
@@ -67,6 +77,7 @@ FROM profiles p
 WHERE orders.user_id = p.id 
 AND p.role = 'customer'
 AND p.customer_code IS NOT NULL
+AND (p.active = true OR p.active IS NULL)
 AND (orders.customer_code IS NULL OR orders.customer_code = '');
 
 -- 8. Trigger para sincronização automática em pedidos
@@ -79,7 +90,8 @@ BEGIN
         SELECT customer_code INTO client_code
         FROM profiles 
         WHERE id = NEW.user_id 
-        AND role = 'customer';
+        AND role = 'customer'
+        AND (active = true OR active IS NULL);
         
         IF client_code IS NOT NULL THEN
             NEW.customer_code := client_code;
@@ -104,21 +116,23 @@ CREATE INDEX IF NOT EXISTS idx_orders_customer_code ON orders(customer_code);
 -- 10. Relatório final
 SELECT 
   'RELATÓRIO DE IMPLEMENTAÇÃO' as titulo,
-  (SELECT COUNT(*) FROM profiles WHERE role = 'customer') as total_clientes,
-  (SELECT COUNT(*) FROM profiles WHERE role = 'customer' AND customer_code IS NOT NULL) as clientes_com_codigo,
+  (SELECT COUNT(*) FROM profiles WHERE role = 'customer' AND (active = true OR active IS NULL)) as total_clientes_ativos,
+  (SELECT COUNT(*) FROM profiles WHERE role = 'customer' AND customer_code IS NOT NULL AND (active = true OR active IS NULL)) as clientes_ativos_com_codigo,
   (SELECT COUNT(*) FROM orders) as total_pedidos,
   (SELECT COUNT(*) FROM orders WHERE customer_code IS NOT NULL) as pedidos_com_codigo,
-  (SELECT LPAD((currval('customer_code_seq') + 1)::TEXT, 4, '0')) as proximo_codigo;
+  (SELECT generate_customer_code()) as proximo_codigo;
 
 -- Mostrar alguns exemplos
 SELECT 
-  'EXEMPLOS DE CLIENTES COM CÓDIGOS' as titulo,
+  'EXEMPLOS DE CLIENTES ATIVOS COM CÓDIGOS' as titulo,
   customer_code,
   full_name,
   email,
+  active,
   created_at
 FROM profiles 
 WHERE role = 'customer' 
 AND customer_code IS NOT NULL
-ORDER BY customer_code
+AND (active = true OR active IS NULL)
+ORDER BY CAST(customer_code AS INTEGER)
 LIMIT 10;

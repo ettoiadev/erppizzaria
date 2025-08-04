@@ -102,14 +102,16 @@ export function AdminProfile() {
   }
 
   // Função para formatar telefone
-  const formatPhone = (value: string) => {
-    const numbers = value.replace(/\D/g, '')
+  const formatPhone = (value: string | number | undefined | null) => {
+    // Garantir que value seja string
+    const stringValue = String(value || "")
+    const numbers = stringValue.replace(/\D/g, '')
     if (numbers.length <= 11) {
       return numbers
         .replace(/(\d{2})(\d)/, '($1) $2')
         .replace(/(\d{4,5})(\d{4})$/, '$1-$2')
     }
-    return value
+    return stringValue
   }
 
   // Validação de telefone
