@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { useToast } from "@/hooks/use-toast"
+import { CurrencyInput } from "@/components/ui/currency-input"
 import { 
   MapPin, Settings, Plus, Edit, Trash2, Clock, DollarSign, 
   Save, TestTube, Map, Navigation, Target
@@ -428,13 +429,11 @@ export function VisualDeliverySettings({
                     <DollarSign className="w-4 h-4" />
                     Valor Mínimo para Frete Grátis (R$)
                   </Label>
-                  <Input
+                  <CurrencyInput
                     id="freeDeliveryMinimum"
-                    type="number"
-                    step="0.01"
                     value={staticSettings.freeDeliveryMinimum}
-                    onChange={(e) => {
-                      setStaticSettings(prev => ({ ...prev, freeDeliveryMinimum: parseFloat(e.target.value) }))
+                    onChange={(value) => {
+                      setStaticSettings(prev => ({ ...prev, freeDeliveryMinimum: value }))
                       if (onMarkUnsaved) onMarkUnsaved()
                     }}
                     disabled={!staticSettings.freeDeliveryEnabled}
@@ -450,13 +449,11 @@ export function VisualDeliverySettings({
                     <DollarSign className="w-4 h-4" />
                     Taxa de Entrega Padrão (R$)
                   </Label>
-                  <Input
+                  <CurrencyInput
                     id="defaultDeliveryFee"
-                    type="number"
-                    step="0.01"
                     value={staticSettings.defaultDeliveryFee}
-                    onChange={(e) => {
-                      setStaticSettings(prev => ({ ...prev, defaultDeliveryFee: parseFloat(e.target.value) }))
+                    onChange={(value) => {
+                      setStaticSettings(prev => ({ ...prev, defaultDeliveryFee: value }))
                       if (onMarkUnsaved) onMarkUnsaved()
                     }}
                   />
@@ -517,14 +514,11 @@ export function VisualDeliverySettings({
                           if (onMarkUnsaved) onMarkUnsaved()
                         }}
                       />
-                      <Input
-                        type="number"
-                        step="0.01"
-                        placeholder="Taxa (R$)"
+                      <CurrencyInput
                         value={area.fee}
-                        onChange={(e) => {
+                        onChange={(value) => {
                           const newAreas = [...staticSettings.deliveryAreas]
-                          newAreas[index] = { ...newAreas[index], fee: parseFloat(e.target.value) }
+                          newAreas[index] = { ...newAreas[index], fee: value }
                           setStaticSettings(prev => ({ ...prev, deliveryAreas: newAreas }))
                           if (onMarkUnsaved) onMarkUnsaved()
                         }}
@@ -665,14 +659,11 @@ export function VisualDeliverySettings({
 
                   <div>
                     <Label htmlFor="fallback">Taxa Padrão (R$)</Label>
-                    <Input
+                    <CurrencyInput
                       id="fallback"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={geoSettings.fallback_delivery_fee}
-                      onChange={(e) => {
-                        setGeoSettings(prev => ({ ...prev, fallback_delivery_fee: e.target.value }))
+                      value={parseFloat(geoSettings.fallback_delivery_fee) || 0}
+                      onChange={(value) => {
+                        setGeoSettings(prev => ({ ...prev, fallback_delivery_fee: value.toString() }))
                         if (onMarkUnsaved) onMarkUnsaved()
                       }}
                     />
@@ -964,13 +955,10 @@ function ZoneFormModal({ zone, onSave, onClose }: ZoneFormModalProps) {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label htmlFor="deliveryFee">Taxa de Entrega (R$)</Label>
-              <Input
+              <CurrencyInput
                 id="deliveryFee"
-                type="number"
-                step="0.01"
-                min="0"
                 value={formData.delivery_fee}
-                onChange={(e) => setFormData(prev => ({ ...prev, delivery_fee: parseFloat(e.target.value) }))}
+                onChange={(value) => setFormData(prev => ({ ...prev, delivery_fee: value }))}
                 required
               />
             </div>

@@ -19,17 +19,26 @@ export function formatCurrency(value: number | string): string {
 }
 
 export function formatCurrencyInput(value: string): string {
-  let numericValue = value.replace(/\D/g, '')
+  let valor = value.replace(/\D/g, '')
   
-  if (!numericValue) return ''
+  if (!valor) return ''
   
-  const realValue = parseInt(numericValue) / 100
+  // Converter para reais (dividir por 100)
+  const reais = parseInt(valor) / 100
   
-  let formatted = realValue.toFixed(2).replace('.', ',')
-  
+  // Formatar como moeda brasileira
+  let formatted = reais.toFixed(2).replace('.', ',')
   formatted = formatted.replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.')
   
-  return `R$ ${formatted}`
+  return 'R$ ' + formatted
+}
+
+export function formatCurrencyInputFromReais(value: number): string {
+  if (value <= 0) return ''
+  
+  // Converter reais para centavos para formatação
+  const centavos = Math.round(value * 100)
+  return formatCurrencyInput(centavos.toString())
 }
 
 export function parseCurrencyInput(formattedValue: string): number {

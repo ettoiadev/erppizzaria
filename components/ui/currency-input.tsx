@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, forwardRef } from "react"
 import { Input } from "./input"
-import { formatCurrencyInput, parseCurrencyInput } from "@/lib/utils"
+import { formatCurrencyInput, parseCurrencyInput, formatCurrencyInputFromReais } from "@/lib/utils"
 
 interface CurrencyInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onChange' | 'value' | 'type'> {
   value?: number
@@ -17,7 +17,7 @@ export const CurrencyInput = forwardRef<HTMLInputElement, CurrencyInputProps>(
     // Inicializar valor formatado
     useEffect(() => {
       if (value !== undefined) {
-        const formatted = value > 0 ? formatCurrencyInput((value * 100).toString()) : ""
+        const formatted = value > 0 ? formatCurrencyInputFromReais(value) : ""
         setDisplayValue(formatted)
       }
     }, [value])
