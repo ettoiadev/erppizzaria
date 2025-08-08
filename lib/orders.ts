@@ -10,7 +10,7 @@ export interface OrderData {
   subtotal?: number;
   delivery_fee?: number;
   discount?: number;
-  status: 'PENDING' | 'RECEIVED' | 'PREPARING' | 'READY' | 'OUT_FOR_DELIVERY' | 'DELIVERED' | 'CANCELLED';
+  status: 'PENDING' | 'RECEIVED' | 'PREPARING' | 'READY' | 'ON_THE_WAY' | 'DELIVERED' | 'CANCELLED';
   payment_method: 'PIX' | 'CREDIT_CARD' | 'DEBIT_CARD' | 'CASH' | 'MERCADO_PAGO';
   payment_status?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
   delivery_type: 'delivery' | 'pickup' | 'dine_in';
@@ -31,6 +31,7 @@ export interface OrderItem {
 
 export interface Order extends OrderData {
   id: string;
+  order_number?: number;
   created_at: Date;
   updated_at: Date;
   items?: OrderItem[];
@@ -196,6 +197,7 @@ export async function getOrders(filters: {
   
   const ordersQuery = `
     SELECT o.*, 
+           p.full_name, p.email, p.phone,
            json_agg(
              json_build_object(
                'id', oi.id,
@@ -209,12 +211,13 @@ export async function getOrders(filters: {
                'special_instructions', oi.special_instructions,
                'half_and_half', oi.half_and_half
              )
-           ) FILTER (WHERE oi.id IS NOT NULL) as items
+           ) FILTER (WHERE oi.id IS NOT NULL) as order_items
     FROM orders o
+    LEFT JOIN profiles p ON o.user_id = p.id
     LEFT JOIN order_items oi ON o.id = oi.order_id
     ${whereClause}
-    GROUP BY o.id
-    ORDER BY o.created_at DESC
+    GROUP BY o.id, p.full_name, p.email, p.phone
+    ORDER BY o.order_number DESC
     ${limitClause}
     ${offsetClause}
   `;
@@ -223,7 +226,8 @@ export async function getOrders(filters: {
   
   return result.rows.map(row => ({
     ...row,
-    items: row.items || []
+    order_items: row.order_items || [],
+    items: row.order_items || [] // Para compatibilidade
   }));
 }
 
@@ -265,35 +269,37 @@ export async function updatePaymentStatus(orderId: string, paymentStatus: string
 
 // Obter estatísticas de pedidos
 export async function getOrderStats(startDate?: Date, endDate?: Date) {
-  let whereClause = '';
-  let params = [];
-  
-  if (startDate && endDate) {
-    whereClause = 'WHERE created_at BETWEEN $1 AND $2';
-    params = [startDate, endDate];
-  } else if (startDate) {
-    whereClause = 'WHERE created_at >= $1';
-    params = [startDate];
-  } else if (endDate) {
-    whereClause = 'WHERE created_at <= $1';
-    params = [endDate];
+  const whereConditions = [];
+  const params = [];
+  let paramIndex = 1;
+
+  if (startDate) {
+    whereConditions.push(`created_at >= $${paramIndex}`);
+    params.push(startDate);
+    paramIndex++;
   }
-  
+
+  if (endDate) {
+    whereConditions.push(`created_at <= $${paramIndex}`);
+    params.push(endDate);
+    paramIndex++;
+  }
+
+  const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+
   const statsQuery = `
     SELECT 
       COUNT(*) as total_orders,
-      COUNT(*) FILTER (WHERE status = 'PENDING') as pending_orders,
+      COUNT(*) FILTER (WHERE status = 'RECEIVED') as received_orders,
       COUNT(*) FILTER (WHERE status = 'PREPARING') as preparing_orders,
-      COUNT(*) FILTER (WHERE status = 'READY') as ready_orders,
-      COUNT(*) FILTER (WHERE status = 'OUT_FOR_DELIVERY') as out_for_delivery_orders,
+      COUNT(*) FILTER (WHERE status = 'ON_THE_WAY') as on_the_way_orders,
       COUNT(*) FILTER (WHERE status = 'DELIVERED') as delivered_orders,
       COUNT(*) FILTER (WHERE status = 'CANCELLED') as cancelled_orders,
-      COALESCE(SUM(total), 0) as total_revenue,
-      COALESCE(AVG(total), 0) as average_order_value
+      SUM(total) FILTER (WHERE status = 'DELIVERED') as total_revenue
     FROM orders
     ${whereClause}
   `;
-  
+
   const result = await query(statsQuery, params);
   return result.rows[0];
 }

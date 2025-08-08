@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useKitchenSocket } from '@/hooks/use-socket';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -54,7 +53,6 @@ const statusLabels = {
 export function RealtimeOrders() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
-  const { socket, connected, error } = useKitchenSocket();
 
   // Buscar pedidos iniciais
   const fetchOrders = useCallback(async () => {
@@ -99,18 +97,11 @@ export function RealtimeOrders() {
             : order
         ));
 
-        // Emitir via Socket.io para outros clientes
-        if (socket) {
-          socket.emit('update-order-status', {
-            orderId,
-            status: newStatus,
-            timestamp: new Date().toISOString()
-          });
-        }
+
 
         toast({
           title: "Status atualizado",
-          description: `Pedido #${orderId} marcado como ${statusLabels[newStatus as keyof typeof statusLabels]}`,
+          description: `Pedido #${order.order_number || orderId} marcado como ${statusLabels[newStatus as keyof typeof statusLabels]}`,
         });
       } else {
         throw new Error(data.error || 'Erro ao atualizar status');
@@ -125,86 +116,14 @@ export function RealtimeOrders() {
     }
   };
 
-  // Configurar listeners do Socket.io
+  // Atualizar pedidos periodicamente
   useEffect(() => {
-    if (!socket) return;
+    const interval = setInterval(() => {
+      fetchOrders();
+    }, 30000); // Atualizar a cada 30 segundos
 
-    // Novo pedido recebido
-    const handleOrderReceived = (orderData: Order) => {
-      console.log('🍕 Novo pedido recebido na cozinha:', orderData);
-      
-      setOrders(prev => {
-        // Verificar se o pedido já existe
-        const exists = prev.some(order => order.id === orderData.id);
-        if (exists) {
-          return prev.map(order => 
-            order.id === orderData.id ? orderData : order
-          );
-        }
-        return [orderData, ...prev];
-      });
-
-      toast({
-        title: "Novo Pedido!",
-        description: `Pedido #${orderData.id} de ${orderData.customer_name}`,
-        duration: 5000
-      });
-
-      // Tocar som de notificação (opcional)
-      if ('Notification' in window && Notification.permission === 'granted') {
-        new Notification(`Novo Pedido #${orderData.id}`, {
-          body: `Cliente: ${orderData.customer_name} - Total: R$ ${orderData.total}`,
-          icon: '/favicon.ico'
-        });
-      }
-    };
-
-    // Status do pedido atualizado
-    const handleOrderStatusUpdated = (data: { orderId: string; status: string }) => {
-      console.log('📋 Status atualizado via Socket.io:', data);
-      
-      setOrders(prev => prev.map(order => 
-        order.id === data.orderId 
-          ? { ...order, status: data.status }
-          : order
-      ));
-    };
-
-    // Pagamento aprovado
-    const handlePaymentApproved = (data: { orderId: string; order?: Order }) => {
-      console.log('💰 Pagamento aprovado:', data);
-      
-      if (data.order) {
-        setOrders(prev => {
-          const exists = prev.some(order => order.id === data.orderId);
-          if (exists) {
-            return prev.map(order => 
-              order.id === data.orderId ? data.order! : order
-            );
-          }
-          return [data.order!, ...prev];
-        });
-      }
-
-      toast({
-        title: "Pagamento Aprovado!",
-        description: `Pedido #${data.orderId} pode ser preparado`,
-        duration: 5000
-      });
-    };
-
-    // Registrar listeners
-    socket.on('order-received', handleOrderReceived);
-    socket.on('order-status-updated', handleOrderStatusUpdated);
-    socket.on('payment-approved', handlePaymentApproved);
-
-    // Cleanup
-    return () => {
-      socket.off('order-received', handleOrderReceived);
-      socket.off('order-status-updated', handleOrderStatusUpdated);
-      socket.off('payment-approved', handlePaymentApproved);
-    };
-  }, [socket]);
+    return () => clearInterval(interval);
+  }, [fetchOrders]);
 
   // Carregar pedidos iniciais
   useEffect(() => {
@@ -266,7 +185,7 @@ export function RealtimeOrders() {
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg">
-                  Pedido #{order.id.slice(-6)}
+                  Pedido #{order.order_number || order.id.slice(-6)}
                 </CardTitle>
                 <Badge 
                   className={`${statusColors[order.status as keyof typeof statusColors]} text-white`}

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
-import { authenticateUser } from '@/lib/auth'
-import { createAuthResponse } from '@/lib/auth-middleware'
+import { query } from '@/lib/postgres'
+import bcrypt from 'bcryptjs'
+import jwt from 'jsonwebtoken'
+import { authRateLimiter } from '@/lib/rate-limiter'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,72 +16,112 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  console.log('🚀 === LOGIN API START ===')
-  console.log('🌍 Environment:', process.env.NODE_ENV)
-  console.log('🗄️ Database configured:', !!process.env.DATABASE_URL)
-
   try {
-    // Parse do body
-    const body = await request.json()
-    console.log('📧 Login attempt for:', body.email)
+    console.log("🚀 Iniciando processo de login...")
+    
+    // Aplicar rate limiting (temporariamente desabilitado)
+    console.log("🔓 Rate limiting desabilitado para debug")
+    /*
+    const rateLimitResult = authRateLimiter(request)
+    if (rateLimitResult instanceof NextResponse) {
+      console.log("⚠️ Rate limit aplicado")
+      return rateLimitResult
+    }
+    */
 
+    const body = await request.json()
     const { email, password } = body
 
-    // Validação de entrada
-    if (!email || typeof email !== 'string' || !email.trim()) {
-      console.log('❌ Email validation failed')
+    console.log("📝 Dados recebidos:", { email, password: password ? "***" : "undefined" })
+
+    // Validar dados
+    if (!email || !password) {
+      console.log("❌ Dados inválidos:", { email: !!email, password: !!password })
       return NextResponse.json(
-        { error: "Email é obrigatório e deve ser uma string válida" },
+        { error: "Email e senha são obrigatórios" },
         { status: 400 }
       )
     }
 
-    if (!password || typeof password !== 'string') {
-      console.log('❌ Password validation failed')
+    console.log("🔐 Tentativa de login:", { email })
+
+    // Buscar usuário
+    console.log("🔍 Buscando usuário no banco...")
+    const userResult = await query(`
+      SELECT id, email, password_hash, full_name, role
+      FROM profiles
+      WHERE email = $1
+    `, [email])
+
+    console.log("📊 Resultado da busca:", { 
+      rowsFound: userResult.rows.length,
+      hasUser: userResult.rows.length > 0 
+    })
+
+    if (userResult.rows.length === 0) {
+      console.log("❌ Usuário não encontrado:", email)
       return NextResponse.json(
-        { error: "Senha é obrigatória e deve ser uma string válida" },
-        { status: 400 }
-      )
-    }
-
-    console.log('🔐 Authenticating user with PostgreSQL...')
-
-    // Autenticar usuário usando função consolidada
-    const authResult = await authenticateUser(email.trim().toLowerCase(), password)
-
-    if (!authResult) {
-      console.log('❌ Authentication failed')
-      return NextResponse.json(
-        { error: "Credenciais inválidas" },
+        { error: "Email ou senha inválidos" },
         { status: 401 }
       )
     }
 
-    console.log('✅ Authentication successful for user:', authResult.user.email)
-    console.log('🏁 === LOGIN API END ===')
+    const user = userResult.rows[0]
+    console.log("✅ Usuário encontrado:", { 
+      id: user.id, 
+      email: user.email, 
+      role: user.role,
+      hasPasswordHash: !!user.password_hash 
+    })
 
-    // Retornar resposta com cookie de autenticação
-    return createAuthResponse(authResult.token, {
-      user: authResult.user,
-      token: authResult.token
+    // Verificar senha
+    console.log("🔐 Verificando senha...")
+    const isValidPassword = await bcrypt.compare(password, user.password_hash)
+    
+    console.log("🔑 Resultado da verificação:", { 
+      isValid: isValidPassword,
+      passwordProvided: !!password,
+      hashExists: !!user.password_hash 
+    })
+    
+    if (!isValidPassword) {
+      console.log("❌ Senha inválida para usuário:", email)
+      return NextResponse.json(
+        { error: "Email ou senha inválidos" },
+        { status: 401 }
+      )
+    }
+
+    // Gerar token JWT
+    const token = jwt.sign(
+      { 
+        userId: user.id, 
+        email: user.email,
+        role: user.role || 'customer'
+      },
+      process.env.JWT_SECRET!,
+      { expiresIn: '7d' }
+    )
+
+    console.log("✅ Login bem-sucedido:", { email, role: user.role })
+
+    return NextResponse.json({
+      message: "Login realizado com sucesso",
+      user: {
+        id: user.id,
+        email: user.email,
+        full_name: user.full_name,
+        role: user.role || 'customer'
+      },
+      token
     })
 
   } catch (error: any) {
-    console.error("💥 === LOGIN ERROR COMPLETO ===")
-    console.error("🏷️ Tipo:", error.constructor.name)
-    console.error("💬 Mensagem:", error.message)
-    console.error("📚 Stack:", error.stack)
-
-    return NextResponse.json({
-      error: "Erro interno do servidor",
-      message: "Tente novamente em alguns instantes",
-      timestamp: new Date().toISOString()
-    }, {
-      status: 500,
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    })
+    console.error("❌ Erro no login:", error)
+    return NextResponse.json(
+      { error: "Erro interno do servidor" },
+      { status: 500 }
+    )
   }
 }
 

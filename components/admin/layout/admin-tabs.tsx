@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, ShoppingBag, Package, Users, Bike, Settings, BarChart3, MapPin, Printer, Calculator } from "lucide-react"
+import { LayoutDashboard, ShoppingBag, Package, Users, Bike, Settings, BarChart3, MapPin, Printer, Calculator, Bell } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const navigation = [
@@ -15,6 +15,7 @@ const navigation = [
   { name: "Relatórios", href: "/admin/relatorios", icon: BarChart3 },
   { name: "Geolocalização", href: "/admin/geolocation", icon: MapPin },
   { name: "Impressora", href: "/admin/impressora", icon: Printer },
+  { name: "Notificações", href: "/admin/notificacoes", icon: Bell },
   { name: "Configurações", href: "/admin/configuracoes", icon: Settings },
 ]
 

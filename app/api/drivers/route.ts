@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
       drivers.push(...newDriversResult.rows);
     }
 
-    // Buscar pedidos ativos para entregadores ocupados
+    // Buscar pedidos ativos do entregador
     const driversWithOrders = await Promise.all(
       drivers.map(async (driver: any) => {
         if (driver.status === 'busy') {
@@ -113,13 +113,18 @@ export async function GET(request: NextRequest) {
             `);
 
             const ordersResult = await query(`
-              SELECT id FROM orders 
-              WHERE driver_id = $1 AND status = 'OUT_FOR_DELIVERY'
+              SELECT id, status, total, customer_address, created_at
+              FROM orders 
+              WHERE driver_id = $1 AND status = 'ON_THE_WAY'
+              ORDER BY created_at DESC
+              LIMIT 5
             `, [driver.id]);
+            
+            const activeOrders = ordersResult.rows;
 
             return {
               ...driver,
-              currentOrders: ordersResult.rows.map((order: any) => order.id)
+              currentOrders: activeOrders.map((order: any) => order.id)
             }
           } catch (orderError) {
             console.warn(`[DRIVERS] Erro ao buscar pedidos do entregador ${driver.id}:`, orderError)

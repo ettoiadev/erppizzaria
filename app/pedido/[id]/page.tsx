@@ -147,7 +147,7 @@ export default function OrderPage() {
               Voltar
             </Button>
             <div className="flex-1">
-              <h1 className="text-3xl font-bold text-gray-900">Pedido #{order.id.slice(-8)}</h1>
+              <h1 className="text-3xl font-bold text-gray-900">Pedido #{order.order_number || order.id.slice(-8)}</h1>
               <p className="text-gray-600">Realizado em {new Date(order.created_at).toLocaleString("pt-BR")}</p>
             </div>
             <Button variant="outline" onClick={() => refetch()}>

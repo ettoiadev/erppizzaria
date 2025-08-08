@@ -1,296 +1,186 @@
-import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
-import { getAdminSettings } from './db-postgres';
+import mercadopago from 'mercadopago'
 
-// Função para obter as configurações do Mercado Pago
-async function getMercadoPagoSettings() {
-  try {
-    const settings = await getAdminSettings();
-    const accessToken = settings.mercadoPagoAccessToken || process.env.MERCADOPAGO_ACCESS_TOKEN;
-    
-    if (!accessToken) {
-      console.warn('⚠️ Token do Mercado Pago não configurado. Configure em Admin > Configurações > Pagamentos');
-      return null;
-    }
-    
-    return {
-      accessToken,
-      environment: accessToken.includes('TEST') ? 'sandbox' : 'production'
-    };
-  } catch (error) {
-    console.error('❌ Erro ao buscar configurações do Mercado Pago:', error);
-    // Fallback para variável de ambiente
-    return {
-      accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN!,
-      environment: process.env.MERCADOPAGO_ACCESS_TOKEN?.includes('TEST') ? 'sandbox' : 'production'
-    };
-  }
-}
-
-// Função para criar cliente do Mercado Pago com configurações dinâmicas
-async function createMercadoPagoClient() {
-  const settings = await getMercadoPagoSettings();
-  
-  if (!settings?.accessToken) {
-    throw new Error('Token do Mercado Pago não configurado');
-  }
-  
-  return new MercadoPagoConfig({
-    accessToken: settings.accessToken,
-    options: {
-      timeout: 5000,
-      idempotencyKey: 'DEV',
-    }
-  });
-}
-
-// As instâncias serão criadas dinamicamente em cada função
+// Configurar Mercado Pago
+mercadopago.configure({
+  access_token: process.env.MERCADOPAGO_ACCESS_TOKEN || ''
+})
 
 export interface PaymentData {
-  orderId: string;
-  customerName: string;
-  customerEmail: string;
-  customerPhone: string;
-  items: Array<{
-    id: string;
-    title: string;
-    quantity: number;
-    unit_price: number;
-    currency_id?: string;
-  }>;
-  totalAmount: number;
-  description?: string;
+  order_id: string
+  amount: number
+  customer_email: string
+  customer_name: string
+  customer_phone: string
+  description: string
+  payment_method: 'pix' | 'credit_card' | 'debit_card'
 }
 
-export interface PaymentResponse {
-  success: boolean;
-  preferenceId?: string;
-  initPoint?: string;
-  sandboxInitPoint?: string;
-  error?: string;
+export interface PaymentResult {
+  success: boolean
+  payment_id?: string
+  init_point?: string
+  qr_code?: string
+  error?: string
 }
 
-// Criar preferência de pagamento
-export async function createPaymentPreference(paymentData: PaymentData): Promise<PaymentResponse> {
-  try {
-    console.log('🏦 Criando preferência de pagamento no Mercado Pago...', {
-      orderId: paymentData.orderId,
-      totalAmount: paymentData.totalAmount,
-      itemsCount: paymentData.items.length
-    });
+export class MercadoPagoGateway {
+  /**
+   * Criar pagamento no Mercado Pago
+   */
+  async createPayment(paymentData: PaymentData): Promise<PaymentResult> {
+    try {
+      console.log('💰 Criando pagamento Mercado Pago:', {
+        order_id: paymentData.order_id,
+        amount: paymentData.amount,
+        method: paymentData.payment_method
+      })
 
-    // Criar cliente dinâmico com configurações atualizadas
-    const client = await createMercadoPagoClient();
-    const preference = new Preference(client);
-
-    const preferenceData = {
-      items: paymentData.items.map(item => ({
-        id: item.id,
-        title: item.title,
-        quantity: item.quantity,
-        unit_price: item.unit_price,
-        currency_id: item.currency_id || 'BRL'
-      })),
-      payer: {
-        name: paymentData.customerName,
-        email: paymentData.customerEmail,
-        phone: {
-          number: paymentData.customerPhone
+      const payment = {
+        transaction_amount: paymentData.amount,
+        description: paymentData.description,
+        payment_method_id: paymentData.payment_method,
+        external_reference: paymentData.order_id,
+        payer: {
+          email: paymentData.customer_email,
+          first_name: paymentData.customer_name.split(' ')[0],
+          last_name: paymentData.customer_name.split(' ').slice(1).join(' ') || '',
+          phone: {
+            area_code: '11', // Código de área padrão
+            number: paymentData.customer_phone.replace(/\D/g, '')
+          }
+        },
+        notification_url: `${process.env.NEXT_PUBLIC_SITE_URL}/api/payments/webhook`,
+        back_urls: {
+          success: `${process.env.NEXT_PUBLIC_SITE_URL}/pedido/sucesso`,
+          failure: `${process.env.NEXT_PUBLIC_SITE_URL}/pedido/falha`,
+          pending: `${process.env.NEXT_PUBLIC_SITE_URL}/pedido/pendente`
         }
-      },
-      back_urls: {
-        success: `${process.env.NEXT_PUBLIC_SITE_URL}/checkout/success`,
-        failure: `${process.env.NEXT_PUBLIC_SITE_URL}/checkout/failure`,
-        pending: `${process.env.NEXT_PUBLIC_SITE_URL}/checkout/pending`
-      },
-      auto_return: 'approved' as const,
-      external_reference: paymentData.orderId,
-      statement_descriptor: 'PIZZARIA',
-      expires: true,
-      expiration_date_from: new Date().toISOString(),
-      expiration_date_to: new Date(Date.now() + 30 * 60 * 1000).toISOString(), // 30 minutos
-      notification_url: `${process.env.NEXT_PUBLIC_SITE_URL}/api/payments/webhook`,
-      additional_info: paymentData.description || `Pedido #${paymentData.orderId}`
-    };
-
-    const result = await preference.create({ body: preferenceData });
-
-    console.log('✅ Preferência criada com sucesso:', {
-      id: result.id,
-      initPoint: result.init_point
-    });
-
-    return {
-      success: true,
-      preferenceId: result.id!,
-      initPoint: result.init_point!,
-      sandboxInitPoint: result.sandbox_init_point!
-    };
-
-  } catch (error: any) {
-    console.error('❌ Erro ao criar preferência de pagamento:', {
-      message: error.message,
-      cause: error.cause,
-      status: error.status
-    });
-
-    return {
-      success: false,
-      error: error.message || 'Erro ao processar pagamento'
-    };
-  }
-}
-
-// Buscar informações de um pagamento
-export async function getPaymentInfo(paymentId: string) {
-  try {
-    console.log('🔍 Buscando informações do pagamento:', paymentId);
-
-    // Criar cliente dinâmico com configurações atualizadas
-    const client = await createMercadoPagoClient();
-    const payment = new Payment(client);
-
-    const result = await payment.get({ id: paymentId });
-
-    console.log('✅ Informações do pagamento obtidas:', {
-      id: result.id,
-      status: result.status,
-      statusDetail: result.status_detail,
-      externalReference: result.external_reference
-    });
-
-    return {
-      success: true,
-      payment: {
-        id: result.id,
-        status: result.status,
-        statusDetail: result.status_detail,
-        externalReference: result.external_reference,
-        transactionAmount: result.transaction_amount,
-        paymentMethodId: result.payment_method_id,
-        paymentTypeId: result.payment_type_id,
-        dateCreated: result.date_created,
-        dateApproved: result.date_approved,
-        payer: result.payer
       }
-    };
 
-  } catch (error: any) {
-    console.error('❌ Erro ao buscar pagamento:', {
-      paymentId,
-      message: error.message,
-      status: error.status
-    });
-
-    return {
-      success: false,
-      error: error.message || 'Erro ao buscar informações do pagamento'
-    };
-  }
-}
-
-// Mapear status do Mercado Pago para status interno
-export function mapPaymentStatus(mpStatus: string): 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED' {
-  switch (mpStatus) {
-    case 'approved':
-      return 'APPROVED';
-    case 'rejected':
-    case 'refunded':
-    case 'charged_back':
-      return 'REJECTED';
-    case 'cancelled':
-      return 'CANCELLED';
-    case 'pending':
-    case 'authorized':
-    case 'in_process':
-    case 'in_mediation':
-    default:
-      return 'PENDING';
-  }
-}
-
-// Validar webhook do Mercado Pago
-export function validateWebhookSignature(body: string, signature: string): boolean {
-  try {
-    const crypto = require('crypto');
-    const webhookSecret = process.env.MERCADOPAGO_WEBHOOK_SECRET;
-    
-    if (!webhookSecret) {
-      console.warn('⚠️ MERCADOPAGO_WEBHOOK_SECRET não configurado');
-      return true; // Permitir em desenvolvimento
-    }
-
-    const expectedSignature = crypto
-      .createHmac('sha256', webhookSecret)
-      .update(body)
-      .digest('hex');
-
-    return crypto.timingSafeEqual(
-      Buffer.from(signature),
-      Buffer.from(expectedSignature)
-    );
-
-  } catch (error) {
-    console.error('❌ Erro ao validar assinatura do webhook:', error);
-    return false;
-  }
-}
-
-// Criar pagamento PIX
-export async function createPixPayment(paymentData: PaymentData): Promise<PaymentResponse> {
-  try {
-    console.log('💰 Criando pagamento PIX no Mercado Pago...', {
-      orderId: paymentData.orderId,
-      totalAmount: paymentData.totalAmount
-    });
-
-    // Criar cliente dinâmico com configurações atualizadas
-    const client = await createMercadoPagoClient();
-    const payment = new Payment(client);
-
-    const paymentBody = {
-      transaction_amount: paymentData.totalAmount,
-      description: paymentData.description || `Pedido #${paymentData.orderId}`,
-      payment_method_id: 'pix',
-      external_reference: paymentData.orderId,
-      payer: {
-        email: paymentData.customerEmail,
-        first_name: paymentData.customerName.split(' ')[0],
-        last_name: paymentData.customerName.split(' ').slice(1).join(' ') || 'Cliente',
-        phone: {
-          number: paymentData.customerPhone
+      const response = await mercadopago.payment.save(payment)
+      
+      if (response.body.status === 'rejected') {
+        return {
+          success: false,
+          error: response.body.status_detail || 'Pagamento rejeitado'
         }
-      },
-      notification_url: `${process.env.NEXT_PUBLIC_SITE_URL}/api/payments/webhook`
-    };
+      }
 
-    const result = await payment.create({ body: paymentBody });
+      console.log('✅ Pagamento criado:', response.body.id)
 
-    console.log('✅ Pagamento PIX criado com sucesso:', {
-      id: result.id,
-      status: result.status,
-      qrCode: result.point_of_interaction?.transaction_data?.qr_code
-    });
+      return {
+        success: true,
+        payment_id: response.body.id.toString(),
+        init_point: response.body.init_point,
+        qr_code: response.body.point_of_interaction?.transaction_data?.qr_code
+      }
 
-    return {
-      success: true,
-      preferenceId: result.id!.toString(),
-      initPoint: result.point_of_interaction?.transaction_data?.qr_code_base64,
-      sandboxInitPoint: result.point_of_interaction?.transaction_data?.qr_code
-    };
+    } catch (error: any) {
+      console.error('❌ Erro ao criar pagamento:', error)
+      return {
+        success: false,
+        error: error.message || 'Erro interno do servidor'
+      }
+    }
+  }
 
-  } catch (error: any) {
-    console.error('❌ Erro ao criar pagamento PIX:', {
-      message: error.message,
-      cause: error.cause,
-      status: error.status
-    });
+  /**
+   * Buscar status de um pagamento
+   */
+  async getPaymentStatus(paymentId: string): Promise<any> {
+    try {
+      const response = await mercadopago.payment.get(paymentId)
+      return response.body
+    } catch (error: any) {
+      console.error('❌ Erro ao buscar pagamento:', error)
+      throw error
+    }
+  }
 
-    return {
-      success: false,
-      error: error.message || 'Erro ao processar pagamento PIX'
-    };
+  /**
+   * Processar pagamento aprovado
+   */
+  async processApprovedPayment(paymentId: string): Promise<boolean> {
+    try {
+      const payment = await this.getPaymentStatus(paymentId)
+      
+      if (payment.status === 'approved') {
+        console.log(`✅ Pagamento ${paymentId} aprovado`)
+        return true
+      }
+      
+      return false
+    } catch (error) {
+      console.error('❌ Erro ao processar pagamento:', error)
+      return false
+    }
+  }
+
+  /**
+   * Gerar QR Code PIX
+   */
+  async createPixPayment(paymentData: PaymentData): Promise<PaymentResult> {
+    try {
+      const payment = {
+        transaction_amount: paymentData.amount,
+        description: paymentData.description,
+        payment_method_id: 'pix',
+        external_reference: paymentData.order_id,
+        payer: {
+          email: paymentData.customer_email,
+          first_name: paymentData.customer_name.split(' ')[0],
+          last_name: paymentData.customer_name.split(' ').slice(1).join(' ') || ''
+        },
+        notification_url: `${process.env.NEXT_PUBLIC_SITE_URL}/api/payments/webhook`
+      }
+
+      const response = await mercadopago.payment.save(payment)
+      
+      if (response.body.status === 'rejected') {
+        return {
+          success: false,
+          error: response.body.status_detail || 'Pagamento PIX rejeitado'
+        }
+      }
+
+      const qrCode = response.body.point_of_interaction?.transaction_data?.qr_code
+      const qrCodeBase64 = response.body.point_of_interaction?.transaction_data?.qr_code_base64
+
+      return {
+        success: true,
+        payment_id: response.body.id.toString(),
+        qr_code: qrCode,
+        qr_code_base64: qrCodeBase64
+      }
+
+    } catch (error: any) {
+      console.error('❌ Erro ao criar PIX:', error)
+      return {
+        success: false,
+        error: error.message || 'Erro ao gerar PIX'
+      }
+    }
+  }
+
+  /**
+   * Reembolsar pagamento
+   */
+  async refundPayment(paymentId: string, amount?: number): Promise<boolean> {
+    try {
+      const refundData = amount ? { amount } : {}
+      const response = await mercadopago.refund.create({
+        payment_id: paymentId,
+        ...refundData
+      })
+
+      console.log('✅ Reembolso processado:', response.body.id)
+      return true
+    } catch (error: any) {
+      console.error('❌ Erro ao reembolsar:', error)
+      return false
+    }
   }
 }
 
-// Exportar função para criar cliente dinâmico
-export { createMercadoPagoClient, getMercadoPagoSettings };
+// Instância singleton
+export const mercadoPagoGateway = new MercadoPagoGateway()

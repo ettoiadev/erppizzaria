@@ -1,232 +1,228 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { getOrders, createOrder } from "@/lib/orders"
-import { verifyToken } from "@/lib/auth"
-import { notifyNewOrder } from "@/lib/socket-server"
+import { NextRequest, NextResponse } from "next/server"
+import { query } from '@/lib/postgres'
+import { ordersRateLimiter } from '@/lib/rate-limiter'
 
 export async function GET(request: NextRequest) {
   try {
+
     const { searchParams } = new URL(request.url)
     const status = searchParams.get("status")
-    const userId = searchParams.get("userId") || searchParams.get("user_id")
-    const limit = Number.parseInt(searchParams.get("limit") || "50")
-    const offset = Number.parseInt(searchParams.get("offset") || "0")
+    const userId = searchParams.get("userId")
+    const limit = searchParams.get("limit")
+    const offset = searchParams.get("offset")
 
-    console.log("GET /api/orders - Fetching orders with params:", { status, userId, limit, offset })
+    // Construir query base
+    let whereConditions = []
+    let params = []
+    let paramIndex = 1
 
-    // Buscar pedidos usando PostgreSQL nativo
-    const orders = await getOrders({
-      status: status && status !== "all" ? status : undefined,
-      user_id: userId || undefined,
-      limit,
-      offset
-    })
-
-    console.log(`✅ ${orders?.length || 0} pedidos carregados`)
-
-    // Processar dados para compatibilidade com o frontend
-    const processedOrders = orders.map(order => ({
-      ...order,
-      // Aplicar lógica do COALESCE no frontend
-      customer_display_name: order.full_name || order.customer_name || 'Cliente',
-      customer_display_phone: order.delivery_phone || order.phone || '',
-      // order_items já vem da query SQL
-      profiles: order.full_name ? {
-        full_name: order.full_name,
-        email: order.email,
-        phone: order.phone
-      } : null
-    }))
-
-    // Calcular estatísticas dos pedidos carregados
-    const statistics = {
-      total: processedOrders.length,
-      received: processedOrders.filter((o) => o.status === "PENDING").length,
-      preparing: processedOrders.filter((o) => o.status === "PREPARING").length,
-      onTheWay: processedOrders.filter((o) => o.status === "ON_THE_WAY").length,
-      delivered: processedOrders.filter((o) => o.status === "DELIVERED").length,
-      cancelled: processedOrders.filter((o) => o.status === "CANCELLED").length,
-      totalRevenue: processedOrders
-        .filter((o) => o.status === "DELIVERED")
-        .reduce((sum, o) => sum + Number.parseFloat(o.total.toString()), 0),
+    if (status && status !== "all") {
+      whereConditions.push(`o.status = $${paramIndex}`)
+      params.push(status)
+      paramIndex++
     }
 
+    if (userId) {
+      whereConditions.push(`o.user_id = $${paramIndex}`)
+      params.push(userId)
+      paramIndex++
+    }
+
+    // Filtrar pedidos não arquivados por padrão
+    whereConditions.push(`o.archived_at IS NULL`)
+
+    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : ''
+
+    // Query para pedidos
+    const ordersQuery = `
+      SELECT o.*, 
+             p.full_name, p.email, p.phone,
+             json_agg(
+               json_build_object(
+                 'id', oi.id,
+                 'product_id', oi.product_id,
+                 'name', oi.name,
+                 'quantity', oi.quantity,
+                 'unit_price', oi.unit_price,
+                 'total_price', oi.total_price,
+                 'size', oi.size,
+                 'toppings', oi.toppings,
+                 'special_instructions', oi.special_instructions,
+                 'half_and_half', oi.half_and_half
+               )
+             ) FILTER (WHERE oi.id IS NOT NULL) as order_items
+      FROM orders o
+      LEFT JOIN profiles p ON o.user_id = p.id
+      LEFT JOIN order_items oi ON o.id = oi.order_id
+      ${whereClause}
+      GROUP BY o.id, p.full_name, p.email, p.phone
+      ORDER BY o.created_at DESC
+      ${limit ? `LIMIT $${paramIndex}` : ''}
+      ${offset ? `OFFSET $${paramIndex + (limit ? 1 : 0)}` : ''}
+    `
+
+    if (limit) {
+      params.push(parseInt(limit))
+      paramIndex++
+    }
+    if (offset) {
+      params.push(parseInt(offset))
+    }
+
+    const ordersResult = await query(ordersQuery, params)
+    
+    const orders = ordersResult.rows.map(row => ({
+      ...row,
+      order_items: row.order_items || [],
+      items: row.order_items || [] // Para compatibilidade
+    }))
+
+    // Query para estatísticas (sem LIMIT e OFFSET)
+    const statsQuery = `
+      SELECT 
+        COUNT(*) as total,
+        COUNT(CASE WHEN status = 'RECEIVED' THEN 1 END) as received,
+        COUNT(CASE WHEN status = 'PREPARING' THEN 1 END) as preparing,
+        COUNT(CASE WHEN status = 'ON_THE_WAY' THEN 1 END) as onTheWay,
+        COUNT(CASE WHEN status = 'DELIVERED' THEN 1 END) as delivered,
+        COUNT(CASE WHEN status = 'CANCELLED' THEN 1 END) as cancelled,
+        COALESCE(SUM(CASE WHEN status = 'DELIVERED' THEN total ELSE 0 END), 0) as totalRevenue
+      FROM orders o
+      ${whereClause}
+    `
+
+    // Para estatísticas, usar apenas os parâmetros de WHERE (sem LIMIT/OFFSET)
+    // Calcular quantos parâmetros remover baseado nos parâmetros de paginação
+    const paginationParams = (limit ? 1 : 0) + (offset ? 1 : 0)
+    const statsParams = whereConditions.length > 0 ? params.slice(0, -paginationParams) : []
+    
+    const statsResult = await query(statsQuery, statsParams)
+    const statistics = statsResult.rows[0]
+
     return NextResponse.json({
-      orders: processedOrders,
+      orders,
       statistics,
       pagination: {
-        limit,
-        offset,
-        hasMore: processedOrders.length === limit,
-      },
+        total: statistics.total,
+        limit: limit ? parseInt(limit) : null,
+        offset: offset ? parseInt(offset) : 0
+      }
     })
+
   } catch (error: any) {
-    console.error("Unexpected error in GET /api/orders:", error)
-    return NextResponse.json({ 
-      error: "Erro ao buscar pedidos",
-      details: error.message,
-      code: error.code 
-    }, { status: 500 })
+    console.error("❌ Erro ao buscar pedidos:", error)
+    return NextResponse.json(
+      { error: "Erro interno do servidor" },
+      { status: 500 }
+    )
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    console.log("=== POST /api/orders - INÍCIO ===")
-    
+    // Aplicar rate limiting mais restritivo para criação de pedidos
+    const rateLimitResult = ordersRateLimiter(request)
+    // Somente interromper o fluxo se o rate limiter BLOQUEAR (status 429)
+    if (rateLimitResult && (rateLimitResult as NextResponse).status === 429) {
+      return rateLimitResult
+    }
+
     const body = await request.json()
-    console.log("POST /api/orders - Request body completo:", JSON.stringify(body, null, 2))
+    // Mapear campos alternativos vindos do frontend
+    const user_id = body.user_id ?? body.customerId ?? body.userId
+    const customer_name = body.customer_name ?? body.name ?? body.customer_name_full
+    const customer_phone = body.customer_phone ?? body.delivery_phone ?? body.phone
+    const customer_address = body.customer_address ?? body.delivery_address ?? body.address
+    const payment_method = body.payment_method ?? body.paymentMethod
+    const total = body.total
+    const subtotal = body.subtotal ?? 0
+    const delivery_fee = body.delivery_fee ?? 0
+    const discount = body.discount ?? 0
+    const status = body.status ?? 'RECEIVED'
+    const payment_status = body.payment_status ?? 'PENDING'
+    const delivery_type = body.delivery_type ?? 'delivery'
+    const notes = body.notes ?? body.delivery_instructions ?? null
+    const estimated_delivery_time = body.estimated_delivery_time ?? null
+    const items = Array.isArray(body.items) ? body.items : []
 
-    // Extrair e validar dados com logs detalhados
-    const user_id = body.customerId || body.user_id
-    const items = body.items || []
-    const total = Number(body.total || 0)
-    const subtotal = Number(body.subtotal || total)
-    const delivery_fee = Number(body.delivery_fee || 0)
-    const delivery_address = body.address || body.delivery_address || ""
-    const delivery_phone = body.phone || body.delivery_phone || ""
-    const customer_name = body.name || ""
-    const payment_method = body.paymentMethod || body.payment_method || "PIX"
-    const delivery_instructions = body.notes || body.delivery_instructions || null
-
-    console.log("Dados extraídos:", {
-      user_id,
-      items_count: items.length,
-      total,
-      subtotal,
-      delivery_fee,
-      delivery_address,
-      delivery_phone,
-      payment_method,
-      delivery_instructions
-    })
-
-    // Validações com mensagens específicas
-    if (!user_id) {
-      console.error("ERRO: ID do usuário não fornecido")
-      return NextResponse.json({ 
-        error: "ID do usuário é obrigatório",
-        details: "user_id não foi fornecido no body da requisição" 
-      }, { status: 400 })
+    // Validar dados obrigatórios
+    if (!user_id || !customer_name || !customer_phone || !customer_address || !total || !payment_method) {
+      return NextResponse.json(
+        { error: "Dados obrigatórios não fornecidos" },
+        { status: 400 }
+      )
     }
 
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      console.error("ERRO: Itens inválidos ou vazios")
-      return NextResponse.json({ 
-        error: "Itens do pedido são obrigatórios",
-        details: "Array de itens está vazio ou inválido" 
-      }, { status: 400 })
-    }
+    console.log("🍕 Criando novo pedido:", { customer_name, total, payment_method })
 
-    if (!delivery_address) {
-      console.error("ERRO: Endereço de entrega obrigatório", { delivery_address })
-      return NextResponse.json({ 
-        error: "Endereço de entrega é obrigatório",
-        details: `Endereço: ${delivery_address || 'vazio'}` 
-      }, { status: 400 })
-    }
+    // Inserir pedido
+    const orderResult = await query(`
+      INSERT INTO orders (
+        user_id, customer_name, delivery_phone, delivery_address, 
+        total, subtotal, delivery_fee, discount, status, 
+        payment_method, payment_status, delivery_instructions, 
+        estimated_delivery_time
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      RETURNING *
+    `, [
+      user_id, customer_name, customer_phone, customer_address,
+      total, subtotal, delivery_fee, discount, status,
+      payment_method, payment_status, notes, estimated_delivery_time
+    ])
 
-    if (total <= 0) {
-      console.error("ERRO: Total inválido", { total })
-      return NextResponse.json({ 
-        error: "Total do pedido deve ser maior que zero",
-        details: `Total recebido: ${total}` 
-      }, { status: 400 })
-    }
+    const order = orderResult.rows[0]
 
-    // Preparar dados do pedido usando PostgreSQL
-    const orderData = {
-      user_id,
-      customer_name,
-      customer_phone: delivery_phone,
-      customer_address: delivery_address,
-      total,
-      status: "PENDING" as const,
-      payment_method: payment_method as any,
-      delivery_type: "delivery" as const,
-      notes: delivery_instructions
-    }
+    // Inserir itens do pedido (tolerante a diferentes formatos vindos do frontend)
+    if (items.length > 0) {
+      for (const item of items) {
+        const productId = item.product_id ?? item.id ?? null
+        const name = item.name ?? 'Produto'
+        const quantity = item.quantity ?? 1
+        const unitPrice = item.unit_price ?? item.price ?? null
+        const totalPrice = item.total_price ?? (unitPrice != null && quantity != null ? unitPrice * quantity : null)
+        const size = item.size ?? null
+        const toppings = item.toppings ? JSON.stringify(item.toppings) : null
+        const specialInstructions = item.special_instructions ?? item.notes ?? null
+        const halfAndHalf = item.half_and_half
+          ? JSON.stringify(item.half_and_half)
+          : (item.halfAndHalf ? JSON.stringify(item.halfAndHalf) : null)
 
-    console.log("Criando pedido com dados:", orderData)
-
-    // Preparar itens do pedido
-    const orderItems = items.map(item => {
-      let product_id = item.product_id || item.id
-      if (product_id) {
-        product_id = product_id.toString().replace(/--+$/, '').trim()
+        await query(`
+          INSERT INTO order_items (
+            order_id, product_id, name, quantity, unit_price, total_price,
+            size, toppings, special_instructions, half_and_half
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        `, [
+          order.id,
+          productId,
+          name,
+          quantity,
+          unitPrice,
+          totalPrice,
+          size,
+          toppings,
+          specialInstructions,
+          halfAndHalf
+        ])
       }
+    }
 
-      return {
-        product_id,
-        name: item.name || '',
-        price: Number(item.price || item.unit_price || 0),
-        quantity: Number(item.quantity || 1),
-        size: item.size || null,
-        toppings: item.toppings || [],
-        special_instructions: item.notes || null,
-        half_and_half: item.halfAndHalf || null
+    console.log("✅ Pedido criado com sucesso:", order.id)
+
+    return NextResponse.json({
+      id: order.id,
+      message: "Pedido criado com sucesso",
+      order: {
+        ...order,
+        items
       }
     })
 
-    console.log("Criando pedido com itens:", orderItems)
-
-    // Criar o pedido usando PostgreSQL
-    const order = await createOrder(orderData, orderItems)
-
-    if (!order) {
-      throw new Error('Falha ao criar pedido')
-    }
-
-    console.log("Pedido criado com sucesso! ID:", order.id)
-    
-    // Notificar via Socket.io sobre o novo pedido
-    try {
-      notifyNewOrder({
-        id: order.id,
-        status: order.status,
-        total: order.total,
-        customer_name: order.customer_name,
-        customer_phone: order.customer_phone,
-        customer_address: order.customer_address,
-        payment_method: order.payment_method,
-        created_at: order.created_at,
-        items: orderItems
-      });
-      console.log("✅ Notificação Socket.io enviada para novo pedido");
-    } catch (socketError) {
-      console.warn("⚠️ Erro ao enviar notificação Socket.io:", socketError);
-      // Não falhar o pedido por erro de notificação
-    }
-      
-      return NextResponse.json({
-        id: order.id,
-        status: order.status,
-        total: order.total,
-        created_at: order.created_at,
-        message: "Pedido criado com sucesso!"
-      })
-      
   } catch (error: any) {
-    console.error("=== ERRO COMPLETO NO POST /api/orders ===")
-    console.error("Tipo:", error.constructor.name)
-    console.error("Mensagem:", error.message)
-    console.error("Stack:", error.stack)
-    
-    if (error.code) {
-      console.error("Código PostgreSQL:", error.code)
-      console.error("Detalhe:", error.detail)
-      console.error("Hint:", error.hint)
-    }
-    
-    // Retornar erro detalhado
-    return NextResponse.json({ 
-      error: error.message || "Erro interno do servidor",
-      details: {
-        type: error.constructor.name,
-        code: error.code,
-        message: error.message,
-        hint: error.hint,
-        detail: error.detail
-      }
-    }, { status: 500 })
+    console.error("❌ Erro ao criar pedido:", error)
+    return NextResponse.json(
+      { error: "Erro interno do servidor", details: error?.message },
+      { status: 500 }
+    )
   }
 }

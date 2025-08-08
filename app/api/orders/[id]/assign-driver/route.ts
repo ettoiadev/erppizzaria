@@ -69,12 +69,12 @@ export async function PATCH(
       // Iniciar transação
       await query('BEGIN');
 
-      // 1. Atualizar o pedido com o entregador e mudar status para OUT_FOR_DELIVERY
+      // 1. Atualizar o pedido com o entregador e mudar status para ON_THE_WAY
       const updatedOrderResult = await query(`
         UPDATE orders 
         SET 
           driver_id = $1,
-          status = 'OUT_FOR_DELIVERY',
+          status = 'ON_THE_WAY',
           updated_at = NOW()
         WHERE id = $2
         RETURNING id, status, total, customer_address, driver_id, created_at, updated_at

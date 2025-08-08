@@ -24,7 +24,9 @@ interface User {
 interface AuthContextType {
   user: User | null
   isLoading: boolean
+  isValidating: boolean
   getValidToken: () => Promise<string | null>
+  validateSession: () => Promise<boolean>
   login: (email: string, password: string, requiredRole?: string) => Promise<void>
   logout: () => void
   register: (userData: any) => Promise<void>
@@ -35,6 +37,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [isValidating, setIsValidating] = useState(false)
   const router = useRouter()
 
   // Função para verificar se o token JWT é válido
@@ -88,6 +91,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error('Erro ao obter token válido:', error)
       return null
+    }
+  }
+
+  // Função para validar sessão atual
+  const validateSession = async (): Promise<boolean> => {
+    try {
+      setIsValidating(true)
+      const token = await getValidToken()
+      
+      if (!token) {
+        return false
+      }
+
+      const userData = await verifyToken(token)
+      if (!userData) {
+        return false
+      }
+
+      setUser(userData)
+      return true
+    } catch (error) {
+      console.error('Erro ao validar sessão:', error)
+      return false
+    } finally {
+      setIsValidating(false)
     }
   }
 
@@ -230,7 +258,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         user,
         isLoading,
+        isValidating,
         getValidToken,
+        validateSession,
         login,
         logout,
         register,

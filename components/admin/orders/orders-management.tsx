@@ -9,8 +9,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
-import { Clock, Phone, MapPin, CreditCard, Package, Bike, CheckCircle, XCircle, Eye, RefreshCw, Bell, Dot, Printer, Store, Truck, Settings, Grid3X3, List } from "lucide-react"
+import { Clock, Phone, MapPin, CreditCard, Package, Bike, CheckCircle, XCircle, Eye, RefreshCw, Bell, Dot, Printer, Store, Truck, Settings, Grid3X3, List, Archive } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+
 import { ManualOrderForm } from "./manual-order-form"
 import { useThermalPrinter } from "@/lib/thermal-printer"
 import { SelectDriverModal } from "./select-driver-modal"
@@ -125,6 +126,7 @@ export function OrdersManagement() {
   const { toast } = useToast()
   const thermalPrinter = useThermalPrinter()
 
+
   const fetchOrders = async () => {
     try {
       setLoading(true)
@@ -161,6 +163,27 @@ export function OrdersManagement() {
   useEffect(() => {
     fetchOrders()
   }, [selectedStatus])
+
+  // Atualizar pedidos periodicamente
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchOrders();
+    }, 30000); // Atualizar a cada 30 segundos
+
+    return () => clearInterval(interval);
+  }, [fetchOrders]);
+
+  // Função auxiliar para obter label do status
+  const getStatusLabel = (status: string) => {
+    const statusLabels: Record<string, string> = {
+      'RECEIVED': 'Recebidos',
+      'PREPARING': 'Preparando',
+      'ON_THE_WAY': 'Saiu para Entrega',
+      'DELIVERED': 'Entregues',
+      'CANCELLED': 'Cancelados'
+    }
+    return statusLabels[status] || status
+  }
 
   const updateOrderStatus = async (orderId: string, newStatus: string, notes?: string) => {
     try {
@@ -233,6 +256,11 @@ export function OrdersManagement() {
       // Recarregar pedidos após arquivamento
       await fetchOrders()
       
+      toast({
+        title: "Sucesso",
+        description: `${result.archivedCount} pedidos arquivados com sucesso`,
+      })
+      
     } catch (error: any) {
       console.error("Erro ao arquivar pedidos:", error)
       toast({
@@ -240,7 +268,51 @@ export function OrdersManagement() {
         description: error.message || "Não foi possível arquivar os pedidos. Tente novamente.",
         variant: "destructive"
       })
-      throw error
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Função para arquivar todos os pedidos entregues e cancelados
+  const handleArchiveAllCompleted = async () => {
+    try {
+      setLoading(true)
+      
+      // Contar quantos pedidos serão arquivados
+      const deliveredCount = statistics.delivered
+      const cancelledCount = statistics.cancelled
+      const totalToArchive = deliveredCount + cancelledCount
+      
+      if (totalToArchive === 0) {
+        toast({
+          title: "Nenhum pedido para arquivar",
+          description: "Não há pedidos entregues ou cancelados para arquivar.",
+        })
+        return
+      }
+
+      // Arquivar pedidos entregues
+      if (deliveredCount > 0) {
+        await handleArchiveOrders("DELIVERED")
+      }
+      
+      // Arquivar pedidos cancelados
+      if (cancelledCount > 0) {
+        await handleArchiveOrders("CANCELLED")
+      }
+      
+      toast({
+        title: "Arquivamento Concluído",
+        description: `${totalToArchive} pedidos arquivados com sucesso. Kanban limpo para o novo dia!`,
+      })
+      
+    } catch (error: any) {
+      console.error("Erro ao arquivar todos os pedidos:", error)
+      toast({
+        title: "Erro ao Arquivar",
+        description: error.message || "Não foi possível arquivar os pedidos. Tente novamente.",
+        variant: "destructive"
+      })
     } finally {
       setLoading(false)
     }
@@ -321,7 +393,7 @@ export function OrdersManagement() {
       if (result.success) {
         toast({
           title: "Impressão Térmica",
-          description: `Pedido #${order.id.slice(-8)} impresso na Bematech MP-4200 TH`,
+          description: `Pedido #${order.order_number || order.id.slice(-8)} impresso na Bematech MP-4200 TH`,
         })
       } else {
         toast({
@@ -461,7 +533,7 @@ export function OrdersManagement() {
         <div class="header">
           <div style="font-weight: bold; font-size: 14px;">WILLIAM DISK PIZZA</div>
           <div style="font-size: 10px;">PEDIDO PARA COZINHA</div>
-          <div class="order-number">PEDIDO #${order.id.slice(-8)}</div>
+                          <div class="order-number">PEDIDO #${order.order_number || order.id.slice(-8)}</div>
           <div class="status">${statusLabels[order.status]}</div>
         </div>
 
@@ -562,7 +634,7 @@ export function OrdersManagement() {
 
     toast({
       title: "Imprimindo via Navegador",
-      description: `Pedido #${order.id.slice(-8)} enviado para impressão`,
+              description: `Pedido #${order.order_number || order.id.slice(-8)} enviado para impressão`,
     })
   }
 
@@ -680,6 +752,17 @@ export function OrdersManagement() {
             Atualizar
           </Button>
 
+          {/* Botão para arquivar todos os pedidos entregues e cancelados */}
+          <Button
+            variant="outline"
+            onClick={handleArchiveAllCompleted}
+            disabled={loading}
+            className="flex items-center gap-2 text-red-600 hover:text-red-700 border-red-200 hover:border-red-300"
+          >
+            <Archive className="h-4 w-4" />
+            Arquivar Todos Completos
+          </Button>
+
           {/* Toggle de visualização */}
           <div className="flex items-center border rounded-lg p-1">
             <Button
@@ -753,7 +836,6 @@ export function OrdersManagement() {
           setSelectedOrder={setSelectedOrder}
           cancellationNotes={cancellationNotes}
           setCancellationNotes={setCancellationNotes}
-          onArchiveOrders={handleArchiveOrders}
         />
       ) : (
         <div className="grid gap-4">
@@ -784,7 +866,7 @@ export function OrdersManagement() {
                       )}
                     </div>
                     <div className="text-right">
-                      <p className="text-lg font-bold">Pedido #{order.id.slice(-8)}</p>
+                      <p className="text-lg font-bold">Pedido #{order.order_number || order.id.slice(-8)}</p>
                       <p className="text-sm opacity-90">{formatDateTime(order.created_at)}</p>
                     </div>
                   </div>
@@ -946,7 +1028,7 @@ export function OrdersManagement() {
                         </DialogTrigger>
                         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto" aria-describedby="order-details-modal-description">
                           <DialogHeader>
-                            <DialogTitle>Detalhes do Pedido #{order.id.slice(-8)}</DialogTitle>
+                            <DialogTitle>Detalhes do Pedido #{order.order_number || order.id.slice(-8)}</DialogTitle>
                             <DialogDescription id="order-details-modal-description">
                               Visualize os detalhes completos do pedido.
                             </DialogDescription>
@@ -1019,7 +1101,11 @@ export function OrdersManagement() {
                           size="sm"
                           onClick={() => updateOrderStatus(order.id, nextAction.status)}
                           disabled={updatingStatus === order.id}
-                          className="flex items-center gap-1"
+                          className={`flex items-center gap-1 ${
+                            nextAction.status === "DELIVERED" 
+                              ? "bg-green-500 hover:bg-green-600 text-white border-green-600" 
+                              : ""
+                          }`}
                         >
                           {updatingStatus === order.id ? (
                             <RefreshCw className="h-4 w-4 animate-spin" />

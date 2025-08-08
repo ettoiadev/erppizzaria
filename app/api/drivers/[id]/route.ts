@@ -33,8 +33,10 @@ export async function GET(
     if (driver.status === 'busy') {
       try {
         const ordersResult = await query(`
-          SELECT id FROM orders 
-          WHERE driver_id = $1 AND status = 'OUT_FOR_DELIVERY'
+          SELECT id, status, total, customer_address, created_at
+          FROM orders 
+          WHERE driver_id = $1 AND status = 'ON_THE_WAY'
+          ORDER BY created_at DESC
         `, [driver.id]);
 
         currentOrders = ordersResult.rows.map((order: any) => order.id)

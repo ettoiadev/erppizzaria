@@ -123,9 +123,10 @@ export default function CheckoutPage() {
       // Extrair apenas os últimos 8 caracteres do ID para exibição
       const shortId = result.id ? result.id.slice(-8) : 'novo'
       
+      const displayNumber = result?.order?.order_number || shortId
       toast({
         title: "Pedido realizado com sucesso!",
-        description: `Seu pedido #${shortId} foi criado. Você será redirecionado para acompanhar o status.`,
+        description: `Seu pedido #${displayNumber} foi criado. Você será redirecionado para acompanhar o status.`,
       })
 
       // Redirecionar para página de acompanhamento

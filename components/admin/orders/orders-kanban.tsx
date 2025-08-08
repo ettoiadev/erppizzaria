@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
-import { Clock, Phone, MapPin, CreditCard, Package, Bike, CheckCircle, XCircle, Eye, RefreshCw, Printer, Store, Truck, Archive } from "lucide-react"
+import { Clock, Phone, MapPin, CreditCard, Package, Bike, CheckCircle, XCircle, Eye, RefreshCw, Printer, Store, Archive, User } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
 // Tipos e interfaces
@@ -23,7 +23,7 @@ interface OrderItem {
   total_price: number
   size?: string
   toppings?: string[]
-  products: {
+  products?: {
     name: string
     description: string
     image: string
@@ -43,6 +43,7 @@ interface OrderItem {
 
 interface Order {
   id: string
+  order_number?: number
   status: keyof typeof statusLabels
   total: number
   subtotal: number
@@ -63,6 +64,7 @@ interface Order {
   customer_display_phone?: string
   customer_name?: string
   order_items: OrderItem[]
+  items?: OrderItem[] // Added for compatibility with new_code
 }
 
 interface OrdersKanbanProps {
@@ -80,7 +82,6 @@ interface OrdersKanbanProps {
   setSelectedOrder: (order: Order | null) => void
   cancellationNotes: string
   setCancellationNotes: (notes: string) => void
-  onArchiveOrders: (status: string) => Promise<void>
 }
 
 // Configurações de status
@@ -125,7 +126,6 @@ export function OrdersKanban({
   setSelectedOrder,
   cancellationNotes,
   setCancellationNotes,
-  onArchiveOrders,
 }: OrdersKanbanProps) {
   const { toast } = useToast()
 
@@ -169,39 +169,7 @@ export function OrdersKanban({
     }
   }, [onStatusUpdate, toast])
 
-  // Handler para arquivar todos os pedidos de um status
-  const handleArchiveAll = useCallback(async (status: string) => {
-    const ordersToArchive = ordersByStatus[status]?.length || 0
-    
-    if (ordersToArchive === 0) {
-      toast({
-        title: "Nenhum pedido para arquivar",
-        description: `Não há pedidos ${statusLabels[status].toLowerCase()} para arquivar.`,
-        variant: "destructive"
-      })
-      return
-    }
 
-    const confirmed = window.confirm(
-      `Tem certeza que deseja arquivar todos os ${ordersToArchive} pedidos ${statusLabels[status].toLowerCase()}?\n\nEles não aparecerão mais no Kanban, mas permanecerão disponíveis nos relatórios.`
-    )
-
-    if (!confirmed) return
-
-    try {
-      await onArchiveOrders(status)
-      toast({
-        title: "Pedidos Arquivados",
-        description: `${ordersToArchive} pedidos ${statusLabels[status].toLowerCase()} foram arquivados com sucesso.`,
-      })
-    } catch (error) {
-      toast({
-        title: "Erro ao Arquivar",
-        description: "Não foi possível arquivar os pedidos. Tente novamente.",
-        variant: "destructive"
-      })
-    }
-  }, [ordersByStatus, onArchiveOrders, toast])
 
   // Contar pedidos por status
   const getOrderCount = (status: string) => ordersByStatus[status]?.length || 0
@@ -215,31 +183,20 @@ export function OrdersKanban({
             const statusOrders = ordersByStatus[status] || []
             
             return (
-              <div key={status} className="kanban-column flex flex-col h-full">
+              <div key={status} className="kanban-column flex flex-col h-full min-w-0">
                 {/* Header da Coluna */}
                 <Card className="mb-4 shadow-sm">
                   <CardHeader className={`p-4 ${statusColors[status]} rounded-t-lg`}>
                     <CardTitle className="flex items-center justify-between text-sm font-medium">
-                      <div className="flex items-center gap-2">
-                        <StatusIcon className="h-4 w-4" />
-                        <span className="hidden sm:inline">{statusLabels[status]}</span>
-                        <span className="sm:hidden">{statusLabels[status].split(' ')[0]}</span>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <StatusIcon className="h-4 w-4 flex-shrink-0" />
+                        <span className="hidden sm:inline truncate">{statusLabels[status]}</span>
+                        <span className="sm:hidden truncate">{statusLabels[status].split(' ')[0]}</span>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-shrink-0">
                         <Badge variant="secondary" className="bg-white/20 text-current">
                           {getOrderCount(status)}
                         </Badge>
-                        {(status === "DELIVERED" || status === "CANCELLED") && getOrderCount(status) > 0 && (
-                          <Button
-                            size="sm"
-                            onClick={() => handleArchiveAll(status)}
-                            className="bg-orange-500 hover:bg-orange-600 text-white text-xs px-2 py-1 h-6"
-                            title={`Arquivar todos os pedidos ${statusLabels[status].toLowerCase()}`}
-                          >
-                            <Archive className="h-3 w-3 mr-1" />
-                            Arquivar Tudo
-                          </Button>
-                        )}
                       </div>
                     </CardTitle>
                   </CardHeader>
@@ -270,7 +227,7 @@ export function OrdersKanban({
                                 ref={provided.innerRef}
                                 {...provided.draggableProps}
                                 {...provided.dragHandleProps}
-                                className={`transition-all ${
+                                className={`transition-all w-full ${
                                   snapshot.isDragging 
                                     ? 'kanban-card-dragging' 
                                     : 'hover:shadow-md'
@@ -377,16 +334,16 @@ function OrderCard({
   const nextAction = getNextStatus(order.status)
 
   return (
-    <Card className="hover:shadow-md transition-shadow overflow-hidden border-2 bg-white">
+    <Card className="hover:shadow-md transition-shadow overflow-hidden border-2 bg-white w-full max-w-full">
       {/* Header compacto para Kanban */}
       <div className={`px-4 py-2 ${statusColors[order.status]} border-b-2`}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <StatusIcon className="h-4 w-4" />
-            <span className="text-sm font-bold">#{order.id.slice(-8)}</span>
+        <div className="flex items-center justify-between min-w-0">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <StatusIcon className="h-4 w-4 flex-shrink-0" />
+            <span className="text-sm font-bold truncate">#{order.order_number || order.id.slice(-8)}</span>
             {/* Badge para pedidos manuais */}
             {(order.delivery_address === "Manual (Balcão)" || order.delivery_address === "Manual (Telefone)") && (
-              <Badge variant="secondary" className="bg-purple-100 text-purple-800 border-purple-200 text-xs">
+              <Badge variant="secondary" className="bg-purple-100 text-purple-800 border-purple-200 text-xs flex-shrink-0">
                 {order.delivery_address === "Manual (Balcão)" ? (
                   <><Store className="h-2 w-2 mr-1" />BALCÃO</>
                 ) : (
@@ -395,72 +352,102 @@ function OrderCard({
               </Badge>
             )}
           </div>
-          <span className="text-sm font-bold">{formatCurrency(order.total)}</span>
+          <span className="text-sm font-bold flex-shrink-0 ml-2">{formatCurrency(order.total)}</span>
         </div>
       </div>
       
-      <CardContent className="p-3 space-y-3">
+      <CardContent className="p-4 space-y-4">
         {/* Informações do cliente */}
-        <div className="text-sm">
-          <div className="flex items-center gap-1 mb-1">
-            <Phone className="h-3 w-3 text-gray-500" />
+        <div className="text-sm space-y-2">
+          <div className="flex items-center gap-1 min-w-0">
+            <User className="h-3 w-3 text-gray-500 flex-shrink-0" />
             <span className="font-medium truncate">
-              {order.customer_display_name || order.profiles?.full_name || order.customer_name || "Cliente"}
+              {order.customer_display_name || order.profiles?.full_name || order.customer_name || "Cliente não identificado"}
             </span>
           </div>
-          <p className="text-xs text-gray-500 truncate">
-            {order.customer_display_phone || order.delivery_phone || order.profiles?.phone || "Sem telefone"}
-          </p>
+          <div className="flex items-center gap-1 min-w-0">
+            <Phone className="h-3 w-3 text-gray-500 flex-shrink-0" />
+            <span className="text-xs text-gray-600 truncate">
+              {order.customer_display_phone || order.delivery_phone || order.profiles?.phone || "Sem telefone"}
+            </span>
+          </div>
         </div>
 
         {/* Endereço */}
         <div className="text-xs">
-          <div className="flex items-start gap-1">
+          <div className="flex items-start gap-1 min-w-0">
             <MapPin className="h-3 w-3 mt-0.5 text-gray-500 flex-shrink-0" />
-            <p className="text-gray-600 line-clamp-2">{order.delivery_address}</p>
+            <p className="text-gray-600 line-clamp-2 min-w-0">
+              {order.customer_address || order.delivery_address || "Endereço não informado"}
+            </p>
           </div>
         </div>
 
-        {/* Itens resumidos */}
-        <div className="text-xs">
-          <p className="flex items-center gap-1">
-            <Package className="h-3 w-3 text-gray-500" />
-            <span>{order.order_items?.length || 0} itens</span>
-          </p>
-          <p className="flex items-center gap-1 mt-1">
-            <CreditCard className="h-3 w-3 text-gray-500" />
-            <span>{mapPaymentMethodToPortuguese(order.payment_method)}</span>
-          </p>
+        {/* Itens detalhados */}
+        <div className="text-xs space-y-2">
+          <div className="flex items-start gap-1 min-w-0">
+            <Package className="h-3 w-3 mt-0.5 text-gray-500 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="font-medium mb-1">
+                {order.order_items?.length || order.items?.length || 0} itens
+              </p>
+              {(order.order_items || order.items || []).slice(0, 3).map((item, index) => (
+                <p key={index} className="text-gray-600 text-xs mb-1 truncate">
+                  • {item.quantity}x {item.name || "Produto"}
+                  {item.special_instructions && (
+                    <span className="text-gray-500 italic"> ({item.special_instructions})</span>
+                  )}
+                </p>
+              ))}
+              {(order.order_items?.length || order.items?.length || 0) > 3 && (
+                <p className="text-gray-500 text-xs italic">
+                  +{(order.order_items?.length || order.items?.length || 0) - 3} mais itens...
+                </p>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-1 min-w-0">
+            <CreditCard className="h-3 w-3 text-gray-500 flex-shrink-0" />
+            <span className="text-gray-600 truncate">{mapPaymentMethodToPortuguese(order.payment_method)}</span>
+          </div>
         </div>
 
         {/* Tempo */}
         <div className="text-xs text-gray-500">
-          <p>{formatDateTime(order.created_at)}</p>
+          <p className="truncate">{formatDateTime(order.created_at)}</p>
         </div>
 
-        {/* Botões de ação compactos */}
-        <div className="flex flex-wrap gap-1">
+        {/* Botões de ação - Apenas ícones com cores de fundo */}
+        <div className="flex flex-wrap gap-2 justify-start">
           {/* Botão de Impressão */}
           <Button 
-            variant="outline" 
             size="sm"
             onClick={() => onPrintKitchenReceipt(order)}
-            className="text-xs h-7 px-2"
+            className={`p-2 min-w-0 h-8 w-8 rounded-full flex-shrink-0 ${
+              thermalPrintEnabled 
+                ? 'bg-green-500 hover:bg-green-600 text-white' 
+                : 'bg-blue-500 hover:bg-blue-600 text-white'
+            }`}
             title={thermalPrintEnabled ? "Imprimir na Bematech MP-4200 TH" : "Imprimir via navegador"}
           >
-            <Printer className="h-3 w-3" />
+            <Printer className="h-4 w-4" />
           </Button>
 
           {/* Botão Detalhes */}
           <Dialog>
             <DialogTrigger asChild>
-              <Button variant="outline" size="sm" className="text-xs h-7 px-2" onClick={() => setSelectedOrder(order)}>
-                <Eye className="h-3 w-3" />
+              <Button 
+                size="sm" 
+                className="p-2 min-w-0 h-8 w-8 rounded-full bg-purple-500 hover:bg-purple-600 text-white flex-shrink-0"
+                onClick={() => setSelectedOrder(order)}
+                title="Ver detalhes do pedido"
+              >
+                <Eye className="h-4 w-4" />
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto" aria-describedby="order-details-modal-description">
               <DialogHeader>
-                <DialogTitle>Detalhes do Pedido #{order.id.slice(-8)}</DialogTitle>
+                <DialogTitle>Detalhes do Pedido #{order.order_number || order.id.slice(-8)}</DialogTitle>
                 <DialogDescription id="order-details-modal-description">
                   Visualize os detalhes completos do pedido.
                 </DialogDescription>
@@ -490,7 +477,7 @@ function OrderCard({
 
                   <div>
                     <Label>Endereço de Entrega:</Label>
-                    <p className="text-sm">{selectedOrder.delivery_address}</p>
+                    <p className="text-sm">{selectedOrder.delivery_address || "Endereço não informado"}</p>
                     {selectedOrder.delivery_instructions && (
                       <p className="text-sm text-gray-500 italic">
                         Instruções: {selectedOrder.delivery_instructions}
@@ -501,10 +488,12 @@ function OrderCard({
                   <div>
                     <Label>Itens do Pedido:</Label>
                     <div className="space-y-2 mt-2">
-                      {selectedOrder.order_items?.map((item, index) => (
+                      {(selectedOrder.order_items || selectedOrder.items || []).map((item, index) => (
                         <div key={index} className="flex justify-between p-2 bg-gray-50 rounded">
                           <div>
-                            <p className="font-medium">{item.products?.name || (item as any).name || "Produto não encontrado"}</p>
+                            <p className="font-medium">
+                              {item.products?.name || item.name || "Produto não encontrado"}
+                            </p>
                             <p className="text-sm text-gray-600">
                               Quantidade: {item.quantity}
                               {item.size && ` • Tamanho: ${item.size}`}
@@ -512,6 +501,11 @@ function OrderCard({
                             {item.toppings && item.toppings.length > 0 && (
                               <p className="text-sm text-gray-500">
                                 Adicionais: {item.toppings.join(", ")}
+                              </p>
+                            )}
+                            {item.special_instructions && (
+                              <p className="text-sm text-gray-500 italic">
+                                Observações: {item.special_instructions}
                               </p>
                             )}
                           </div>
@@ -534,12 +528,17 @@ function OrderCard({
               size="sm"
               onClick={() => onStatusUpdate(order.id, nextAction.status)}
               disabled={updatingStatus === order.id}
-              className="text-xs h-7 px-2"
+              className={`p-2 min-w-0 h-8 w-8 rounded-full text-white flex-shrink-0 ${
+                nextAction.status === "DELIVERED" 
+                  ? "bg-green-500 hover:bg-green-600" 
+                  : "bg-orange-500 hover:bg-orange-600"
+              }`}
+              title={nextAction.label}
             >
               {updatingStatus === order.id ? (
-                <RefreshCw className="h-3 w-3 animate-spin" />
+                <RefreshCw className="h-4 w-4 animate-spin" />
               ) : (
-                <nextAction.icon className="h-3 w-3" />
+                <nextAction.icon className="h-4 w-4" />
               )}
             </Button>
           )}
@@ -548,11 +547,11 @@ function OrderCard({
           {order.status === "PREPARING" && (
             <Button
               size="sm"
-              variant="outline"
               onClick={() => onShowSelectDriverModal(order.id)}
-              className="text-xs h-7 px-2 text-blue-600 hover:text-blue-700"
+              className="p-2 min-w-0 h-8 w-8 rounded-full bg-indigo-500 hover:bg-indigo-600 text-white flex-shrink-0"
+              title="Atribuir entregador"
             >
-              <Truck className="h-3 w-3" />
+              <Bike className="h-4 w-4" />
             </Button>
           )}
 
@@ -560,8 +559,12 @@ function OrderCard({
           {order.status !== "CANCELLED" && order.status !== "DELIVERED" && (
             <Dialog>
               <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="text-xs h-7 px-2 text-red-600 hover:text-red-700">
-                  <XCircle className="h-3 w-3" />
+                <Button 
+                  size="sm" 
+                  className="p-2 min-w-0 h-8 w-8 rounded-full bg-red-500 hover:bg-red-600 text-white flex-shrink-0"
+                  title="Cancelar pedido"
+                >
+                  <XCircle className="h-4 w-4" />
                 </Button>
               </DialogTrigger>
               <DialogContent aria-describedby="cancel-order-modal-description">

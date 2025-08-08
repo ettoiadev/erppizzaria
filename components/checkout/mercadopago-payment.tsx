@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, CreditCard, Smartphone, QrCode } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
-import { useOrderSocket } from '@/hooks/use-socket';
+
 
 interface PaymentProps {
   orderId: string;
@@ -40,7 +40,7 @@ export function MercadoPagoPayment({
   const [paymentData, setPaymentData] = useState<PaymentResponse['payment'] | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<'preference' | 'pix'>('preference');
   const [qrCodeData, setQrCodeData] = useState<string | null>(null);
-  const { socket, connected } = useOrderSocket(orderId);
+
 
   // Criar pagamento
   const createPayment = async (method: 'preference' | 'pix') => {
@@ -114,10 +114,7 @@ export function MercadoPagoPayment({
         
       window.open(checkoutUrl, '_blank');
       
-      // Monitorar pagamento via Socket.io
-      if (socket) {
-        console.log('🔍 Monitorando pagamento via Socket.io...');
-      }
+
     }
   };
 
@@ -130,44 +127,7 @@ export function MercadoPagoPayment({
     }
   };
 
-  // Configurar listeners do Socket.io para monitorar pagamento
-  useEffect(() => {
-    if (!socket) return;
 
-    const handlePaymentApproved = (data: any) => {
-      console.log('💰 Pagamento aprovado via Socket.io:', data);
-      
-      toast({
-        title: "Pagamento Aprovado!",
-        description: "Seu pedido foi confirmado e está sendo preparado.",
-        duration: 10000
-      });
-
-      if (onPaymentSuccess) {
-        onPaymentSuccess(data);
-      }
-    };
-
-    const handleOrderStatusUpdated = (data: any) => {
-      console.log('📋 Status do pedido atualizado:', data);
-      
-      if (data.status === 'RECEIVED') {
-        toast({
-          title: "Pedido Confirmado!",
-          description: "Seu pedido foi recebido e está sendo preparado.",
-          duration: 10000
-        });
-      }
-    };
-
-    socket.on('payment-approved', handlePaymentApproved);
-    socket.on('order-status-updated', handleOrderStatusUpdated);
-
-    return () => {
-      socket.off('payment-approved', handlePaymentApproved);
-      socket.off('order-status-updated', handleOrderStatusUpdated);
-    };
-  }, [socket, onPaymentSuccess]);
 
   return (
     <Card className="w-full max-w-md mx-auto">
@@ -181,16 +141,7 @@ export function MercadoPagoPayment({
       </CardHeader>
 
       <CardContent className="space-y-4">
-        {/* Status da conexão */}
-        <div className="flex items-center justify-between text-sm">
-          <span>Status da conexão:</span>
-          <div className="flex items-center space-x-2">
-            <div className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-            <span className={connected ? 'text-green-600' : 'text-red-600'}>
-              {connected ? 'Conectado' : 'Desconectado'}
-            </span>
-          </div>
-        </div>
+
 
         {/* Informações do pedido */}
         <div className="text-sm text-muted-foreground">

@@ -5,6 +5,7 @@ import { User } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { useAppSettings } from "@/hooks/use-app-settings"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { NotificationBell } from "@/components/ui/notification-bell"
 
 export function AdminHeader() {
   const { user, logout } = useAuth()
@@ -35,6 +36,10 @@ export function AdminHeader() {
 
       {/* Actions */}
       <div className="flex items-center space-x-4">
+        {/* Notificações */}
+        <NotificationBell userId={user?.id} />
+        
+        {/* Perfil do usuário */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="sm" className="flex items-center space-x-2">

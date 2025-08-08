@@ -200,7 +200,7 @@ export default function OrdersPage() {
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-lg">
-                      Pedido #{order.id.slice(-8)}
+                      Pedido #{order.order_number || order.id.slice(-8)}
                     </CardTitle>
                     <Badge className={getStatusColor(order.status)}>
                       <div className="flex items-center space-x-1">
