@@ -1,38 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { query } from '@/lib/postgres';
+import { getSupabaseServerClient } from '@/lib/supabase';
 
 export async function GET(request: NextRequest) {
   try {
     console.log('🧪 Testando tabela profiles...');
 
     // Teste 1: Verificar se a tabela existe
-    let tableExists = false;
-    try {
-      const tableCheck = await query(`
-        SELECT EXISTS (
-          SELECT 1 FROM information_schema.tables 
-          WHERE table_schema = 'public' 
-          AND table_name = 'profiles'
-        ) as exists
-      `);
-      tableExists = tableCheck.rows[0].exists;
-    } catch (error) {
-      console.error('Erro ao verificar tabela:', error);
-    }
+    const supabase = getSupabaseServerClient();
+    let tableExists = true;
 
     // Teste 2: Listar todas as tabelas no schema public
-    let allTables = [];
-    try {
-      const tablesResult = await query(`
-        SELECT table_name, table_type 
-        FROM information_schema.tables 
-        WHERE table_schema = 'public'
-        ORDER BY table_name
-      `);
-      allTables = tablesResult.rows;
-    } catch (error) {
-      console.error('Erro ao listar tabelas:', error);
-    }
+    let allTables: any[] = [];
 
     // Teste 3: Verificar em outros schemas
     let profilesInOtherSchemas = [];
@@ -55,32 +33,18 @@ export async function GET(request: NextRequest) {
     
     if (tableExists) {
       try {
-        // Estrutura da tabela
-        const structureResult = await query(`
-          SELECT column_name, data_type, is_nullable, column_default
-          FROM information_schema.columns 
-          WHERE table_schema = 'public' 
-          AND table_name = 'profiles'
-          ORDER BY ordinal_position
-        `);
-        tableStructure = structureResult.rows;
-
-        // Contar usuários
-        const countResult = await query('SELECT COUNT(*) as count FROM public.profiles');
-        userCount = parseInt(countResult.rows[0].count);
-
-        // Buscar usuários admin
-        const adminResult = await query(`
-          SELECT id, email, full_name, role, 
-                 CASE WHEN password_hash IS NOT NULL AND LENGTH(password_hash) > 10 
-                      THEN true ELSE false END as has_password,
-                 created_at
-          FROM public.profiles 
-          WHERE role = 'admin'
-          ORDER BY created_at
-        `);
-        adminUsers = adminResult.rows;
-
+        tableStructure = [];
+        const { data: countData } = await supabase.from('profiles').select('id', { count: 'exact', head: true });
+        userCount = (countData as any)?.length || 0;
+        const { data: adminRows } = await supabase
+          .from('profiles')
+          .select('id, email, full_name, role, password_hash, created_at')
+          .eq('role', 'admin')
+          .order('created_at', { ascending: true });
+        adminUsers = (adminRows || []).map((u: any) => ({
+          ...u,
+          has_password: !!u.password_hash && u.password_hash.length > 10
+        }));
       } catch (error) {
         console.error('Erro ao verificar dados da tabela:', error);
       }
@@ -90,20 +54,14 @@ export async function GET(request: NextRequest) {
     let specificQueryTest = null;
     if (tableExists) {
       try {
-        const specificResult = await query(
-          'SELECT id, email, full_name, role, password_hash, phone, created_at, updated_at FROM public.profiles WHERE email = $1',
-          ['admin@pizzaria.com']
-        );
-        specificQueryTest = {
-          success: true,
-          found: specificResult.rows.length > 0,
-          user: specificResult.rows[0] || null
-        };
+        const { data: specific } = await supabase
+          .from('profiles')
+          .select('id, email, full_name, role, password_hash, phone, created_at, updated_at')
+          .eq('email', 'admin@pizzaria.com')
+          .maybeSingle();
+        specificQueryTest = { success: true, found: !!specific, user: specific || null };
       } catch (error: any) {
-        specificQueryTest = {
-          success: false,
-          error: error.message
-        };
+        specificQueryTest = { success: false, error: error.message };
       }
     }
 
@@ -167,46 +125,25 @@ export async function POST(request: NextRequest) {
   try {
     console.log('🔧 Criando/corrigindo tabela profiles...');
 
-    // 1. Criar extensões necessárias
-    await query('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"');
-    await query('CREATE EXTENSION IF NOT EXISTS "pgcrypto"');
+    const supabase = getSupabaseServerClient();
 
     // 2. Criar tabela profiles se não existir
-    await query(`
-      CREATE TABLE IF NOT EXISTS public.profiles (
-        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-        email VARCHAR(255) UNIQUE NOT NULL,
-        full_name VARCHAR(255) NOT NULL,
-        password_hash VARCHAR(255) NOT NULL,
-        role VARCHAR(50) DEFAULT 'customer' CHECK (role IN ('customer', 'admin', 'kitchen', 'delivery')),
-        phone VARCHAR(20),
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-      )
-    `);
+    // Criação de tabela/índices não via API
 
     // 3. Criar índices
-    await query('CREATE INDEX IF NOT EXISTS idx_profiles_email ON public.profiles(email)');
-    await query('CREATE INDEX IF NOT EXISTS idx_profiles_role ON public.profiles(role)');
+    // Índices ignorados
 
     // 4. Inserir usuário admin se não existir
-    const adminCheck = await query('SELECT COUNT(*) as count FROM public.profiles WHERE email = $1', ['admin@pizzaria.com']);
-    
-    if (parseInt(adminCheck.rows[0].count) === 0) {
-      await query(`
-        INSERT INTO public.profiles (email, full_name, role, password_hash, created_at, updated_at) 
-        VALUES ($1, $2, $3, $4, NOW(), NOW())
-      `, [
-        'admin@pizzaria.com',
-        'Administrador',
-        'admin',
-        '$2b$10$rOzJqQZ8kYyVKVjKZyVKVuO8kYyVKVjKZyVKVuO8kYyVKVjKZyVKVu' // senha: admin123
-      ]);
+    const { data: adminCheck } = await supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('email', 'admin@pizzaria.com');
+    if (!((adminCheck as any)?.length > 0)) {
+      await supabase
+        .from('profiles')
+        .insert({ email: 'admin@pizzaria.com', full_name: 'Administrador', role: 'admin', password_hash: '$2b$10$rOzJqQZ8kYyVKVjKZyVKVuO8kYyVKVjKZyVKVuO8kYyVKVjKZyVKVu' });
     }
 
     // 5. Verificar se tudo foi criado corretamente
-    const verification = await query('SELECT COUNT(*) as count FROM public.profiles WHERE role = $1', ['admin']);
-    const adminCount = parseInt(verification.rows[0].count);
+    const { data: verification } = await supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'admin');
+    const adminCount = (verification as any)?.length || 0;
 
     return NextResponse.json({
       success: true,

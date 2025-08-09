@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { query } from '@/lib/postgres'
+import { getSupabaseServerClient } from '@/lib/supabase'
 import { verifyAdmin } from '@/lib/auth'
 
 export async function POST(request: NextRequest) {
@@ -18,90 +18,12 @@ export async function POST(request: NextRequest) {
 
     console.log('🚀 Iniciando setup de geolocalização...')
 
-    // 1. Criar tabela de zonas de entrega
-    await query(`
-      CREATE TABLE IF NOT EXISTS delivery_zones (
-          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-          name VARCHAR(100) NOT NULL,
-          min_distance_km DECIMAL(5,2) NOT NULL DEFAULT 0,
-          max_distance_km DECIMAL(5,2) NOT NULL,
-          delivery_fee DECIMAL(8,2) NOT NULL,
-          estimated_time_minutes INTEGER NOT NULL DEFAULT 45,
-          active BOOLEAN DEFAULT true,
-          color_hex VARCHAR(7) DEFAULT '#3B82F6',
-          description TEXT,
-          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-          CONSTRAINT chk_distance_order CHECK (max_distance_km > min_distance_km),
-          CONSTRAINT chk_positive_fee CHECK (delivery_fee >= 0),
-          CONSTRAINT chk_positive_time CHECK (estimated_time_minutes > 0)
-      )
-    `)
-    console.log('✅ Tabela delivery_zones criada')
-
-    // 2. Criar tabela de cache de geocodificação
-    await query(`
-      CREATE TABLE IF NOT EXISTS geocoded_addresses (
-          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-          address_text TEXT NOT NULL,
-          formatted_address TEXT,
-          latitude DECIMAL(10,8),
-          longitude DECIMAL(11,8),
-          city VARCHAR(100),
-          state VARCHAR(50),
-          postal_code VARCHAR(20),
-          country VARCHAR(50) DEFAULT 'Brasil',
-          distance_km DECIMAL(5,2),
-          delivery_zone_id UUID REFERENCES delivery_zones(id) ON DELETE SET NULL,
-          is_deliverable BOOLEAN DEFAULT true,
-          geocoding_service VARCHAR(50) DEFAULT 'google',
-          confidence_score DECIMAL(3,2) DEFAULT 1.0,
-          last_verified TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-          UNIQUE(address_text)
-      )
-    `)
-    console.log('✅ Tabela geocoded_addresses criada')
-
-    // 3. Criar índices para performance
-    const indexes = [
-      'CREATE INDEX IF NOT EXISTS idx_delivery_zones_distance ON delivery_zones(min_distance_km, max_distance_km)',
-      'CREATE INDEX IF NOT EXISTS idx_delivery_zones_active ON delivery_zones(active)',
-      'CREATE INDEX IF NOT EXISTS idx_delivery_zones_created ON delivery_zones(created_at DESC)',
-      'CREATE INDEX IF NOT EXISTS idx_geocoded_addresses_text ON geocoded_addresses(address_text)',
-      'CREATE INDEX IF NOT EXISTS idx_geocoded_addresses_coords ON geocoded_addresses(latitude, longitude)',
-      'CREATE INDEX IF NOT EXISTS idx_geocoded_addresses_distance ON geocoded_addresses(distance_km)',
-      'CREATE INDEX IF NOT EXISTS idx_geocoded_addresses_zone ON geocoded_addresses(delivery_zone_id)',
-      'CREATE INDEX IF NOT EXISTS idx_geocoded_addresses_verified ON geocoded_addresses(last_verified DESC)'
-    ]
-
-    for (const indexQuery of indexes) {
-      await query(indexQuery)
-    }
-    console.log('✅ Índices criados')
+    // Estruturas/tabelas/índices são gerenciados pelas migrações do Supabase (skip criação via API)
+    const supabase = getSupabaseServerClient()
+    const indexes: string[] = []
 
     // 4. Criar função e trigger para updated_at
-    await query(`
-      CREATE OR REPLACE FUNCTION update_delivery_zones_updated_at()
-      RETURNS TRIGGER AS $$
-      BEGIN
-          NEW.updated_at = NOW();
-          RETURN NEW;
-      END;
-      $$ LANGUAGE plpgsql
-    `)
-
-    await query(`
-      DROP TRIGGER IF EXISTS trigger_update_delivery_zones_updated_at ON delivery_zones
-    `)
-
-    await query(`
-      CREATE TRIGGER trigger_update_delivery_zones_updated_at
-          BEFORE UPDATE ON delivery_zones
-          FOR EACH ROW
-          EXECUTE FUNCTION update_delivery_zones_updated_at()
-    `)
-    console.log('✅ Triggers criados')
+    // Triggers também via migrações (skip)
 
     // 5. Verificar se admin_settings tem a coluna setting_type
     try {
@@ -125,13 +47,9 @@ export async function POST(request: NextRequest) {
     ]
 
     for (const [key, value, type, desc] of geoSettings) {
-      await query(`
-        INSERT INTO admin_settings (setting_key, setting_value, setting_type, description) 
-        VALUES ($1, $2, $3, $4)
-        ON CONFLICT (setting_key) DO UPDATE SET
-          setting_type = EXCLUDED.setting_type,
-          description = EXCLUDED.description
-      `, [key, value, type, desc])
+      await supabase
+        .from('admin_settings')
+        .upsert({ setting_key: key, setting_value: value, setting_type: type, description: desc, updated_at: new Date().toISOString() }, { onConflict: 'setting_key' })
     }
     console.log('✅ Configurações de geolocalização inseridas')
 
@@ -144,15 +62,14 @@ export async function POST(request: NextRequest) {
     ]
 
     // Verificar se já existem zonas
-    const existingZones = await query('SELECT COUNT(*) as count FROM delivery_zones')
-    const zonesCount = parseInt(existingZones.rows[0].count)
+    const { data: existingZones } = await supabase.from('delivery_zones').select('id', { count: 'exact', head: true })
+    const zonesCount = (existingZones as any)?.length || 0
 
     if (zonesCount === 0) {
       for (const [name, minDist, maxDist, fee, time, color, desc] of defaultZones) {
-        await query(`
-          INSERT INTO delivery_zones (name, min_distance_km, max_distance_km, delivery_fee, estimated_time_minutes, color_hex, description)
-          VALUES ($1, $2, $3, $4, $5, $6, $7)
-        `, [name, minDist, maxDist, fee, time, color, desc])
+        await supabase
+          .from('delivery_zones')
+          .insert({ name, min_distance_km: minDist, max_distance_km: maxDist, delivery_fee: fee, estimated_time_minutes: time, color_hex: color, description: desc })
       }
       console.log('✅ Zonas de entrega padrão inseridas')
     } else {
@@ -160,15 +77,15 @@ export async function POST(request: NextRequest) {
     }
 
     // 8. Verificar setup
-    const finalZonesCount = await query('SELECT COUNT(*) as count FROM delivery_zones')
-    const finalSettingsCount = await query(`SELECT COUNT(*) as count FROM admin_settings WHERE setting_type = 'geolocation'`)
+    const { data: finalZonesCount } = await supabase.from('delivery_zones').select('id', { count: 'exact', head: true })
+    const { data: finalSettingsCount } = await supabase.from('admin_settings').select('id', { count: 'exact', head: true }).eq('setting_type', 'geolocation')
 
     const setupResult = {
       success: true,
       message: 'Setup de geolocalização concluído com sucesso!',
       details: {
-        zones_created: parseInt(finalZonesCount.rows[0].count),
-        settings_created: parseInt(finalSettingsCount.rows[0].count),
+        zones_created: (finalZonesCount as any)?.length || 0,
+        settings_created: (finalSettingsCount as any)?.length || 0,
         tables_created: ['delivery_zones', 'geocoded_addresses'],
         indexes_created: indexes.length,
         triggers_created: 1

@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { query } from "@/lib/postgres"
+import { getSupabaseServerClient } from "@/lib/supabase"
 
 export const dynamic = 'force-dynamic'
 
@@ -7,22 +7,25 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   try {
     console.log('GET /api/categories/[id] - ID:', params.id)
     
-    const result = await query(
-      'SELECT * FROM categories WHERE id = $1',
-      [params.id]
-    )
+    const supabase = getSupabaseServerClient()
+    const { data: categoryRow, error } = await supabase
+      .from('categories')
+      .select('*')
+      .eq('id', params.id)
+      .maybeSingle()
+    if (error) throw error
 
-    if (result.rows.length === 0) {
+    if (!categoryRow) {
       console.log('Categoria não encontrada:', params.id)
       return NextResponse.json({ error: "Categoria não encontrada" }, { status: 404 })
     }
 
-    const category = result.rows[0]
+    const category = categoryRow
     const normalizedCategory = {
       id: category.id,
       name: category.name,
       description: category.description || '',
-      image: category.image || '',
+      image: category.image_url || category.image || '',
       sort_order: category.sort_order || 0,
       active: category.active !== false
     }
@@ -73,12 +76,15 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     }
 
     // Verificar se a categoria existe antes de tentar atualizar
-    const existingCategory = await query(
-      'SELECT id FROM categories WHERE id = $1',
-      [params.id]
-    )
+    const supabase = getSupabaseServerClient()
+    const { data: existing, error: exErr } = await supabase
+      .from('categories')
+      .select('id')
+      .eq('id', params.id)
+      .maybeSingle()
+    if (exErr) throw exErr
 
-    if (existingCategory.rows.length === 0) {
+    if (!existing) {
       console.error('Categoria não encontrada para update:', params.id)
       return NextResponse.json(
         { error: "Categoria não encontrada" },
@@ -100,60 +106,24 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       id: params.id
     })
 
-    // Verificar se a tabela tem o campo updated_at
-    let hasUpdatedAt = false
-    try {
-      const tableInfo = await query(`
-        SELECT column_name 
-        FROM information_schema.columns 
-        WHERE table_name = 'categories' 
-        AND table_schema = 'public' 
-        AND column_name = 'updated_at'
-      `)
-      hasUpdatedAt = tableInfo.rows.length > 0
-      console.log('Tabela tem campo updated_at:', hasUpdatedAt)
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      console.log('Erro ao verificar campo updated_at:', message)
-    }
-
-    // Construir query dinamicamente
-    let updateQuery = `
-      UPDATE categories 
-      SET name = $1, 
-          description = $2, 
-          image = $3, 
-          active = $4
-    `
-    
-    let queryParams = [updateName, updateDescription, updateImage, updateActive, params.id]
-    
-    if (hasUpdatedAt) {
-      updateQuery += ', updated_at = NOW()'
-    }
-    
-    updateQuery += ' WHERE id = $5 RETURNING *'
-
-    console.log('Query SQL:', updateQuery)
-    console.log('Parâmetros:', queryParams)
-
-    const result = await query(updateQuery, queryParams)
-
-    if (result.rows.length === 0) {
-      console.error('Nenhuma linha foi atualizada para ID:', params.id)
-      return NextResponse.json(
-        { error: "Categoria não encontrada ou não foi possível atualizar" },
-        { status: 404 }
-      )
-    }
-
-    // Normalizar resposta para manter consistência
-    const category = result.rows[0]
+    const { data: category, error: updErr } = await supabase
+      .from('categories')
+      .update({
+        name: updateName,
+        description: updateDescription,
+        image_url: updateImage || null,
+        active: updateActive,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', params.id)
+      .select('*')
+      .single()
+    if (updErr) throw updErr
     const normalizedCategory = {
       id: category.id,
       name: category.name,
       description: category.description || '',
-      image: category.image || '',
+      image: category.image_url || '',
       sort_order: category.sort_order || 0,
       active: category.active !== false
     }
@@ -203,25 +173,27 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     }
 
     // Verificar se existem produtos usando esta categoria
-    const productsCheck = await query(
-      'SELECT COUNT(*) as count FROM products WHERE category_id = $1 AND active = true',
-      [params.id]
-    )
-
-    if (parseInt(productsCheck.rows[0].count) > 0) {
+    const supabase = getSupabaseServerClient()
+    const { data: prods } = await supabase
+      .from('products')
+      .select('id', { count: 'exact', head: true })
+      .eq('category_id', params.id)
+      .eq('active', true)
+    if ((prods as any)?.length > 0) {
       return NextResponse.json(
         { error: "Não é possível excluir categoria que possui produtos ativos" },
         { status: 400 }
       )
     }
 
-    // Marcar como inativa em vez de excluir fisicamente
-    const result = await query(
-      'UPDATE categories SET active = false WHERE id = $1 RETURNING *',
-      [params.id]
-    )
-
-    if (result.rows.length === 0) {
+    const { data: inact, error: inErr } = await supabase
+      .from('categories')
+      .update({ active: false, updated_at: new Date().toISOString() })
+      .eq('id', params.id)
+      .select('id')
+      .single()
+    if (inErr) throw inErr
+    if (!inact) {
       return NextResponse.json({ error: "Categoria não encontrada" }, { status: 404 })
     }
 
