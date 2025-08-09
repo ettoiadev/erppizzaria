@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { query, testConnection } from '@/lib/postgres'
+import { getSupabaseServerClient } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,32 +14,29 @@ export async function GET() {
     }
   }
 
-  // Teste 1: Conexão com PostgreSQL
+  // Teste 1: Conexão com Supabase
   try {
-    const connectionTest = await testConnection()
+    const supabase = getSupabaseServerClient()
+    const { error } = await supabase.from('profiles').select('id').limit(1)
     results.tests.push({
-      name: 'Conexão PostgreSQL',
-      status: connectionTest.success ? 'PASSED' : 'FAILED',
-      message: connectionTest.message,
-      error: connectionTest.error || null
+      name: 'Conexão Supabase',
+      status: !error ? 'PASSED' : 'FAILED',
+      message: !error ? 'OK' : 'Falha',
+      error: error?.message || null
     })
-    if (connectionTest.success) results.summary.passed++
+    if (!error) results.summary.passed++
     else results.summary.failed++
   } catch (error: any) {
-    results.tests.push({
-      name: 'Conexão PostgreSQL',
-      status: 'FAILED',
-      message: 'Erro na conexão',
-      error: error.message
-    })
+    results.tests.push({ name: 'Conexão Supabase', status: 'FAILED', message: 'Erro na conexão', error: error.message })
     results.summary.failed++
   }
   results.summary.total++
 
   // Teste 2: Buscar usuários
   try {
-    const usersResult = await query('SELECT COUNT(*) as count FROM profiles LIMIT 1')
-    const userCount = usersResult.rows[0]?.count || 0
+    const supabase = getSupabaseServerClient()
+    const { data } = await supabase.from('profiles').select('id', { count: 'exact', head: true })
+    const userCount = (data as any)?.length || 0
     results.tests.push({
       name: 'Buscar usuários',
       status: 'PASSED',
@@ -60,8 +57,9 @@ export async function GET() {
 
   // Teste 3: Buscar produtos
   try {
-    const productsResult = await query('SELECT COUNT(*) as count FROM products LIMIT 1')
-    const productCount = productsResult.rows[0]?.count || 0
+    const supabase = getSupabaseServerClient()
+    const { data } = await supabase.from('products').select('id', { count: 'exact', head: true })
+    const productCount = (data as any)?.length || 0
     results.tests.push({
       name: 'Buscar produtos',
       status: 'PASSED',
@@ -82,8 +80,9 @@ export async function GET() {
 
   // Teste 4: Buscar categorias
   try {
-    const categoriesResult = await query('SELECT COUNT(*) as count FROM categories LIMIT 1')
-    const categoryCount = categoriesResult.rows[0]?.count || 0
+    const supabase = getSupabaseServerClient()
+    const { data } = await supabase.from('categories').select('id', { count: 'exact', head: true })
+    const categoryCount = (data as any)?.length || 0
     results.tests.push({
       name: 'Buscar categorias',
       status: 'PASSED',
@@ -104,8 +103,9 @@ export async function GET() {
 
   // Teste 5: Buscar pedidos
   try {
-    const ordersResult = await query('SELECT COUNT(*) as count FROM orders LIMIT 1')
-    const orderCount = ordersResult.rows[0]?.count || 0
+    const supabase = getSupabaseServerClient()
+    const { data } = await supabase.from('orders').select('id', { count: 'exact', head: true })
+    const orderCount = (data as any)?.length || 0
     results.tests.push({
       name: 'Buscar pedidos',
       status: 'PASSED',
@@ -126,18 +126,16 @@ export async function GET() {
 
   // Teste 6: Testar autenticação (buscar admin)
   try {
-    const adminResult = await query(
-      'SELECT id, email, full_name, role FROM profiles WHERE role = $1 LIMIT 1',
-      ['admin']
-    )
-    const hasAdmin = adminResult.rows.length > 0
+    const supabase = getSupabaseServerClient()
+    const { data: adminRows } = await supabase.from('profiles').select('id, email, full_name, role').eq('role', 'admin').limit(1)
+    const hasAdmin = Array.isArray(adminRows) && adminRows.length > 0
     results.tests.push({
       name: 'Verificar admin',
       status: hasAdmin ? 'PASSED' : 'WARNING',
       message: hasAdmin 
-        ? `Admin encontrado: ${adminResult.rows[0].email}` 
+        ? `Admin encontrado: ${adminRows?.[0]?.email}` 
         : 'Nenhum usuário admin encontrado',
-      data: hasAdmin ? { admin: adminResult.rows[0] } : null
+      data: hasAdmin ? { admin: adminRows?.[0] } : null
     })
     if (hasAdmin) results.summary.passed++
     else results.summary.failed++

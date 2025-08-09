@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { query } from '@/lib/postgres'
+import { getSupabaseServerClient } from '@/lib/supabase'
 import * as XLSX from 'xlsx'
 
 export async function POST(request: NextRequest) {
@@ -37,6 +37,7 @@ export async function POST(request: NextRequest) {
     let successCount = 0
     const errors: string[] = []
 
+    const supabase = getSupabaseServerClient()
     for (let i = 0; i < data.length; i++) {
       const row = data[i]
       const rowNum = i + 2 // +2 porque começa na linha 2 (linha 1 é cabeçalho)
@@ -56,70 +57,69 @@ export async function POST(request: NextRequest) {
         }
 
         // Verificar se o email já existe
-        const existingUser = await query('SELECT id FROM profiles WHERE email = $1', [row.Email])
+        const { data: existingUser, error: exErr } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('email', row.Email)
+          .maybeSingle()
+        if (exErr) throw exErr
         
-        if (existingUser.rows.length > 0) {
-          // Atualizar cliente existente
-          const userId = existingUser.rows[0].id
+        if (existingUser) {
+          const userId = existingUser.id
 
-          await query(`
-            UPDATE profiles 
-            SET full_name = $1, phone = $2, updated_at = NOW()
-            WHERE id = $3
-          `, [row.Nome, row.Telefone || null, userId])
+          const { error: updErr } = await supabase
+            .from('profiles')
+            .update({ full_name: row.Nome, phone: row.Telefone || null, updated_at: new Date().toISOString() })
+            .eq('id', userId)
+          if (updErr) throw updErr
 
           // Atualizar ou inserir endereço se fornecido
           if (row.Rua && row.Cidade) {
-            await query(`
-              INSERT INTO customer_addresses (
-                user_id, street, number, neighborhood, city, state, zip_code, complement, is_default
-              )
-              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true)
-              ON CONFLICT (user_id, street, number, neighborhood, city, state)
-              DO UPDATE SET
-                zip_code = EXCLUDED.zip_code,
-                complement = EXCLUDED.complement,
-                is_default = EXCLUDED.is_default,
-                updated_at = NOW()
-            `, [
-              userId,
-              row.Rua,
-              row.Número || '',
-              row.Bairro || '',
-              row.Cidade,
-              row.Estado || 'SP',
-              row.CEP || '',
-              row.Complemento || ''
-            ])
+            const { error: addrErr } = await supabase
+              .from('customer_addresses')
+              .upsert({
+                user_id: userId,
+                street: row.Rua,
+                number: row.Número || '',
+                neighborhood: row.Bairro || '',
+                city: row.Cidade,
+                state: row.Estado || 'SP',
+                zip_code: row.CEP || '',
+                complement: row.Complemento || '',
+                is_default: true,
+                updated_at: new Date().toISOString()
+              }, {
+                onConflict: 'user_id,street,number,neighborhood,city,state'
+              })
+            if (addrErr) throw addrErr
           }
 
         } else {
           // Criar novo cliente
-          const newUserResult = await query(`
-            INSERT INTO profiles (full_name, email, phone, role, created_at, updated_at)
-            VALUES ($1, $2, $3, 'customer', NOW(), NOW())
-            RETURNING id
-          `, [row.Nome, row.Email, row.Telefone || null])
-
-          const userId = newUserResult.rows[0].id
+          const { data: newUser, error: insErr } = await supabase
+            .from('profiles')
+            .insert({ full_name: row.Nome, email: row.Email, phone: row.Telefone || null, role: 'customer' })
+            .select('id')
+            .single()
+          if (insErr) throw insErr
+          const userId = newUser.id
 
           // Inserir endereço se fornecido
           if (row.Rua && row.Cidade) {
-            await query(`
-              INSERT INTO customer_addresses (
-                user_id, street, number, neighborhood, city, state, zip_code, complement, is_default
-              )
-              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true)
-            `, [
-              userId,
-              row.Rua,
-              row.Número || '',
-              row.Bairro || '',
-              row.Cidade,
-              row.Estado || 'SP',
-              row.CEP || '',
-              row.Complemento || ''
-            ])
+            const { error: addrErr } = await supabase
+              .from('customer_addresses')
+              .insert({
+                user_id: userId,
+                street: row.Rua,
+                number: row.Número || '',
+                neighborhood: row.Bairro || '',
+                city: row.Cidade,
+                state: row.Estado || 'SP',
+                zip_code: row.CEP || '',
+                complement: row.Complemento || '',
+                is_default: true
+              })
+            if (addrErr) throw addrErr
           }
         }
 

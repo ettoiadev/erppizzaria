@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { query } from '@/lib/postgres'
+import { getSupabaseServerClient } from '@/lib/supabase'
 import { verifyAdmin } from '@/lib/auth'
 
 export async function DELETE(request: NextRequest) {
@@ -24,9 +24,9 @@ export async function DELETE(request: NextRequest) {
 
     console.log('[DELETE_PRODUCTS] Autenticação admin verificada, prosseguindo...')
 
-    // Primeiro, contar quantos produtos serão deletados
-    const countResult = await query(`SELECT COUNT(*) as count FROM products`)
-    const totalProducts = parseInt(countResult.rows[0].count)
+    const supabase = getSupabaseServerClient()
+    const { data: prodCount } = await supabase.from('products').select('id', { count: 'exact', head: true })
+    const totalProducts = (prodCount as any)?.length || 0
 
     if (totalProducts === 0) {
       console.log('[DELETE_PRODUCTS] Nenhum produto encontrado para deletar')
@@ -41,28 +41,23 @@ export async function DELETE(request: NextRequest) {
 
     // Verificar se há itens de pedidos associados aos produtos
     console.log('[DELETE_PRODUCTS] Verificando itens de pedidos associados...')
-    const orderItemsResult = await query(`
-      SELECT COUNT(*) as count FROM order_items 
-      WHERE product_id IN (SELECT id FROM products)
-    `)
-    const totalOrderItems = parseInt(orderItemsResult.rows[0].count)
+    const { data: orderItems } = await supabase.from('order_items').select('id', { count: 'exact', head: true })
+    const totalOrderItems = (orderItems as any)?.length || 0
 
     let message = ''
 
     if (totalOrderItems > 0) {
       // Se há itens de pedidos, não deletar os produtos, apenas desativar
       console.log(`[DELETE_PRODUCTS] ${totalOrderItems} itens de pedidos encontrados, desativando produtos...`)
-      await query(`
-        UPDATE products 
-        SET available = false, updated_at = NOW()
-        WHERE id IN (SELECT id FROM products)
-      `)
+      const { error: updErr } = await supabase.from('products').update({ available: false, updated_at: new Date().toISOString() }).neq('id', '00000000-0000-0000-0000-000000000000')
+      if (updErr) throw updErr
       message = `${totalProducts} produtos desativados (possuem pedidos associados)`
       console.log(`[DELETE_PRODUCTS] ${message}`)
     } else {
       // Se não há itens de pedidos, deletar completamente
       console.log('[DELETE_PRODUCTS] Nenhum item de pedido encontrado, deletando produtos completamente...')
-      await query(`DELETE FROM products`)
+      const { error: delErr } = await supabase.from('products').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+      if (delErr) throw delErr
       message = `${totalProducts} produtos deletados completamente`
       console.log(`[DELETE_PRODUCTS] ${message}`)
     }

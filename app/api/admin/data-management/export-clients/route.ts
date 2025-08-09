@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { query } from '@/lib/postgres'
+import { getSupabaseServerClient } from '@/lib/supabase'
 import * as XLSX from 'xlsx'
 
 export async function GET(request: NextRequest) {
@@ -7,40 +7,27 @@ export async function GET(request: NextRequest) {
     console.log('[EXPORT_CLIENTS] Iniciando exportação de clientes...')
 
     // Buscar todos os clientes com seus endereços
-    const clientsResult = await query(`
-      SELECT 
-        p.id,
-        p.full_name as nome,
-        p.email,
-        p.phone as telefone,
-        p.customer_code,
-        ca.street as rua,
-        ca.number as numero,
-        ca.neighborhood as bairro,
-        ca.city as cidade,
-        ca.state as estado,
-        ca.zip_code as cep,
-        ca.complement as complemento,
-        p.created_at
-      FROM profiles p
-      LEFT JOIN customer_addresses ca ON p.id = ca.user_id AND ca.is_default = true
-      WHERE p.role = 'customer'
-      ORDER BY p.created_at DESC
-    `)
+    const supabase = getSupabaseServerClient()
+    const { data: clientsRows, error } = await supabase
+      .from('profiles')
+      .select('id, full_name, email, phone, customer_code, created_at, customer_addresses!left(*),')
+      .eq('role', 'customer')
+      .order('created_at', { ascending: false })
+    if (error) throw error
 
-    const clients = clientsResult.rows.map(client => ({
+    const clients = (clientsRows || []).map((client: any) => ({
       ID: client.id || '',
       'Código Cliente': client.customer_code || '',
-      Nome: client.nome || '',
+      Nome: client.full_name || '',
       Email: client.email || '',
-      Telefone: client.telefone || '',
-      Rua: client.rua || '',
-      Número: client.numero || '',
-      Bairro: client.bairro || '',
-      Cidade: client.cidade || '',
-      Estado: client.estado || '',
-      CEP: client.cep || '',
-      Complemento: client.complemento || '',
+      Telefone: client.phone || '',
+      Rua: client.customer_addresses?.[0]?.street || '',
+      Número: client.customer_addresses?.[0]?.number || '',
+      Bairro: client.customer_addresses?.[0]?.neighborhood || '',
+      Cidade: client.customer_addresses?.[0]?.city || '',
+      Estado: client.customer_addresses?.[0]?.state || '',
+      CEP: client.customer_addresses?.[0]?.zip_code || '',
+      Complemento: client.customer_addresses?.[0]?.complement || '',
       'Data Cadastro': client.created_at ? new Date(client.created_at).toLocaleDateString('pt-BR') : ''
     }))
 

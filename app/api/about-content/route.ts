@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { query } from "@/lib/postgres"
+import { getSupabaseServerClient } from "@/lib/supabase"
 import { verifyToken } from "@/lib/auth"
 import { JwtPayload } from "jsonwebtoken"
 
@@ -14,42 +14,35 @@ interface CustomJwtPayload extends JwtPayload {
 export async function GET() {
   try {
     // First check if table exists and get structure
-    const checkTable = await query(`
-      SELECT column_name, data_type 
-      FROM information_schema.columns 
-      WHERE table_name = 'about_content' 
-      AND column_name = 'id'
-    `)
+    const supabase = getSupabaseServerClient()
+    const { data: sample, error: tblErr } = await supabase
+      .from('about_content')
+      .select('id')
+      .limit(1)
+    if (tblErr) throw tblErr
 
     let whereClause = ''
     let queryParams: any[] = []
 
-    if (checkTable.rows.length > 0) {
-      const idType = checkTable.rows[0].data_type
-      if (idType === 'uuid') {
-        // Try to find any record first, then use a default UUID
-        const anyRecord = await query('SELECT id FROM about_content LIMIT 1')
-        if (anyRecord.rows.length > 0) {
-          whereClause = 'WHERE id = $1'
-          queryParams = [anyRecord.rows[0].id]
-        } else {
-          // No records exist, we'll create one
-          whereClause = 'WHERE 1=0' // This will return empty result and trigger creation
-        }
+    if (Array.isArray(sample)) {
+      if (sample.length > 0) {
+        whereClause = 'WHERE id = $1'
+        queryParams = [sample[0].id]
       } else {
-        whereClause = 'WHERE id = 1'
+        whereClause = 'WHERE 1=0'
       }
     } else {
       // Table doesn't exist or column doesn't exist, handle gracefully
       return NextResponse.json({ error: "Tabela about_content não encontrada" }, { status: 500 })
     }
 
-    const result = await query(
-      `SELECT * FROM about_content ${whereClause}`,
-      queryParams
-    )
+    const { data: rows, error } = await supabase
+      .from('about_content')
+      .select('*')
+      .limit(1)
+    if (error) throw error
 
-    if (result.rows.length === 0) {
+    if (!rows || rows.length === 0) {
       const defaultContent = {
         hero: {
           title: "Sobre a Pizza Delivery",
@@ -93,22 +86,13 @@ export async function GET() {
       }
 
       try {
-        const insertResult = await query(
-          `
-          INSERT INTO about_content 
-          (hero, story, values, team)
-          VALUES ($1, $2, $3, $4)
-          RETURNING *
-          `,
-          [
-            JSON.stringify(defaultContent.hero),
-            JSON.stringify(defaultContent.story),
-            JSON.stringify(defaultContent.values),
-            JSON.stringify(defaultContent.team)
-          ]
-        )
-
-        return NextResponse.json({ content: insertResult.rows[0] })
+        const { data: inserted, error: insErr } = await supabase
+          .from('about_content')
+          .insert({ hero: defaultContent.hero, story: defaultContent.story, values: defaultContent.values, team: defaultContent.team })
+          .select('*')
+          .single()
+        if (insErr) throw insErr
+        return NextResponse.json({ content: inserted })
       } catch (insertError) {
         // If insert fails, return default content without saving
         return NextResponse.json({ content: { 
@@ -121,7 +105,7 @@ export async function GET() {
       }
     }
 
-    return NextResponse.json({ content: result.rows[0] })
+    return NextResponse.json({ content: rows[0] })
   } catch (error) {
     return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
   }
@@ -172,47 +156,26 @@ export async function PUT(request: Request) {
     }
 
     // Check if any record exists first
-    const existing = await query('SELECT id FROM about_content LIMIT 1')
+    const supabase = getSupabaseServerClient()
+    const { data: existing } = await supabase.from('about_content').select('id').limit(1)
     
-    if (existing.rows.length > 0) {
-      // Update existing record
-      const result = await query(
-        `
-        UPDATE about_content 
-        SET hero = $1,
-            story = $2,
-            values = $3,
-            team = $4,
-            updated_at = NOW()
-        WHERE id = $5
-        RETURNING *
-        `,
-        [
-          JSON.stringify(hero),
-          JSON.stringify(story),
-          JSON.stringify(values),
-          JSON.stringify(team),
-          existing.rows[0].id
-        ]
-      )
-      return NextResponse.json({ content: result.rows[0] })
+    if ((existing || []).length > 0) {
+      const { data: updated, error: updErr } = await supabase
+        .from('about_content')
+        .update({ hero, story, values, team, updated_at: new Date().toISOString() })
+        .eq('id', (existing || [])[0].id)
+        .select('*')
+        .single()
+      if (updErr) throw updErr
+      return NextResponse.json({ content: updated })
     } else {
-      // Create new record
-      const result = await query(
-        `
-        INSERT INTO about_content 
-        (hero, story, values, team)
-        VALUES ($1, $2, $3, $4)
-        RETURNING *
-        `,
-        [
-          JSON.stringify(hero),
-          JSON.stringify(story),
-          JSON.stringify(values),
-          JSON.stringify(team)
-        ]
-      )
-      return NextResponse.json({ content: result.rows[0] })
+      const { data: created, error: insErr } = await supabase
+        .from('about_content')
+        .insert({ hero, story, values, team })
+        .select('*')
+        .single()
+      if (insErr) throw insErr
+      return NextResponse.json({ content: created })
     }
   } catch (error) {
     return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })

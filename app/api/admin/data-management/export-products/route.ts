@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { query } from '@/lib/postgres'
+import { getSupabaseServerClient } from '@/lib/supabase'
 import * as XLSX from 'xlsx'
 
 export async function GET(request: NextRequest) {
@@ -7,28 +7,20 @@ export async function GET(request: NextRequest) {
     console.log('[EXPORT_PRODUCTS] Iniciando exportação de produtos...')
 
     // Buscar todos os produtos com suas categorias
-    const productsResult = await query(`
-      SELECT 
-        p.id,
-        p.name,
-        p.description,
-        p.price,
-        p.image,
-        p.available,
-        p.created_at,
-        c.name as category_name
-      FROM products p
-      LEFT JOIN categories c ON p.category_id = c.id
-      ORDER BY p.created_at DESC
-    `)
+    const supabase = getSupabaseServerClient()
+    const { data: productsRows, error } = await supabase
+      .from('products')
+      .select('id, name, description, price, image_url, available, created_at, categories:category_id(name)')
+      .order('created_at', { ascending: false })
+    if (error) throw error
 
-    const products = productsResult.rows.map(product => ({
+    const products = (productsRows || []).map((product: any) => ({
       ID: product.id || '',
       Nome: product.name || '',
       Descrição: product.description || '',
       'Preço (R$)': product.price ? parseFloat(product.price).toFixed(2) : '0.00',
-      Categoria: product.category_name || '',
-      Imagem: product.image || '',
+      Categoria: product.categories?.name || '',
+      Imagem: product.image_url || '',
       Disponível: product.available ? 'Sim' : 'Não',
       'Data Cadastro': product.created_at ? new Date(product.created_at).toLocaleDateString('pt-BR') : ''
     }))

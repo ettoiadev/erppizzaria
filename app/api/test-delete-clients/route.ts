@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { query } from '@/lib/postgres'
+import { getSupabaseServerClient } from '@/lib/supabase'
 import { verifyAdmin } from '@/lib/auth'
 
 export async function DELETE(request: NextRequest) {
@@ -29,10 +29,13 @@ export async function DELETE(request: NextRequest) {
 
     // Teste simples - apenas contar clientes
     console.log('[TEST_DELETE_CLIENTS] Contando clientes...')
-    const countResult = await query(`
-      SELECT COUNT(*) as count FROM profiles WHERE role = 'customer'
-    `)
-    const totalClients = parseInt(countResult.rows[0].count)
+    const supabase = getSupabaseServerClient()
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id', { count: 'exact', head: true })
+      .eq('role', 'customer')
+    if (error) throw error
+    const totalClients = (data as any)?.length || 0
 
     console.log(`[TEST_DELETE_CLIENTS] Encontrados ${totalClients} clientes`)
 

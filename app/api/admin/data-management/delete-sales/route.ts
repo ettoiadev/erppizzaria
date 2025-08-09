@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { query } from '@/lib/postgres'
+import { getSupabaseServerClient } from '@/lib/supabase'
 import { verifyAdmin } from '@/lib/auth'
 
 export async function DELETE(request: NextRequest) {
@@ -24,38 +24,38 @@ export async function DELETE(request: NextRequest) {
 
     console.log('[DELETE_SALES] Autenticação admin verificada, prosseguindo...')
 
-    // Iniciar transação para garantir integridade
-    await query('BEGIN')
+    const supabase = getSupabaseServerClient()
 
     let deletedOrderItems = 0
     let deletedOrders = 0
 
     try {
       // 1. Primeiro, contar itens de pedidos
-      const orderItemsCountResult = await query('SELECT COUNT(*) as count FROM order_items')
-      const totalOrderItems = parseInt(orderItemsCountResult.rows[0].count)
+      const { data: oi } = await supabase.from('order_items').select('id', { count: 'exact', head: true })
+      const totalOrderItems = (oi as any)?.length || 0
       
       // 2. Contar pedidos
-      const ordersCountResult = await query('SELECT COUNT(*) as count FROM orders')
-      const totalOrders = parseInt(ordersCountResult.rows[0].count)
+      const { data: ord } = await supabase.from('orders').select('id', { count: 'exact', head: true })
+      const totalOrders = (ord as any)?.length || 0
 
       console.log(`[DELETE_SALES] Encontrados ${totalOrderItems} itens de pedidos e ${totalOrders} pedidos para deletar`)
 
       // 3. Deletar todos os itens de pedidos
       console.log('[DELETE_SALES] Deletando itens de pedidos...')
-      const orderItemsResult = await query('DELETE FROM order_items')
-      deletedOrderItems = orderItemsResult.rowCount || 0
+      const { error: delOiErr } = await supabase.from('order_items').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+      if (delOiErr) throw delOiErr
+      deletedOrderItems = totalOrderItems
 
       // 4. Deletar todos os pedidos
       console.log('[DELETE_SALES] Deletando pedidos...')
-      const ordersResult = await query('DELETE FROM orders')
-      deletedOrders = ordersResult.rowCount || 0
+      const { error: delOrdErr } = await supabase.from('orders').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+      if (delOrdErr) throw delOrdErr
+      deletedOrders = totalOrders
 
       // 5. Se existirem outras tabelas relacionadas a vendas/pagamentos, deletar aqui
       // Exemplo: payment_transactions, order_status_history, etc.
       
-      // Commit da transação
-      await query('COMMIT')
+      // Sem transação: operações simples e idempotentes em Supabase
 
       console.log(`[DELETE_SALES] Exclusão concluída: ${deletedOrderItems} itens e ${deletedOrders} pedidos deletados`)
 
@@ -70,9 +70,7 @@ export async function DELETE(request: NextRequest) {
       })
 
     } catch (error) {
-      // Rollback em caso de erro
-      console.error('[DELETE_SALES] Erro durante transação, fazendo rollback:', error)
-      await query('ROLLBACK')
+      console.error('[DELETE_SALES] Erro durante exclusão:', error)
       throw error
     }
 
