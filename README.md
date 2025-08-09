@@ -81,6 +81,52 @@ start-dev.bat
 npm run dev
 ```
 
+## 🚀 Deploy em Produção
+
+### Preparação para Produção
+
+1. Execute o script de preparação para configurar as variáveis de ambiente:
+```bash
+node scripts/prepare-production.js
+```
+
+2. Verifique se a aplicação está pronta para produção:
+```bash
+node scripts/verify-production-readiness.js
+```
+
+### Deploy na Vercel
+
+#### Opção 1: Deploy via CLI
+Utilize o script de deploy automatizado:
+
+```bash
+# Windows
+scripts\deploy-to-vercel.bat
+
+# Linux/Mac
+bash scripts/deploy-to-vercel.sh
+```
+
+#### Opção 2: Deploy via Dashboard
+
+1. Faça login no [Dashboard da Vercel](https://vercel.com/dashboard)
+2. Importe seu repositório Git
+3. Configure as variáveis de ambiente conforme `.env.production.local`
+4. Inicie o deploy
+
+### Configuração do Supabase em Produção
+
+Para migrar seu banco de dados local para o Supabase em produção:
+
+```bash
+npx supabase login
+npx supabase link --project-ref <project-id>
+npx supabase db push
+```
+
+Consulte o guia completo em `docs/deploy-vercel-supabase.md` para instruções detalhadas.
+
 ## 👨‍💼 Acesso Admin
 - Email: `admin@williamdiskpizza.com`
 - Senha: `admin123`
