@@ -187,6 +187,11 @@ npm start
 2. Limpe o localStorage do navegador
 3. Faça login novamente
 
+### Erro de deploy na Vercel
+1. Verifique a configuração no arquivo `vercel.json`
+2. Consulte o documento `docs/vercel-troubleshooting.md` para soluções comuns
+3. Verifique os logs de build na dashboard da Vercel
+
 ## 🐳 Docker MCP para Trae AI
 
 Para configurar o Docker MCP para uso com o Trae AI:

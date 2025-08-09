@@ -70,13 +70,12 @@ O arquivo `vercel.json` permite configurar diversos aspectos da sua implantaçã
   "builds": [
     { "src": "package.json", "use": "@vercel/next" }
   ],
-  "routes": [
-    { "src": "/api/(.*)", "dest": "/api/$1" },
-    { "src": "/(.*)", "dest": "/" }
-  ],
   "env": {
     "CUSTOM_ENV_VAR": "value"
   },
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "/api/:path*" }
+  ],
   "headers": [
     {
       "source": "/api/(.*)",
@@ -86,6 +85,9 @@ O arquivo `vercel.json` permite configurar diversos aspectos da sua implantaçã
     }
   ]
 }
+```
+
+> **IMPORTANTE**: Na configuração da Vercel, não é possível usar `routes` junto com `headers`, `rewrites`, `redirects`, `cleanUrls` ou `trailingSlash`. Se você precisar usar cabeçalhos personalizados, deve usar `rewrites` em vez de `routes`.
 ```
 
 ### Variáveis de Ambiente

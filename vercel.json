@@ -3,13 +3,12 @@
   "builds": [
     { "src": "package.json", "use": "@vercel/next" }
   ],
-  "routes": [
-    { "src": "/api/socket/(.*)", "dest": "/api/socket/$1" },
-    { "src": "/(.*)", "dest": "/$1" }
-  ],
   "env": {
     "SOCKET_PORT": "3001"
   },
+  "rewrites": [
+    { "source": "/api/socket/:path*", "destination": "/api/socket/:path*" }
+  ],
   "headers": [
     {
       "source": "/api/(.*)",
