@@ -92,30 +92,15 @@ npm run dev
 
 ### Preparação para Produção
 
-1. Execute o script de preparação para configurar as variáveis de ambiente:
+1. Configure as variáveis de ambiente de produção no `.env.local`
+2. Execute os testes de integração para verificar a conectividade:
 ```bash
-node scripts/prepare-production.js
-```
-
-2. Verifique se a aplicação está pronta para produção:
-```bash
-node scripts/verify-production-readiness.js
+npm run test:supabase
 ```
 
 ### Deploy na Vercel
 
-#### Opção 1: Deploy via CLI
-Utilize o script de deploy automatizado:
-
-```bash
-# Windows
-scripts\deploy-to-vercel.bat
-
-# Linux/Mac
-bash scripts/deploy-to-vercel.sh
-```
-
-#### Opção 2: Deploy via Dashboard
+#### Deploy via Dashboard
 
 1. Faça login no [Dashboard da Vercel](https://vercel.com/dashboard)
 2. Importe seu repositório Git
@@ -202,17 +187,7 @@ npm start
 
 ## 🐳 Docker MCP para Trae AI
 
-Para configurar o Docker MCP para uso com o Trae AI:
-
-```bash
-# Windows
-scripts\setup-trae-mcp-docker.bat
-
-# Linux/Mac
-bash scripts/setup-trae-mcp-docker.sh
-```
-
-Este script configura automaticamente o Docker MCP Gateway para permitir que o Trae AI interaja com o Supabase através do protocolo MCP. Para mais detalhes, consulte o arquivo `.trae/README-MCP-DOCKER.md`.
+O projeto está configurado para uso com o Trae AI através do protocolo MCP. A configuração do Docker MCP Gateway permite que o Trae AI interaja diretamente com o Supabase. Para mais detalhes sobre a configuração, consulte a documentação do Trae AI.
 
 ## 📞 Suporte
 
