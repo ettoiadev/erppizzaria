@@ -112,7 +112,7 @@ export async function PUT(request: NextRequest) {
         WHERE setting_key = $2 AND setting_type = 'geolocation'
       `, [value, key])
 
-      if (result.rowCount > 0) {
+      if ((result.rowCount || 0) > 0) {
         updatedCount++
       }
     }
