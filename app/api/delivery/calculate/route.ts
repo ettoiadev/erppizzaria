@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { query } from '@/lib/postgres'
+import { getSupabaseServerClient } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
 
@@ -80,17 +80,19 @@ export async function POST(request: NextRequest) {
     }
 
     // Buscar configurações da pizzaria
-    const configResult = await query(`
-      SELECT setting_key, setting_value FROM admin_settings 
-      WHERE setting_key IN (
-        'pizzaria_latitude', 'pizzaria_longitude', 'max_delivery_radius_km', 
+    const supabase = getSupabaseServerClient()
+    const { data: configRows, error: cfgErr } = await supabase
+      .from('admin_settings')
+      .select('setting_key, setting_value')
+      .in('setting_key', [
+        'pizzaria_latitude', 'pizzaria_longitude', 'max_delivery_radius_km',
         'enable_geolocation_delivery', 'fallback_delivery_fee', 'google_maps_api_key',
         'pizzaria_address'
-      )
-    `)
+      ])
+    if (cfgErr) throw cfgErr
 
     const config: Record<string, string> = {}
-    configResult.rows.forEach((row: any) => {
+    ;(configRows || []).forEach((row: any) => {
       config[String(row.setting_key)] = String(row.setting_value)
     })
 
@@ -123,20 +125,16 @@ export async function POST(request: NextRequest) {
       console.log('[DELIVERY_CALC] Buscando coordenadas para:', address)
 
       // Buscar no cache primeiro
-      const cacheResult = await query(`
-        SELECT 
-          latitude, longitude, formatted_address, distance_km, 
-          is_deliverable, delivery_zone_id, city, state,
-          last_verified
-        FROM geocoded_addresses 
-        WHERE address_text = $1 
-          AND last_verified > NOW() - INTERVAL '7 days'
-          AND latitude IS NOT NULL 
-          AND longitude IS NOT NULL
-      `, [address])
+        const { data: cacheRows } = await supabase
+          .from('geocoded_addresses')
+          .select('latitude, longitude, formatted_address, distance_km, is_deliverable, delivery_zone_id, city, state, last_verified')
+          .eq('address_text', address)
+          .gt('last_verified', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
+          .not('latitude', 'is', null)
+          .not('longitude', 'is', null)
 
-      if (cacheResult.rows.length > 0) {
-        const cached = cacheResult.rows[0]
+        if ((cacheRows || []).length > 0) {
+          const cached = (cacheRows || [])[0]
         targetLat = parseFloat(cached.latitude)
         targetLon = parseFloat(cached.longitude)
         formattedAddress = cached.formatted_address || address
@@ -145,12 +143,14 @@ export async function POST(request: NextRequest) {
 
         // Se tem distância cached e ainda é válida, usar diretamente
         if (cached.distance_km && cached.delivery_zone_id) {
-          const zoneResult = await query(`
-            SELECT * FROM delivery_zones WHERE id = $1 AND active = true
-          `, [cached.delivery_zone_id])
+            const { data: zoneRows } = await supabase
+              .from('delivery_zones')
+              .select('*')
+              .eq('id', cached.delivery_zone_id)
+              .eq('active', true)
 
-          if (zoneResult.rows.length > 0) {
-            const zone = zoneResult.rows[0]
+            if ((zoneRows || []).length > 0) {
+              const zone = (zoneRows || [])[0]
             
             console.log('[DELIVERY_CALC] Resultado completo encontrado no cache')
             
@@ -199,21 +199,19 @@ export async function POST(request: NextRequest) {
     if (distance > maxRadius) {
       // Salvar no cache como não entregável
       if (address) {
-        await query(`
-          INSERT INTO geocoded_addresses (
-            address_text, formatted_address, latitude, longitude, 
-            distance_km, is_deliverable, geocoding_service
-          )
-          VALUES ($1, $2, $3, $4, $5, false, 'google')
-          ON CONFLICT (address_text) DO UPDATE SET
-            formatted_address = EXCLUDED.formatted_address,
-            latitude = EXCLUDED.latitude,
-            longitude = EXCLUDED.longitude,
-            distance_km = EXCLUDED.distance_km,
-            is_deliverable = false,
-            delivery_zone_id = NULL,
-            last_verified = NOW()
-        `, [address, formattedAddress, targetLat, targetLon, distance])
+        await supabase
+          .from('geocoded_addresses')
+          .upsert({
+            address_text: address,
+            formatted_address: formattedAddress,
+            latitude: targetLat,
+            longitude: targetLon,
+            distance_km: distance,
+            is_deliverable: false,
+            delivery_zone_id: null,
+            geocoding_service: 'google',
+            last_verified: new Date().toISOString(),
+          }, { onConflict: 'address_text' })
       }
 
       return NextResponse.json({
@@ -227,14 +225,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Buscar zona de entrega apropriada
-    const zoneResult = await query(`
-      SELECT * FROM delivery_zones 
-      WHERE active = true 
-        AND min_distance_km <= $1 
-        AND max_distance_km >= $1
-      ORDER BY min_distance_km ASC
-      LIMIT 1
-    `, [distance])
+    const { data: zoneRows, error: zoneErr } = await supabase
+      .from('delivery_zones')
+      .select('*')
+      .eq('active', true)
+      .lte('min_distance_km', distance)
+      .gte('max_distance_km', distance)
+      .order('min_distance_km', { ascending: true })
+      .limit(1)
+    if (zoneErr) throw zoneErr
 
     let zone = null
     let deliveryFee = parseFloat(config.fallback_delivery_fee || '8.00')
@@ -242,8 +241,8 @@ export async function POST(request: NextRequest) {
     let zoneName = 'Taxa Padrão'
     let zoneColor = '#6B7280'
 
-    if (zoneResult.rows.length > 0) {
-      zone = zoneResult.rows[0]
+    if ((zoneRows || []).length > 0) {
+      zone = (zoneRows || [])[0]
       deliveryFee = parseFloat(zone.delivery_fee)
       estimatedTime = zone.estimated_time_minutes
       zoneName = zone.name
@@ -252,21 +251,19 @@ export async function POST(request: NextRequest) {
 
     // Salvar/atualizar no cache
     if (address) {
-      await query(`
-        INSERT INTO geocoded_addresses (
-          address_text, formatted_address, latitude, longitude, 
-          distance_km, delivery_zone_id, is_deliverable, geocoding_service
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, true, 'google')
-        ON CONFLICT (address_text) DO UPDATE SET
-          formatted_address = EXCLUDED.formatted_address,
-          latitude = EXCLUDED.latitude,
-          longitude = EXCLUDED.longitude,
-          distance_km = EXCLUDED.distance_km,
-          delivery_zone_id = EXCLUDED.delivery_zone_id,
-          is_deliverable = true,
-          last_verified = NOW()
-      `, [address, formattedAddress, targetLat, targetLon, distance, zone?.id || null])
+      await supabase
+        .from('geocoded_addresses')
+        .upsert({
+          address_text: address,
+          formatted_address: formattedAddress,
+          latitude: targetLat,
+          longitude: targetLon,
+          distance_km: distance,
+          delivery_zone_id: zone?.id || null,
+          is_deliverable: true,
+          geocoding_service: 'google',
+          last_verified: new Date().toISOString(),
+        }, { onConflict: 'address_text' })
     }
 
     console.log('[DELIVERY_CALC] Cálculo concluído:', { deliveryFee, estimatedTime, zoneName })

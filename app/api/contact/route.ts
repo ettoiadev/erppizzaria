@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { query } from "@/lib/postgres"
+import { getSupabaseServerClient } from "@/lib/supabase"
 
 // POST - Enviar mensagem de contato
 export async function POST(request: Request) {
@@ -24,24 +24,21 @@ export async function POST(request: Request) {
       )
     }
 
-    // Inserir mensagem
-    const result = await query(
-      `
-      INSERT INTO contact_messages 
-      (name, email, subject, message)
-      VALUES ($1, $2, $3, $4)
-      RETURNING *
-      `,
-      [name, email, subject || "Contato via site", message]
-    )
+    // Inserir mensagem (Supabase)
+    const supabase = getSupabaseServerClient()
+    const { data, error } = await supabase
+      .from('contact_messages')
+      .insert({
+        name,
+        email,
+        subject: subject || 'Contato via site',
+        message,
+      })
+      .select('*')
+      .single()
+    if (error) throw error
 
-    // TODO: Enviar email de notificação para o administrador
-    // Isso será implementado quando configurarmos o serviço de email
-
-    return NextResponse.json({ 
-      message: "Mensagem enviada com sucesso",
-      contact: result.rows[0]
-    })
+    return NextResponse.json({ message: "Mensagem enviada com sucesso", contact: data })
   } catch (error) {
     console.error("Erro ao enviar mensagem:", error)
     return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { webhookRateLimiter } from '@/lib/rate-limiter'
 import { getSupabaseServerClient } from '@/lib/supabase'
 import { emitRealtimeEvent, EVENT_PAYMENT_APPROVED } from '@/lib/realtime'
 import crypto from 'crypto'
@@ -100,6 +101,12 @@ async function processPaymentEvent(data: any) {
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limiting para evitar abuso do endpoint de webhook
+    const rl = webhookRateLimiter(request)
+    if (rl && (rl as NextResponse).status === 429) {
+      return rl as NextResponse
+    }
+
     const body = await request.json()
     const signature = request.headers.get('x-signature-id') || 
                      request.headers.get('x-signature') ||

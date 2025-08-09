@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { query } from '@/lib/postgres'
+import { getSupabaseServerClient } from '@/lib/supabase'
 import { verifyAdmin } from '@/lib/auth'
 
 export async function PATCH(request: NextRequest) {
@@ -29,21 +29,23 @@ export async function PATCH(request: NextRequest) {
 
     console.log(`Arquivando pedidos com status: ${status}`)
 
-    // Arquivar todos os pedidos do status especificado que não estão arquivados
-    const result = await query(`
-      UPDATE orders 
-      SET archived_at = NOW(), updated_at = NOW()
-      WHERE status = $1 AND archived_at IS NULL
-      RETURNING id, status, archived_at
-    `, [status])
+    const supabase = getSupabaseServerClient()
+    const nowIso = new Date().toISOString()
+    const { data: updated, error } = await supabase
+      .from('orders')
+      .update({ archived_at: nowIso, updated_at: nowIso })
+      .eq('status', status)
+      .is('archived_at', null)
+      .select('id, status, archived_at')
+    if (error) throw error
 
-    console.log(`${result.rows.length} pedidos arquivados com sucesso`)
+    console.log(`${(updated || []).length} pedidos arquivados com sucesso`)
 
     return NextResponse.json({
       success: true,
-      message: `${result.rows.length} pedidos arquivados com sucesso`,
-      archivedCount: result.rows.length,
-      archivedOrders: result.rows
+      message: `${(updated || []).length} pedidos arquivados com sucesso`,
+      archivedCount: (updated || []).length,
+      archivedOrders: updated || []
     })
 
   } catch (error: any) {

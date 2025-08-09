@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { query } from '@/lib/postgres'
+import { getSupabaseServerClient } from '@/lib/supabase'
 import { verifyAdmin } from "@/lib/auth"
 
 export const dynamic = 'force-dynamic'
@@ -23,18 +23,18 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   try {
     console.log('GET /api/categories/[id] - ID:', params.id)
     
-    const categoryResult = await query(`
-      SELECT id, name, description, image_url as image, sort_order, active, created_at, updated_at
-      FROM categories 
-      WHERE id = $1
-    `, [params.id]);
+    const supabase = getSupabaseServerClient()
+    const { data: category, error } = await supabase
+      .from('categories')
+      .select('id, name, description, image_url, sort_order, active, created_at, updated_at')
+      .eq('id', params.id)
+      .maybeSingle()
+    if (error) throw error
 
-    if (categoryResult.rows.length === 0) {
+    if (!category) {
       console.log('Categoria não encontrada:', params.id)
       return NextResponse.json({ error: "Categoria não encontrada" }, { status: 404 })
     }
-
-    const category = categoryResult.rows[0];
 
     const normalizedCategory = {
       id: category.id,
@@ -92,11 +92,15 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     }
 
     // Verificar se a categoria existe antes de tentar atualizar
-    const existingResult = await query(`
-      SELECT id FROM categories WHERE id = $1
-    `, [params.id]);
+    const supabase = getSupabaseServerClient()
+    const { data: existing, error: exErr } = await supabase
+      .from('categories')
+      .select('id')
+      .eq('id', params.id)
+      .maybeSingle()
+    if (exErr) throw exErr
 
-    if (existingResult.rows.length === 0) {
+    if (!existing) {
       console.error('Categoria não encontrada para update:', params.id)
       return NextResponse.json(
         { error: "Categoria não encontrada" },
@@ -118,31 +122,27 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       id: params.id
     })
 
-    // Atualizar categoria usando PostgreSQL
-    const updateResult = await query(`
-      UPDATE categories 
-      SET 
-        name = $1,
-        description = $2,
-        image_url = $3,
-        active = $4,
-        updated_at = NOW()
-      WHERE id = $5
-      RETURNING id, name, description, image_url as image, sort_order, active, created_at, updated_at
-    `, [updateName, updateDescription, updateImage || null, updateActive, params.id]);
-
-    if (updateResult.rows.length === 0) {
-      throw new Error('Falha ao atualizar categoria');
-    }
-
-    const updatedCategory = updateResult.rows[0];
+    // Atualizar categoria usando Supabase
+    const { data: updatedCategory, error: updErr } = await supabase
+      .from('categories')
+      .update({
+        name: updateName,
+        description: updateDescription,
+        image_url: updateImage || null,
+        active: updateActive,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', params.id)
+      .select('id, name, description, image_url, sort_order, active, created_at, updated_at')
+      .single()
+    if (updErr) throw updErr
 
     // Normalizar resposta para manter consistência
     const normalizedCategory = {
       id: updatedCategory.id,
       name: updatedCategory.name,
       description: updatedCategory.description || '',
-      image: updatedCategory.image || '',
+      image: updatedCategory.image_url || '',
       sort_order: updatedCategory.sort_order || 0,
       active: updatedCategory.active !== false
     }
@@ -182,28 +182,32 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
       )
     }
 
-    // Verificar se a categoria existe
-    const existingResult = await query(`
-      SELECT id, name FROM categories WHERE id = $1
-    `, [params.id]);
+    const supabase = getSupabaseServerClient()
+    const { data: existing, error: exErr } = await supabase
+      .from('categories')
+      .select('id, name')
+      .eq('id', params.id)
+      .maybeSingle()
+    if (exErr) throw exErr
 
-    if (existingResult.rows.length === 0) {
+    if (!existing) {
       console.error('Categoria não encontrada para delete:', params.id)
       return NextResponse.json(
         { error: "Categoria não encontrada" },
         { status: 404 }
       )
     }
-
-    const existingCategory = existingResult.rows[0];
+    const existingCategory = existing;
     console.log('Categoria encontrada para delete:', existingCategory.name)
 
     // Verificar se há produtos associados à categoria
-    const productsResult = await query(`
-      SELECT COUNT(*) as count FROM products WHERE category_id = $1 AND active = true
-    `, [params.id]);
-
-    const productsCount = parseInt(productsResult.rows[0].count);
+    const { data: prodRows, error: prodErr } = await supabase
+      .from('products')
+      .select('id', { count: 'exact', head: true })
+      .eq('category_id', params.id)
+      .eq('active', true)
+    if (prodErr) throw prodErr
+    const productsCount = (prodRows as any)?.length || 0
 
     if (productsCount > 0) {
       console.log(`Categoria tem ${productsCount} produtos associados`)
@@ -216,12 +220,12 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
       )
     }
 
-    // Deletar categoria usando PostgreSQL (soft delete)
-    await query(`
-      UPDATE categories 
-      SET active = false, updated_at = NOW()
-      WHERE id = $1
-    `, [params.id]);
+    // Deletar categoria usando Supabase (soft delete)
+    const { error: delErr } = await supabase
+      .from('categories')
+      .update({ active: false, updated_at: new Date().toISOString() })
+      .eq('id', params.id)
+    if (delErr) throw delErr
 
     console.log('Categoria deletada com sucesso:', params.id)
     return NextResponse.json({ 

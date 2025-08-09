@@ -1,36 +1,32 @@
 import { NextResponse } from "next/server"
-import { query } from "@/lib/postgres"
+import { getSupabaseServerClient } from "@/lib/supabase"
 
 // GET - Buscar dados de um usuário específico
 export async function GET(request: Request, { params }: { params: { id: string } }) {
   try {
     console.log("GET /api/users - Buscando usuário:", params.id)
 
-    const result = await query(
-      `SELECT 
-        id,
-        email,
-        full_name as name,
-        phone,
-        role
-      FROM profiles 
-      WHERE id = $1`,
-      [params.id]
-    )
+    const supabase = getSupabaseServerClient()
+    const { data: user, error } = await supabase
+      .from('profiles')
+      .select('id, email, full_name, phone, role')
+      .eq('id', params.id)
+      .maybeSingle()
+    if (error) throw error
 
-    if (result.rows.length === 0) {
+    if (!user) {
       return NextResponse.json({ error: "Usuário não encontrado" }, { status: 404 })
     }
 
-    const userData = result.rows[0]
-    console.log("Dados do usuário encontrados:", userData)
+    const userData = user
+    console.log("Dados do usuário encontrados:", user)
 
     return NextResponse.json({ 
       user: {
         id: userData.id,
         email: userData.email,
-        name: userData.name,
-        full_name: userData.name,
+        name: userData.full_name,
+        full_name: userData.full_name,
         phone: userData.phone,
         role: userData.role
       }
@@ -75,45 +71,36 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     
     console.log("Dados a serem atualizados:", { name, email, phone: phone, cleanPhone })
 
-    // Verificar se o usuário existe
-    const userCheck = await query(
-      "SELECT id FROM profiles WHERE id = $1",
-      [params.id]
-    )
+    const supabase = getSupabaseServerClient()
+    const { data: existing, error: checkErr } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('id', params.id)
+      .maybeSingle()
+    if (checkErr) throw checkErr
 
-    if (userCheck.rows.length === 0) {
+    if (!existing) {
       return NextResponse.json({ error: "Usuário não encontrado" }, { status: 404 })
     }
+    const { data: updated, error: updErr } = await supabase
+      .from('profiles')
+      .update({ full_name: name.trim(), email, phone: cleanPhone, updated_at: new Date().toISOString() })
+      .eq('id', params.id)
+      .select('id, email, full_name, phone')
+      .single()
+    if (updErr) throw updErr
 
-    // Iniciar transação
-    await query("BEGIN")
+    console.log("Usuário atualizado com sucesso:", params.id)
 
-    try {
-      // Atualizar dados na tabela profiles
-      await query(
-        `UPDATE profiles 
-         SET full_name = $1, email = $2, phone = $3, updated_at = NOW() 
-         WHERE id = $4`,
-        [name.trim(), email, cleanPhone, params.id]
-      )
-
-      await query("COMMIT")
-
-      console.log("Usuário atualizado com sucesso:", params.id)
-
-      return NextResponse.json({ 
-        message: "Dados atualizados com sucesso",
-        user: {
-          id: params.id,
-          name: name.trim(),
-          email: email,
-          phone: cleanPhone
-        }
-      })
-    } catch (transactionError) {
-      await query("ROLLBACK")
-      throw transactionError
-    }
+    return NextResponse.json({ 
+      message: "Dados atualizados com sucesso",
+      user: {
+        id: params.id,
+        name: updated.full_name,
+        email: updated.email,
+        phone: updated.phone
+      }
+    })
   } catch (error) {
     console.error("Erro ao atualizar usuário:", error)
     return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
