@@ -4,6 +4,20 @@ import { verifyAdmin } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
+interface ZoneStat {
+  cached_addresses: number
+  deliverable_addresses: number
+}
+
+type ZoneStatsMap = Record<string, ZoneStat>
+
+interface StatsRow {
+  id: string | number
+  name?: string
+  cached_addresses: string | number
+  deliverable_addresses: string | number
+}
+
 export async function GET(request: NextRequest) {
   try {
     const authHeader = request.headers.get("authorization")
@@ -42,17 +56,18 @@ export async function GET(request: NextRequest) {
       ORDER BY dz.min_distance_km ASC
     `)
 
-    const stats = {}
-    statsResult.rows.forEach(row => {
-      stats[row.id] = {
-        cached_addresses: parseInt(row.cached_addresses),
-        deliverable_addresses: parseInt(row.deliverable_addresses)
+    const stats: ZoneStatsMap = {}
+    statsResult.rows.forEach((row: StatsRow) => {
+      const key = String(row.id)
+      stats[key] = {
+        cached_addresses: Number(row.cached_addresses) || 0,
+        deliverable_addresses: Number(row.deliverable_addresses) || 0
       }
     })
 
-    const zonesWithStats = zonesResult.rows.map(zone => ({
+    const zonesWithStats = zonesResult.rows.map((zone: any) => ({
       ...zone,
-      stats: stats[zone.id] || { cached_addresses: 0, deliverable_addresses: 0 }
+      stats: stats[String(zone.id)] || { cached_addresses: 0, deliverable_addresses: 0 }
     }))
 
     console.log('[DELIVERY_ZONES] Zonas encontradas:', zonesWithStats.length)
