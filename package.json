@@ -24,12 +24,12 @@
     "@radix-ui/react-switch": "latest",
     "@radix-ui/react-tabs": "latest",
     "@radix-ui/react-toast": "latest",
+    "@supabase/supabase-js": "^2.45.4",
     "@tanstack/react-query": "latest",
     "@types/bcrypt": "^5.0.2",
     "@types/bcryptjs": "^2.4.6",
     "@types/jsonwebtoken": "^9.0.10",
     "axios": "^1.11.0",
-    "@supabase/supabase-js": "^2.45.4",
     "bcrypt": "^6.0.0",
     "bcryptjs": "^3.0.2",
     "class-variance-authority": "^0.7.1",
@@ -45,14 +45,13 @@
     "next": "^14.2.30",
     "next-themes": "latest",
     "pg": "^8.16.1",
-    "socket.io": "^4.7.5",
-    "ws": "^8.18.0",
     "react": "^18",
     "react-dom": "^18",
-
+    "socket.io": "^4.7.5",
     "sonner": "^2.0.6",
     "tailwind-merge": "^2.5.5",
     "tailwindcss-animate": "^1.0.7",
+    "ws": "^8.18.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
@@ -65,6 +64,7 @@
     "eslint": "^8",
     "eslint-config-next": "14.0.0",
     "postcss": "^8.5",
+    "supabase": "^2.33.9",
     "tailwindcss": "^3.3.0",
     "typescript": "^5"
   }
