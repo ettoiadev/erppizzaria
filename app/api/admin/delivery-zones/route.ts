@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { query } from '@/lib/postgres'
+import { getSupabaseServerClient } from '@/lib/supabase'
 import { verifyAdmin } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
@@ -34,38 +34,28 @@ export async function GET(request: NextRequest) {
 
     console.log('[DELIVERY_ZONES] Buscando zonas de entrega...')
 
-    const zonesResult = await query(`
-      SELECT 
-        id, name, min_distance_km, max_distance_km, delivery_fee,
-        estimated_time_minutes, active, color_hex, description,
-        created_at, updated_at
-      FROM delivery_zones 
-      ORDER BY min_distance_km ASC
-    `)
+    const supabase = getSupabaseServerClient()
+    const { data: zonesRows, error: zonesErr } = await supabase
+      .from('delivery_zones')
+      .select('id, name, min_distance_km, max_distance_km, delivery_fee, estimated_time_minutes, active, color_hex, description, created_at, updated_at')
+      .order('min_distance_km', { ascending: true })
+    if (zonesErr) throw zonesErr
 
     // Buscar estatísticas de uso das zonas
-    const statsResult = await query(`
-      SELECT 
-        dz.id,
-        dz.name,
-        COUNT(ga.id) as cached_addresses,
-        COUNT(CASE WHEN ga.is_deliverable = true THEN 1 END) as deliverable_addresses
-      FROM delivery_zones dz
-      LEFT JOIN geocoded_addresses ga ON dz.id = ga.delivery_zone_id
-      GROUP BY dz.id, dz.name
-      ORDER BY dz.min_distance_km ASC
-    `)
-
-    const stats: ZoneStatsMap = {}
-    statsResult.rows.forEach((row: StatsRow) => {
-      const key = String(row.id)
-      stats[key] = {
-        cached_addresses: Number(row.cached_addresses) || 0,
-        deliverable_addresses: Number(row.deliverable_addresses) || 0
-      }
+    const { data: countAll } = await supabase
+      .from('geocoded_addresses')
+      .select('delivery_zone_id, is_deliverable')
+    const statsMap: Record<string, { cached_addresses: number; deliverable_addresses: number }> = {}
+    ;(countAll || []).forEach((row: any) => {
+      const key = String(row.delivery_zone_id)
+      if (!statsMap[key]) statsMap[key] = { cached_addresses: 0, deliverable_addresses: 0 }
+      statsMap[key].cached_addresses++
+      if (row.is_deliverable) statsMap[key].deliverable_addresses++
     })
 
-    const zonesWithStats = zonesResult.rows.map((zone: any) => ({
+    const stats: ZoneStatsMap = Object.fromEntries(Object.entries(statsMap)) as ZoneStatsMap
+
+    const zonesWithStats = (zonesRows || []).map((zone: any) => ({
       ...zone,
       stats: stats[String(zone.id)] || { cached_addresses: 0, deliverable_addresses: 0 }
     }))
@@ -137,44 +127,37 @@ export async function POST(request: NextRequest) {
     }
 
     // Verificar sobreposição com zonas existentes
-    const overlapResult = await query(`
-      SELECT id, name, min_distance_km, max_distance_km
-      FROM delivery_zones 
-      WHERE active = true
-        AND (
-          (min_distance_km <= $1 AND max_distance_km >= $1) OR
-          (min_distance_km <= $2 AND max_distance_km >= $2) OR
-          (min_distance_km >= $1 AND max_distance_km <= $2)
-        )
-    `, [min_distance_km, max_distance_km])
-
-    if (overlapResult.rows.length > 0) {
-      const overlapping = overlapResult.rows[0]
+    const { data: overlaps } = await supabase
+      .from('delivery_zones')
+      .select('id, name, min_distance_km, max_distance_km')
+      .eq('active', true)
+    const overlapping = (overlaps || []).find((z: any) => (
+      (z.min_distance_km <= min_distance_km && z.max_distance_km >= min_distance_km) ||
+      (z.min_distance_km <= max_distance_km && z.max_distance_km >= max_distance_km) ||
+      (z.min_distance_km >= min_distance_km && z.max_distance_km <= max_distance_km)
+    ))
+    if (overlapping) {
       return NextResponse.json({
         error: `Sobreposição detectada com a zona "${overlapping.name}" (${overlapping.min_distance_km}km - ${overlapping.max_distance_km}km)`
       }, { status: 400 })
     }
 
     // Criar zona
-    const result = await query(`
-      INSERT INTO delivery_zones (
-        name, min_distance_km, max_distance_km, delivery_fee, 
-        estimated_time_minutes, color_hex, description, active
-      )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-      RETURNING *
-    `, [
-      name.trim(), 
-      min_distance_km, 
-      max_distance_km, 
-      delivery_fee, 
-      estimated_time_minutes, 
-      color_hex || '#3B82F6', 
-      description || null,
-      active
-    ])
-
-    const newZone = result.rows[0]
+    const { data: newZone, error } = await supabase
+      .from('delivery_zones')
+      .insert({
+        name: name.trim(),
+        min_distance_km,
+        max_distance_km,
+        delivery_fee,
+        estimated_time_minutes,
+        color_hex: color_hex || '#3B82F6',
+        description: description || null,
+        active,
+      })
+      .select('*')
+      .single()
+    if (error) throw error
 
     console.log('[DELIVERY_ZONES] Zona criada com sucesso:', newZone.id)
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { query } from '@/lib/postgres'
+import { getSupabaseServerClient } from '@/lib/supabase'
 import { verifyAdmin } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
@@ -22,17 +22,15 @@ export async function GET(request: NextRequest) {
 
     console.log('[GEOLOCATION_SETTINGS] Buscando configurações...')
 
-    const settingsResult = await query(`
-      SELECT setting_key, setting_value, description
-      FROM admin_settings 
-      WHERE setting_type = 'geolocation'
-      ORDER BY setting_key
-    `)
-
+    const supabase = getSupabaseServerClient()
+    const { data: rows, error } = await supabase
+      .from('admin_settings')
+      .select('setting_key, setting_value, description')
+      .eq('setting_type', 'geolocation')
+      .order('setting_key')
+    if (error) throw error
     const settings: GeolocationSettingsMap = {}
-    settingsResult.rows.forEach((row: { setting_key: string, setting_value: string }) => {
-      settings[row.setting_key] = row.setting_value
-    })
+    ;(rows || []).forEach((row: any) => { settings[row.setting_key] = row.setting_value })
 
     console.log('[GEOLOCATION_SETTINGS] Configurações encontradas:', Object.keys(settings).length)
 
@@ -105,27 +103,21 @@ export async function PUT(request: NextRequest) {
 
     let updatedCount = 0
 
+    const supabase = getSupabaseServerClient()
     for (const [key, value] of Object.entries(settings)) {
-      const result = await query(`
-        UPDATE admin_settings 
-        SET setting_value = $1, updated_at = NOW()
-        WHERE setting_key = $2 AND setting_type = 'geolocation'
-      `, [value, key])
-
-      if ((result.rowCount || 0) > 0) {
-        updatedCount++
-      }
+      const { error } = await supabase
+        .from('admin_settings')
+        .update({ setting_value: value, updated_at: new Date().toISOString() })
+        .eq('setting_key', key)
+        .eq('setting_type', 'geolocation')
+      if (!error) updatedCount++
     }
 
     console.log('[GEOLOCATION_SETTINGS] Configurações atualizadas:', updatedCount)
 
     // Se mudou coordenadas da pizzaria, limpar cache de distâncias
     if (settings.pizzaria_latitude || settings.pizzaria_longitude) {
-      await query(`
-        UPDATE geocoded_addresses 
-        SET distance_km = NULL, delivery_zone_id = NULL, last_verified = NOW() - INTERVAL '1 year'
-        WHERE distance_km IS NOT NULL
-      `)
+      await supabase.from('geocoded_addresses').update({ distance_km: null, delivery_zone_id: null, last_verified: new Date(Date.now() - 365*24*60*60*1000).toISOString() }).not('distance_km', 'is', null)
       console.log('[GEOLOCATION_SETTINGS] Cache de distâncias limpo devido à mudança de coordenadas')
     }
 

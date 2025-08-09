@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyAdmin } from '@/lib/auth'
-import { query } from '@/lib/postgres'
+import { getSupabaseServerClient } from '@/lib/supabase'
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
@@ -28,70 +28,54 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Construir query base para buscar entregas
-    let whereConditions = ["o.status = 'DELIVERED'", "o.driver_id IS NOT NULL"]
-    let queryParams: any[] = []
-    let paramCount = 0
+    const supabase = getSupabaseServerClient()
 
-    // Filtrar por data
+    // Buscar entregas entregues (DELIVERED) com driver_id
+    let ordersQuery = supabase
+      .from('orders')
+      .select('id, total, subtotal, delivery_fee, delivered_at, delivery_address, driver_id, drivers:driver_id(name, email, phone)')
+      .eq('status', 'DELIVERED')
+      .not('driver_id', 'is', null)
+      .order('delivered_at', { ascending: false })
+
     if (startDate) {
-      paramCount++
-      whereConditions.push(`o.delivered_at >= $${paramCount}`)
-      queryParams.push(new Date(startDate + 'T00:00:00.000Z'))
+      ordersQuery = ordersQuery.gte('delivered_at', new Date(startDate + 'T00:00:00.000Z').toISOString())
     }
-
     if (endDate) {
-      paramCount++
-      whereConditions.push(`o.delivered_at <= $${paramCount}`)
-      queryParams.push(new Date(endDate + 'T23:59:59.999Z'))
+      ordersQuery = ordersQuery.lte('delivered_at', new Date(endDate + 'T23:59:59.999Z').toISOString())
     }
-
-    // Filtrar por entregador específico
     if (driverId && driverId !== 'all') {
-      paramCount++
-      whereConditions.push(`o.driver_id = $${paramCount}`)
-      queryParams.push(driverId)
+      ordersQuery = ordersQuery.eq('driver_id', driverId)
     }
 
-    const whereClause = whereConditions.join(' AND ')
+    const { data: orders, error } = await ordersQuery
+    if (error) throw error
 
-    // Query principal para buscar entregas com detalhes
-    const deliveriesQuery = `
-      SELECT 
-        o.id,
-        o.total,
-        o.subtotal,
-        o.delivery_fee,
-        o.delivered_at,
-        o.delivery_address,
-        o.driver_id,
-        d.name as driver_name,
-        d.email as driver_email,
-        d.phone as driver_phone,
-        -- Calcular valor dos produtos (pizzas)
-        COALESCE(
-          (SELECT SUM(oi.price * oi.quantity) 
-           FROM order_items oi 
-           WHERE oi.order_id = o.id), 
-          o.subtotal
-        ) as products_value
-      FROM orders o
-      INNER JOIN drivers d ON o.driver_id = d.id
-      WHERE ${whereClause}
-      ORDER BY o.delivered_at DESC
-    `
+    // Calcular products_value somando itens do pedido
+    const deliveries = [] as any[]
+    for (const ord of orders || []) {
+      const { data: items } = await supabase
+        .from('order_items')
+        .select('price:unit_price, quantity')
+        .eq('order_id', ord.id)
+      const products_value = (items || []).reduce((sum: number, it: any) => sum + (Number(it.price || 0) * Number(it.quantity || 0)), 0) || Number(ord.subtotal || 0)
+      deliveries.push({
+        id: ord.id,
+        total: ord.total,
+        subtotal: ord.subtotal,
+        delivery_fee: ord.delivery_fee,
+        delivered_at: ord.delivered_at,
+        delivery_address: ord.delivery_address,
+        driver_id: ord.driver_id,
+        driver_name: ord.drivers?.name,
+        driver_email: ord.drivers?.email,
+        driver_phone: ord.drivers?.phone,
+        products_value,
+      })
+    }
 
-    const deliveriesResult = await query(deliveriesQuery, queryParams)
-    const deliveries = deliveriesResult.rows
-
-    // Query para buscar todos os entregadores (para filtros)
-    const driversQuery = `
-      SELECT id, name, email, phone
-      FROM drivers
-      ORDER BY name
-    `
-    const driversResult = await query(driversQuery)
-    const drivers = driversResult.rows
+    // Entregadores para filtros
+    const { data: drivers } = await supabase.from('drivers').select('id, name, email, phone').order('name')
 
     console.log(`[DELIVERY_REPORT] Encontrados ${drivers.length} entregadores`)
     console.log(`[DELIVERY_REPORT] Encontradas ${deliveries.length} entregas entregues`)

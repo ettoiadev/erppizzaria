@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { query } from '@/lib/postgres'
+import { getSupabaseServerClient } from '@/lib/supabase'
 import { mercadoPagoGateway } from '@/lib/mercadopago'
 import { ordersRateLimiter } from '@/lib/rate-limiter'
 
@@ -37,21 +37,19 @@ export async function POST(request: NextRequest) {
       customer_email
     })
 
-    // Verificar se o pedido existe
-    const orderResult = await query(`
-      SELECT id, status, payment_status, total 
-      FROM orders 
-      WHERE id = $1
-    `, [order_id])
-
-    if (orderResult.rows.length === 0) {
+    const supabase = getSupabaseServerClient()
+    const { data: order, error } = await supabase
+      .from('orders')
+      .select('id, status, payment_status, total')
+      .eq('id', order_id)
+      .maybeSingle()
+    if (error) throw error
+    if (!order) {
       return NextResponse.json(
         { error: "Pedido não encontrado" },
         { status: 404 }
       )
     }
-
-    const order = orderResult.rows[0]
 
     // Verificar se o pedido já foi pago
     if (order.payment_status === 'PAID') {
@@ -105,11 +103,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Atualizar pedido com informações do pagamento
-    await query(`
-      UPDATE orders 
-      SET payment_status = 'PENDING', updated_at = NOW()
-      WHERE id = $1
-    `, [order_id])
+    await supabase
+      .from('orders')
+      .update({ payment_status: 'PENDING', updated_at: new Date().toISOString() })
+      .eq('id', order_id)
 
     console.log("✅ Pagamento criado com sucesso:", paymentResult.payment_id)
 
@@ -161,21 +158,19 @@ export async function GET(request: NextRequest) {
         }
       })
     } else {
-      // Buscar pedido e seu status de pagamento
-      const orderResult = await query(`
-        SELECT id, status, payment_status, total, created_at
-        FROM orders 
-        WHERE id = $1
-      `, [orderId])
-
-      if (orderResult.rows.length === 0) {
+      const supabase = getSupabaseServerClient()
+      const { data: order, error } = await supabase
+        .from('orders')
+        .select('id, status, payment_status, total, created_at')
+        .eq('id', orderId)
+        .maybeSingle()
+      if (error) throw error
+      if (!order) {
         return NextResponse.json(
           { error: "Pedido não encontrado" },
           { status: 404 }
         )
       }
-
-      const order = orderResult.rows[0]
 
       return NextResponse.json({
         success: true,

@@ -1,14 +1,16 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
 // Em ambientes Node, garantir WebSocket disponível para canais Realtime
-try {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const ws = require('ws')
-  if (ws && !(globalThis as any).WebSocket) {
-    ;(globalThis as any).WebSocket = ws
+if (typeof window === 'undefined') {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const ws = require('ws')
+    if (ws && !(globalThis as any).WebSocket) {
+      ;(globalThis as any).WebSocket = ws
+    }
+  } catch {
+    // Ignorar se já existir WebSocket global ou módulo indisponível
   }
-} catch {
-  // Ignorar se já existir WebSocket global (navegador)
 }
 
 // Credenciais oficiais pedidas: SUPABASE_URL e SUPABASE_KEY

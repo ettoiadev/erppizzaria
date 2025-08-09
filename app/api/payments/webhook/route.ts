@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { query } from '@/lib/postgres'
+import { getSupabaseServerClient } from '@/lib/supabase'
 import { emitRealtimeEvent, EVENT_PAYMENT_APPROVED } from '@/lib/realtime'
 import crypto from 'crypto'
 
@@ -31,18 +31,17 @@ async function processPaymentEvent(data: any) {
   console.log(`💰 Processando pagamento ${id} - Status: ${status}`)
   
   // Buscar pedido pelo external_reference
-  const orderResult = await query(`
-    SELECT id, status, payment_status, total 
-    FROM orders 
-    WHERE id = $1
-  `, [external_reference])
-  
-  if (orderResult.rows.length === 0) {
+  const supabase = getSupabaseServerClient()
+  const { data: order, error } = await supabase
+    .from('orders')
+    .select('id, status, payment_status, total')
+    .eq('id', external_reference)
+    .maybeSingle()
+  if (error) throw error
+  if (!order) {
     console.error(`❌ Pedido não encontrado: ${external_reference}`)
     return false
   }
-  
-  const order = orderResult.rows[0]
   
   // Atualizar status do pagamento
   let newPaymentStatus = 'PENDING'
@@ -71,17 +70,15 @@ async function processPaymentEvent(data: any) {
   }
   
   // Atualizar pedido
-  await query(`
-    UPDATE orders 
-    SET payment_status = $1, status = $2, updated_at = NOW()
-    WHERE id = $3
-  `, [newPaymentStatus, newOrderStatus, external_reference])
+  await supabase
+    .from('orders')
+    .update({ payment_status: newPaymentStatus, status: newOrderStatus, updated_at: new Date().toISOString() })
+    .eq('id', external_reference)
   
   // Registrar no histórico
-  await query(`
-    INSERT INTO order_status_history (order_id, old_status, new_status, notes, created_at)
-    VALUES ($1, $2, $3, $4, NOW())
-  `, [external_reference, order.status, newOrderStatus, `Pagamento ${status} via Mercado Pago`])
+  await supabase
+    .from('order_status_history')
+    .insert({ order_id: external_reference, old_status: order.status, new_status: newOrderStatus, notes: `Pagamento ${status} via Mercado Pago`, created_at: new Date().toISOString() })
   
   console.log(`✅ Pedido ${external_reference} atualizado: ${order.status} → ${newOrderStatus}`)
   
