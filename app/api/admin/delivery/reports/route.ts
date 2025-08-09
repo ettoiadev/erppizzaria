@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     // Buscar entregas entregues (DELIVERED) com driver_id
     let ordersQuery = supabase
       .from('orders')
-      .select('id, total, subtotal, delivery_fee, delivered_at, delivery_address, driver_id, drivers:driver_id(*)')
+      .select('id, total, subtotal, delivery_fee, delivered_at, delivery_address, driver_id')
       .eq('status', 'DELIVERED')
       .not('driver_id', 'is', null)
       .order('delivered_at', { ascending: false })
@@ -51,6 +51,10 @@ export async function GET(request: NextRequest) {
     const { data: orders, error } = await ordersQuery
     if (error) throw error
 
+    // Entregadores para filtros e para mapear no relatório
+    const { data: drivers } = await supabase.from('drivers').select('id, name, email, phone').order('name')
+    const driverMap = new Map<string, any>((drivers || []).map((d: any) => [String(d.id), d]))
+
     // Calcular products_value somando itens do pedido
     const deliveries = [] as any[]
     for (const ord of orders || []) {
@@ -59,6 +63,7 @@ export async function GET(request: NextRequest) {
         .select('price:unit_price, quantity')
         .eq('order_id', ord.id)
       const products_value = (items || []).reduce((sum: number, it: any) => sum + (Number(it.price || 0) * Number(it.quantity || 0)), 0) || Number(ord.subtotal || 0)
+      const drv = driverMap.get(String(ord.driver_id))
       deliveries.push({
         id: ord.id,
         total: ord.total,
@@ -67,15 +72,12 @@ export async function GET(request: NextRequest) {
         delivered_at: ord.delivered_at,
         delivery_address: ord.delivery_address,
         driver_id: ord.driver_id,
-        driver_name: Array.isArray(ord.drivers) ? ord.drivers[0]?.name : (ord as any).drivers?.name,
-        driver_email: Array.isArray(ord.drivers) ? ord.drivers[0]?.email : (ord as any).drivers?.email,
-        driver_phone: Array.isArray(ord.drivers) ? ord.drivers[0]?.phone : (ord as any).drivers?.phone,
+        driver_name: drv?.name,
+        driver_email: drv?.email,
+        driver_phone: drv?.phone,
         products_value,
       })
     }
-
-    // Entregadores para filtros
-    const { data: drivers } = await supabase.from('drivers').select('id, name, email, phone').order('name')
 
     console.log(`[DELIVERY_REPORT] Encontrados ${drivers.length} entregadores`)
     console.log(`[DELIVERY_REPORT] Encontradas ${deliveries.length} entregas entregues`)
