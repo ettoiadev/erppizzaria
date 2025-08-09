@@ -3,6 +3,14 @@ import { verifyAdmin } from '@/lib/auth'
 import fs from 'fs'
 import path from 'path'
 
+interface BackupEntry {
+  filename: string
+  size: number
+  sizeFormatted: string
+  date: Date
+  dateFormatted: string
+}
+
 export async function GET(request: NextRequest) {
   try {
     // Verificar autenticação admin
@@ -26,10 +34,10 @@ export async function GET(request: NextRequest) {
     const dbBackupExists = fs.existsSync(backupDir)
     const filesBackupExists = fs.existsSync(filesBackupDir)
     
-    let databaseBackups = []
-    let filesBackups = []
-    let lastDatabaseBackup = null
-    let lastFilesBackup = null
+    let databaseBackups: BackupEntry[] = []
+    let filesBackups: BackupEntry[] = []
+    let lastDatabaseBackup: BackupEntry | null = null
+    let lastFilesBackup: BackupEntry | null = null
     
     // Buscar backups de banco de dados
     if (dbBackupExists) {
