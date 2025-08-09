@@ -1,7 +1,6 @@
 import bcrypt from 'bcryptjs';
 import { sign, verify } from 'jsonwebtoken';
-import { getUserByEmail, createUserProfile, UserProfile } from './db-postgres';
-import { query } from './postgres';
+import { getUserByEmail, createUserProfile, UserProfile } from './db-supabase';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'william-disk-pizza-jwt-secret-2024-production';
 

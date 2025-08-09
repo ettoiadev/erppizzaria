@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getAdminSettings } from '@/lib/db-postgres'
+import { getAdminSettings } from '@/lib/db-supabase'
 
 // API pública para buscar configurações que podem ser exibidas na página inicial
 export async function GET() {

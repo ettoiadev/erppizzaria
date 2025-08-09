@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { createUser } from "@/lib/auth"
-import { saveCustomerAddress } from "@/lib/db-postgres"
+import { saveCustomerAddress } from "@/lib/db-supabase"
 
 export async function POST(request: NextRequest) {
   try {

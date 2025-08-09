@@ -1,13 +1,13 @@
 # 🍕 William Disk Pizza - Sistema de Delivery
 
-Sistema completo de delivery de pizza desenvolvido com Next.js 14 e PostgreSQL.
+Sistema completo de delivery de pizza desenvolvido com Next.js 14 e Supabase (PostgreSQL) usando o cliente oficial.
 
 ## 🚀 Tecnologias Utilizadas
 
 - **Frontend**: Next.js 14, React 18, TypeScript
-- **Backend**: Next.js API Routes, PostgreSQL direto
+- **Backend**: Next.js API Routes, Supabase (cliente @supabase/supabase-js)
 - **Autenticação**: JWT com bcrypt
-- **Banco de Dados**: PostgreSQL direto (sem Supabase)
+- **Banco de Dados**: Supabase (PostgreSQL via cliente oficial)
 - **Styling**: Tailwind CSS, Radix UI
 - **Estado**: React Context API, TanStack Query
 
@@ -44,34 +44,30 @@ npm install
 ### 2. Configure as variáveis de ambiente
 Crie um arquivo `.env.local` baseado no `env.example`:
 ```env
-# Configurações do Banco de Dados
-DATABASE_URL=postgresql://usuario:senha@localhost:5432/williamdiskpizza
+# Supabase (uso oficial)
+SUPABASE_URL=http://localhost:54321
+SUPABASE_KEY=your-service-role-or-anon-key
 
-# Configurações de Autenticação
+# Autenticação
 JWT_SECRET=sua_chave_secreta_super_segura_aqui
 
-# Configurações do Ambiente
+# Ambiente
 NODE_ENV=development
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
 
-
-
-# Configurações do Mercado Pago
+# Mercado Pago
 MERCADOPAGO_ACCESS_TOKEN=TEST-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 MERCADOPAGO_WEBHOOK_SECRET=your_webhook_secret_here
 
-# Configurações de Logs
+# Logs
 ENABLE_QUERY_LOGS=true
 ENABLE_SLOW_QUERY_LOGS=true
 SLOW_QUERY_THRESHOLD=1000
 ```
 
-### 3. Configure o Banco PostgreSQL
-Execute o script completo no PostgreSQL:
-```bash
-# Execute no seu cliente PostgreSQL
-scripts/setup-postgresql-complete.sql
-```
+### 3. Banco de Dados
+- Não é mais usado `DATABASE_URL` nem conexões diretas via `pg`.
+- Toda comunicação é feita via Supabase. Certifique-se de ter criado o projeto e tabelas ou use seus scripts existentes dentro do Supabase.
 
 ### 4. Execute a aplicação
 
@@ -118,7 +114,7 @@ npm start
 - Sistema de pedidos completo
 - Arquivamento de pedidos
 - Autenticação JWT
-- Banco PostgreSQL
+- Banco Supabase (cliente oficial)
 - Interface admin
 - Geolocalização
 
@@ -136,9 +132,9 @@ npm start
 
 
 ### Banco de dados não conecta
-1. Verifique a URL de conexão no .env.local
-2. Confirme se o PostgreSQL está rodando
-3. Execute os scripts SQL de setup
+1. Verifique `SUPABASE_URL` e `SUPABASE_KEY` no `.env.local`
+2. Confirme se o projeto Supabase está rodando (local ou cloud)
+3. Verifique políticas RLS e permissões das tabelas
 
 ### Erro de autenticação
 1. Verifique o JWT_SECRET no .env.local

@@ -1,11 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { Pool } from 'pg'
 import { verifyAdmin } from '@/lib/auth'
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
-})
+import { query } from '@/lib/postgres'
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
@@ -13,8 +8,6 @@ export async function GET(request: NextRequest) {
   const endDate = searchParams.get('endDate')
   const driverId = searchParams.get('driverId')
 
-  const client = await pool.connect()
-  
   try {
     // Verificar autenticação de admin
     const authHeader = request.headers.get('authorization')
@@ -88,7 +81,7 @@ export async function GET(request: NextRequest) {
       ORDER BY o.delivered_at DESC
     `
 
-    const deliveriesResult = await client.query(deliveriesQuery, queryParams)
+    const deliveriesResult = await query(deliveriesQuery, queryParams)
     const deliveries = deliveriesResult.rows
 
     // Query para buscar todos os entregadores (para filtros)
@@ -97,7 +90,7 @@ export async function GET(request: NextRequest) {
       FROM drivers
       ORDER BY name
     `
-    const driversResult = await client.query(driversQuery)
+    const driversResult = await query(driversQuery)
     const drivers = driversResult.rows
 
     console.log(`[DELIVERY_REPORT] Encontrados ${drivers.length} entregadores`)
@@ -169,7 +162,5 @@ export async function GET(request: NextRequest) {
       },
       { status: 500 }
     )
-  } finally {
-    client.release()
   }
 }

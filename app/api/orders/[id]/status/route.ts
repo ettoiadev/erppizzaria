@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { query } from '@/lib/postgres'
+import { updateOrderStatus } from '@/lib/db-supabase'
 import { emitRealtimeEvent, EVENT_ORDER_STATUS_UPDATED } from '@/lib/realtime'
 
 export async function PATCH(
@@ -23,19 +23,7 @@ export async function PATCH(
       )
     }
 
-    // Verificar se o pedido existe
-    const orderResult = await query(`
-      SELECT id, status FROM orders WHERE id = $1
-    `, [orderId]);
-
-    if (orderResult.rows.length === 0) {
-      return NextResponse.json(
-        { error: "Pedido não encontrado" },
-        { status: 404 }
-      )
-    }
-
-    const currentOrder = orderResult.rows[0];
+    // Como não dependemos mais de SQL direto, tentamos atualizar e, se falhar, tratamos
 
     // Validar transição de status
     const statusOrder = ['RECEIVED', 'PREPARING', 'READY', 'ON_THE_WAY', 'DELIVERED']
@@ -49,30 +37,10 @@ export async function PATCH(
       )
     }
 
-    // Atualizar status do pedido
-    const updateResult = await query(`
-      UPDATE orders 
-      SET status = $1, updated_at = NOW()
-      WHERE id = $2
-      RETURNING *
-    `, [status, orderId]);
-
-    if (updateResult.rows.length === 0) {
-      return NextResponse.json(
-        { error: "Falha ao atualizar status" },
-        { status: 500 }
-      )
-    }
-
-    const updatedOrder = updateResult.rows[0];
+    const updatedOrder = await updateOrderStatus(orderId, status, notes || null)
 
     // Se houver notas, salvar no histórico
-    if (notes) {
-      await query(`
-        INSERT INTO order_status_history (order_id, driver_id, old_status, new_status, notes, created_at)
-        VALUES ($1, $2, $3, $4, $5, NOW())
-      `, [orderId, null, currentOrder.status, status, notes]);
-    }
+    // Histórico já é gerenciado dentro de updateOrderStatus se necessário
 
     console.log("Status atualizado com sucesso:", updatedOrder)
 

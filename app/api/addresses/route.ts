@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server"
-import { query } from "@/lib/postgres"
-import { verifyToken } from "@/lib/auth"
+import { listAddresses, createAddress } from "@/lib/db-supabase"
 
 // GET - Listar endereços do usuário
 export async function GET(request: Request) {
@@ -12,12 +11,8 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "UserId não fornecido" }, { status: 400 })
     }
 
-    const result = await query(
-      'SELECT *, label as name FROM customer_addresses WHERE user_id = $1 ORDER BY is_default DESC, created_at DESC',
-      [userId]
-    )
-
-    return NextResponse.json({ addresses: result.rows })
+    const addresses = await listAddresses(userId)
+    return NextResponse.json({ addresses })
   } catch (error) {
     console.error("Erro ao buscar endereços:", error)
     return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
@@ -65,28 +60,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Estado deve ter 2 caracteres (UF)" }, { status: 400 })
     }
 
-    // Se o novo endereço for padrão, remover o padrão dos outros
-    if (is_default) {
-      await query(
-        'UPDATE customer_addresses SET is_default = false WHERE user_id = $1',
-        [customer_id]
-      )
-    }
-
-    // Inserir novo endereço
-    const result = await query(
-      `
-      INSERT INTO customer_addresses 
-      (user_id, label, street, number, complement, neighborhood, city, state, zip_code, is_default)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-      RETURNING *, label as name
-      `,
-      [customer_id, name || 'Endereço', street, number, complement, neighborhood, city, state, zip_code, is_default || false]
-    )
-
-    console.log("POST /api/addresses - Endereço criado:", result.rows[0])
-
-    return NextResponse.json({ address: result.rows[0] })
+    const address = await createAddress({
+      user_id: customer_id,
+      label: name || 'Endereço',
+      street,
+      number,
+      complement,
+      neighborhood,
+      city,
+      state,
+      zip_code,
+      is_default: is_default || false,
+    })
+    console.log("POST /api/addresses - Endereço criado:", address)
+    return NextResponse.json({ address })
   } catch (error) {
     console.error("Erro ao criar endereço:", error)
     return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })

@@ -2,7 +2,7 @@ import { Pool } from 'pg';
 
 // Configuração básica do PostgreSQL
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || "postgresql://postgres:postgres@localhost:5432/williamdiskpizza",
+  connectionString: process.env.DATABASE_URL,
 });
 
 // Controle de logs baseado em ambiente

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { query } from '@/lib/postgres'
+import { getSupabaseServerClient } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,15 +31,13 @@ export async function GET(request: NextRequest) {
 
     console.log(`[CUSTOMER_SEARCH] Termo normalizado: "${normalizedSearchTerm}", Telefone: "${phoneOnlyNumbers}", Código: "${codeSearch}"`)
 
-    // Buscar clientes usando PostgreSQL
-    const profilesResult = await query(`
-      SELECT id, full_name, phone, email, customer_code, created_at
-      FROM profiles 
-      WHERE role = 'customer'
-      ORDER BY created_at DESC
-    `);
-
-    const profiles = profilesResult.rows;
+    const supabase = getSupabaseServerClient()
+    const { data: profiles, error } = await supabase
+      .from('profiles')
+      .select('id, full_name, phone, email, customer_code, created_at')
+      .eq('role', 'customer')
+      .order('created_at', { ascending: false })
+    if (error) throw error
     console.log(`[CUSTOMER_SEARCH] Total de perfis encontrados: ${profiles.length}`)
 
     // Filtrar e processar clientes no frontend
@@ -69,16 +67,14 @@ export async function GET(request: NextRequest) {
         }
 
         if (shouldInclude) {
-          // Buscar endereço principal
-          const addressResult = await query(`
-            SELECT street, number, neighborhood, city, state, complement, zip_code
-            FROM customer_addresses 
-            WHERE user_id = $1
-            ORDER BY is_default DESC, created_at DESC
-            LIMIT 1
-          `, [profile.id]);
-
-          const address = addressResult.rows[0];
+          const { data: address } = await supabase
+            .from('customer_addresses')
+            .select('street, number, neighborhood, city, state, complement, zip_code, is_default, created_at')
+            .eq('user_id', profile.id)
+            .order('is_default', { ascending: false })
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle()
           
           // Montar endereço completo
           let fullAddress = 'Endereço não cadastrado'
@@ -96,14 +92,12 @@ export async function GET(request: NextRequest) {
             }
           }
 
-          // Buscar estatísticas de pedidos
-          const ordersResult = await query(`
-            SELECT COUNT(*) as total_orders, COALESCE(SUM(total), 0) as total_spent
-            FROM orders 
-            WHERE user_id = $1
-          `, [profile.id]);
-
-          const orderStats = ordersResult.rows[0];
+          const { data: orderRows } = await supabase
+            .from('orders')
+            .select('total')
+            .eq('user_id', profile.id)
+          const totalOrders = (orderRows || []).length
+          const totalSpent = (orderRows || []).reduce((sum: number, o: any) => sum + Number(o.total || 0), 0)
 
           matchingCustomers.push({
             id: profile.id,
@@ -112,8 +106,8 @@ export async function GET(request: NextRequest) {
             phone: profile.phone || 'Telefone não informado',
             email: profile.email || 'Email não informado',
             address: fullAddress,
-            totalOrders: parseInt(orderStats.total_orders) || 0,
-            totalSpent: parseFloat(orderStats.total_spent) || 0,
+            totalOrders,
+            totalSpent,
             createdAt: profile.created_at,
             // Destacar o termo encontrado
             matchType: ((): 'name' | 'email' | 'phone' => {
@@ -180,14 +174,9 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    // Verificar se já existe cliente com este telefone
-    const existingByPhoneResult = await query(`
-      SELECT id FROM profiles 
-      WHERE phone = $1 AND role = 'customer'
-      LIMIT 1
-    `, [phone]);
-
-    if (existingByPhoneResult.rows.length > 0) {
+    const supabase = getSupabaseServerClient()
+    const { data: existingByPhone } = await supabase.from('profiles').select('id').eq('phone', phone).eq('role', 'customer').limit(1)
+    if ((existingByPhone || []).length > 0) {
       return NextResponse.json({ 
         error: "Já existe um cliente cadastrado com este telefone" 
       }, { status: 400 })
@@ -196,46 +185,36 @@ export async function POST(request: NextRequest) {
     // Gerar email se não fornecido
     const customerEmail = email?.trim() || `cliente_${cleanPhone}@temp.williamdiskpizza.com`
 
-    // Verificar se email já existe
-    const existingByEmailResult = await query(`
-      SELECT id FROM profiles 
-      WHERE email = $1
-      LIMIT 1
-    `, [customerEmail]);
-
-    if (existingByEmailResult.rows.length > 0) {
+    const { data: existingByEmail } = await supabase.from('profiles').select('id').eq('email', customerEmail).limit(1)
+    if ((existingByEmail || []).length > 0) {
       return NextResponse.json({ 
         error: "Este e-mail já está cadastrado" 
       }, { status: 400 })
     }
 
-    // Criar perfil do cliente
-    const newCustomerResult = await query(`
-      INSERT INTO profiles (email, full_name, role, password_hash, phone, created_at, updated_at)
-      VALUES ($1, $2, 'customer', '$2b$10$defaulthashforcustomer', $3, NOW(), NOW())
-      RETURNING id, email, full_name, phone, customer_code, created_at
-    `, [customerEmail, name.trim(), phone]);
-
-    const newCustomer = newCustomerResult.rows[0];
+    const { data: newCustomer, error: insertErr } = await supabase
+      .from('profiles')
+      .insert({ email: customerEmail, full_name: name.trim(), role: 'customer', password_hash: '$2b$10$defaulthashforcustomer', phone })
+      .select('id, email, full_name, phone, customer_code, created_at')
+      .single()
+    if (insertErr) throw insertErr
 
     console.log("[CUSTOMER_SEARCH] Cliente criado:", newCustomer)
 
     // Se endereço foi fornecido, criar endereço
     if (address?.street && address?.number) {
-      await query(`
-        INSERT INTO customer_addresses (
-          user_id, street, number, complement, neighborhood, city, state, zip_code, label, is_default
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'Principal', true)
-      `, [
-        newCustomer.id,
-        address.street,
-        address.number,
-        address.complement || '',
-        address.neighborhood || 'Centro',
-        address.city || 'Cidade',
-        address.state || 'SP',
-        address.zipCode || '00000-000'
-      ]);
+      await supabase.from('customer_addresses').insert({
+        user_id: newCustomer.id,
+        street: address.street,
+        number: address.number,
+        complement: address.complement || '',
+        neighborhood: address.neighborhood || 'Centro',
+        city: address.city || 'Cidade',
+        state: address.state || 'SP',
+        zip_code: address.zipCode || '00000-000',
+        label: 'Principal',
+        is_default: true,
+      })
     }
 
     return NextResponse.json({

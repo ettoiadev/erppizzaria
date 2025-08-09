@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { testConnection } from '@/lib/postgres'
+import { getSupabaseServerClient } from '@/lib/supabase'
 
 // Configurações para Vercel
 export const dynamic = 'force-dynamic'
@@ -16,22 +16,28 @@ export async function GET() {
     // Testar variáveis de ambiente
     const envCheck = {
       NODE_ENV: process.env.NODE_ENV,
-      hasDatabaseUrl: !!process.env.DATABASE_URL,
+      hasSupabaseUrl: !!process.env.SUPABASE_URL,
+      hasSupabaseKey: !!process.env.SUPABASE_KEY,
       hasJwtSecret: !!process.env.JWT_SECRET,
       hasMercadoPagoToken: !!process.env.MERCADOPAGO_ACCESS_TOKEN
     };
     
     console.log('🔧 Environment check:', envCheck);
     
-    // Testar conexão com banco
-    const dbTest = await testConnection();
-    console.log('🗄️ Database test:', dbTest);
+    // Testar Supabase
+    let supabaseTest: any = { configured: envCheck.hasSupabaseUrl && envCheck.hasSupabaseKey }
+    if (supabaseTest.configured) {
+      const supabase = getSupabaseServerClient()
+      const { count, error } = await supabase.from('profiles').select('id', { count: 'exact', head: true })
+      supabaseTest.countProfiles = count ?? null
+      supabaseTest.error = error?.message ?? null
+    }
     
     return NextResponse.json({
       status: 'healthy',
       timestamp: new Date().toISOString(),
       environment: envCheck,
-      database: dbTest,
+      supabase: supabaseTest,
       message: 'API funcionando corretamente'
     }, { headers });
     

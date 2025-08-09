@@ -176,7 +176,7 @@ export function AssignOrderModal({ deliveryPersonId, isOpen, onClose, onAssign }
                   <CardContent className="p-4">
                     <div className="flex justify-between items-start mb-3">
                       <div>
-                        <h3 className="font-semibold">Pedido #{order.order_number || order.id.slice(-8)}</h3>
+                        <h3 className="font-semibold">Pedido #{(order as any).order_number || order.id.slice(-8)}</h3>
                         <p className="text-sm text-gray-600">{order.profiles?.full_name || "Cliente não identificado"}</p>
                       </div>
                       <div className="flex gap-2">

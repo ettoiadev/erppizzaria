@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { query } from '@/lib/postgres';
+import { getSupabaseServerClient } from '@/lib/supabase';
 import { verifyAdmin } from "@/lib/auth";
 
 // Função auxiliar para extrair e verificar o admin
@@ -23,30 +23,26 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const productResult = await query(`
-      SELECT 
-        p.id, p.name, p.description, p.price, p.category_id, p.image_url as image,
-        p.active, p.has_sizes, p.has_toppings, p.preparation_time, p.sort_order,
-        p.created_at, p.updated_at,
-        c.name as category_name
-      FROM products p
-      LEFT JOIN categories c ON p.category_id = c.id
-      WHERE p.id = $1
-    `, [params.id]);
+    const supabase = getSupabaseServerClient();
+    const { data, error } = await supabase
+      .from('products')
+      .select('id, name, description, price, category_id, image_url, active, has_sizes, has_toppings, preparation_time, sort_order, created_at, updated_at, categories:category_id(name)')
+      .eq('id', params.id)
+      .maybeSingle();
+    if (error) throw error;
 
-    if (productResult.rows.length === 0) {
+    if (!data) {
       return NextResponse.json(
         { error: "Produto não encontrado" },
         { status: 404 }
       );
     }
-
-    const product = productResult.rows[0];
+    const product = data as any;
 
     const normalizedProduct = {
       ...product,
       categoryId: product.category_id,
-      category_name: product.category_name || "",
+      category_name: product.categories?.name || "",
       available: Boolean(product.active),
       showImage: true, // Default para compatibilidade
       productNumber: product.sort_order || 0,
@@ -95,12 +91,10 @@ export async function PUT(
       );
     }
 
-    // Verificar se o produto existe
-    const existingResult = await query(`
-      SELECT id FROM products WHERE id = $1
-    `, [params.id]);
-
-    if (existingResult.rows.length === 0) {
+    const supabase = getSupabaseServerClient();
+    const { data: exists, error: existsErr } = await supabase.from('products').select('id').eq('id', params.id).maybeSingle();
+    if (existsErr) throw existsErr;
+    if (!exists) {
       return NextResponse.json(
         { error: "Produto não encontrado" },
         { status: 404 }
@@ -108,46 +102,29 @@ export async function PUT(
     }
 
     // Atualizar produto
-    const updateResult = await query(`
-      UPDATE products 
-      SET 
-        name = $1,
-        description = $2,
-        price = $3,
-        category_id = $4,
-        image_url = $5,
-        active = $6,
-        updated_at = NOW()
-      WHERE id = $7
-      RETURNING 
-        id, name, description, price, category_id, image_url as image,
-        active, has_sizes, has_toppings, preparation_time, sort_order,
-        created_at, updated_at
-    `, [
-      name.trim(),
-      description?.trim() || '',
+    const updates = {
+      name: name.trim(),
+      description: description?.trim() || '',
       price,
-      finalCategoryId,
-      image || null,
-      available !== false,
-      params.id
-    ]);
+      category_id: finalCategoryId,
+      image_url: image || null,
+      active: available !== false,
+      updated_at: new Date().toISOString(),
+    };
+    const { data: updatedProduct, error: updateErr } = await supabase
+      .from('products')
+      .update(updates)
+      .eq('id', params.id)
+      .select('id, name, description, price, category_id, image_url, active, has_sizes, has_toppings, preparation_time, sort_order, created_at, updated_at')
+      .single();
+    if (updateErr) throw updateErr;
 
-    if (updateResult.rows.length === 0) {
-      throw new Error('Falha ao atualizar produto');
-    }
-
-    const updatedProduct = updateResult.rows[0];
-
-    // Buscar nome da categoria
-    const categoryResult = await query(`
-      SELECT name FROM categories WHERE id = $1
-    `, [updatedProduct.category_id]);
+    const { data: categoryRow } = await supabase.from('categories').select('name').eq('id', updatedProduct.category_id).maybeSingle();
 
     const normalizedProduct = {
       ...updatedProduct,
       categoryId: updatedProduct.category_id,
-      category_name: categoryResult.rows[0]?.name || "",
+      category_name: categoryRow?.name || "",
       available: Boolean(updatedProduct.active),
       showImage: true,
       productNumber: updatedProduct.sort_order || 0,
@@ -218,34 +195,26 @@ export async function PATCH(
     // Adicionar ID no final
     updateValues.push(params.id);
 
-    const updateResult = await query(`
-      UPDATE products 
-      SET ${updateFields.join(', ')}
-      WHERE id = $${paramIndex}
-      RETURNING 
-        id, name, description, price, category_id, image_url as image,
-        active, has_sizes, has_toppings, preparation_time, sort_order,
-        created_at, updated_at
-    `, updateValues);
-
-    if (updateResult.rows.length === 0) {
-      return NextResponse.json(
-        { error: "Produto não encontrado" },
-        { status: 404 }
-      );
+    const supabase = getSupabaseServerClient();
+    const updates: any = {};
+    for (let i = 0; i < updateFields.length; i++) {
+      const key = updateFields[i].split('=')[0].trim();
+      updates[key.replace('image_url', 'image_url')] = updateValues[i];
     }
-
-    const updatedProduct = updateResult.rows[0];
-
-    // Buscar nome da categoria
-    const categoryResult = await query(`
-      SELECT name FROM categories WHERE id = $1
-    `, [updatedProduct.category_id]);
+    updates.updated_at = new Date().toISOString();
+    const { data: updatedProduct, error: updErr } = await supabase
+      .from('products')
+      .update(updates)
+      .eq('id', params.id)
+      .select('id, name, description, price, category_id, image_url, active, has_sizes, has_toppings, preparation_time, sort_order, created_at, updated_at')
+      .single();
+    if (updErr) throw updErr;
+    const { data: categoryRow2 } = await supabase.from('categories').select('name').eq('id', updatedProduct.category_id).maybeSingle();
 
     const normalizedProduct = {
       ...updatedProduct,
       categoryId: updatedProduct.category_id,
-      category_name: categoryResult.rows[0]?.name || "",
+      category_name: categoryRow2?.name || "",
       available: Boolean(updatedProduct.active),
       showImage: true,
       sizes: [],
@@ -276,12 +245,10 @@ export async function DELETE(
   try {
     await handleAdminAuth(request);
     
-    // Verificar se o produto existe
-    const existingResult = await query(`
-      SELECT id, name FROM products WHERE id = $1
-    `, [params.id]);
-
-    if (existingResult.rows.length === 0) {
+    const supabase = getSupabaseServerClient();
+    const { data: existing, error: existErr } = await supabase.from('products').select('id, name').eq('id', params.id).maybeSingle();
+    if (existErr) throw existErr;
+    if (!existing) {
       return NextResponse.json(
         { error: "Produto não encontrado" },
         { status: 404 }
@@ -291,18 +258,12 @@ export async function DELETE(
     const existingProduct = existingResult.rows[0];
 
     // Soft delete - marcar como inativo
-    await query(`
-      UPDATE products 
-      SET active = false, updated_at = NOW()
-      WHERE id = $1
-    `, [params.id]);
+    const { error } = await supabase.from('products').update({ active: false, updated_at: new Date().toISOString() }).eq('id', params.id);
+    if (error) throw error;
 
     return NextResponse.json({
       message: "Produto excluído com sucesso",
-      product: {
-        id: params.id,
-        name: existingProduct.name
-      }
+      product: { id: params.id, name: existing.name }
     });
   } catch (error: any) {
     console.error("Erro ao excluir produto:", error);

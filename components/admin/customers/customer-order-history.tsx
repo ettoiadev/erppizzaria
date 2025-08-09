@@ -151,7 +151,7 @@ export function CustomerOrderHistory({ customerId, isOpen, onClose }: CustomerOr
                     <CardContent className="p-6">
                       <div className="flex justify-between items-start mb-4">
                         <div>
-                          <h3 className="text-lg font-semibold">Pedido #{order.order_number || order.id.slice(-8)}</h3>
+                          <h3 className="text-lg font-semibold">Pedido #{(order as any).order_number || order.id.slice(-8)}</h3>
                           <div className="flex items-center gap-2 text-sm text-gray-600 mt-1">
                             <Calendar className="w-4 h-4" />
                             <span>{new Date(order.created_at).toLocaleString("pt-BR")}</span>

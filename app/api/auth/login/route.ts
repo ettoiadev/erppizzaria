@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { query } from '@/lib/postgres'
+import { getSupabaseServerClient } from '@/lib/supabase'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { authRateLimiter } from '@/lib/rate-limiter'
@@ -7,12 +7,7 @@ import { authRateLimiter } from '@/lib/rate-limiter'
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
-  return NextResponse.json({
-    message: "Login endpoint is working",
-    timestamp: new Date().toISOString(),
-    method: "GET",
-    database_configured: !!process.env.DATABASE_URL
-  })
+  return NextResponse.json({ message: "Login endpoint is working", timestamp: new Date().toISOString(), method: "GET" })
 }
 
 export async function POST(request: NextRequest) {
@@ -46,27 +41,22 @@ export async function POST(request: NextRequest) {
     console.log("🔐 Tentativa de login:", { email })
 
     // Buscar usuário
-    console.log("🔍 Buscando usuário no banco...")
-    const userResult = await query(`
-      SELECT id, email, password_hash, full_name, role
-      FROM profiles
-      WHERE email = $1
-    `, [email])
+    console.log("🔍 Buscando usuário no banco (Supabase)...")
+    const supabase = getSupabaseServerClient()
+    const { data: user, error } = await supabase
+      .from('profiles')
+      .select('id, email, password_hash, full_name, role')
+      .eq('email', email)
+      .maybeSingle()
+    if (error) throw error
 
-    console.log("📊 Resultado da busca:", { 
-      rowsFound: userResult.rows.length,
-      hasUser: userResult.rows.length > 0 
-    })
-
-    if (userResult.rows.length === 0) {
+    if (!user) {
       console.log("❌ Usuário não encontrado:", email)
       return NextResponse.json(
         { error: "Email ou senha inválidos" },
         { status: 401 }
       )
     }
-
-    const user = userResult.rows[0]
     console.log("✅ Usuário encontrado:", { 
       id: user.id, 
       email: user.email, 
@@ -105,16 +95,7 @@ export async function POST(request: NextRequest) {
 
     console.log("✅ Login bem-sucedido:", { email, role: user.role })
 
-    return NextResponse.json({
-      message: "Login realizado com sucesso",
-      user: {
-        id: user.id,
-        email: user.email,
-        full_name: user.full_name,
-        role: user.role || 'customer'
-      },
-      token
-    })
+    return NextResponse.json({ message: "Login realizado com sucesso", user: { id: user.id, email: user.email, full_name: user.full_name, role: user.role || 'customer' }, token })
 
   } catch (error: any) {
     console.error("❌ Erro no login:", error)

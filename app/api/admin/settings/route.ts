@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import jwt from "jsonwebtoken"
-import { getAdminSettings, updateAdminSetting } from "@/lib/db-postgres"
+import { getAdminSettings, updateAdminSetting } from "@/lib/db-supabase"
 import { verifyToken } from "@/lib/auth"
 import { JwtPayload } from "jsonwebtoken"
 

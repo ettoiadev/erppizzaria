@@ -102,7 +102,7 @@ export function DeliveryReport({ isOpen, onClose }: DeliveryReportProps) {
         driverId: selectedDriverId
       })
 
-      const response = await api(`/api/admin/delivery/reports?${params}`)
+      const response = await api.callApi(`/api/admin/delivery/reports?${params}`)
       
       if (!response.ok) {
         throw new Error('Erro ao buscar relatório')

@@ -1,14 +1,11 @@
 import { NextResponse } from 'next/server'
-import { getCategories } from '@/lib/db-postgres'
-import { query } from '@/lib/postgres'
+import { getCategories as getCategoriesSupabase, createCategory, updateCategorySortOrders } from '@/lib/db-supabase'
 
 // GET handler para buscar todas as categorias
 export async function GET() {
   try {
-    console.log('🔍 Buscando categorias usando PostgreSQL...')
-
-    // Buscar categorias usando PostgreSQL
-    const categories = await getCategories(true) // true = incluir inativas também
+    // Buscar categorias usando Supabase
+    const categories = await getCategoriesSupabase(true) // true = incluir inativas também
 
     console.log('🔍 Resultado da query - total de linhas:', categories?.length || 0)
     
@@ -51,24 +48,13 @@ export async function POST(request: Request) {
       )
     }
 
-    // Inserir categoria usando PostgreSQL
-    const result = await query(
-      `INSERT INTO public.categories (name, description, image, sort_order, active) 
-       VALUES ($1, $2, $3, $4, true) 
-       RETURNING *`,
-      [
-        name.trim(),
-        description || null,
-        image || null,
-        sort_order || 0
-      ]
-    )
-
-    if (result.rows.length === 0) {
-      throw new Error('Falha ao criar categoria')
-    }
-
-    const insertedCategory = result.rows[0]
+    // Criar categoria via Supabase
+    const insertedCategory = await createCategory({
+      name: name.trim(),
+      description: description || null,
+      image: image || null,
+      sort_order: sort_order || 0,
+    })
     
     // Normalizar resposta para manter consistência
     const normalizedCategory = {
@@ -103,22 +89,8 @@ export async function PUT(request: Request) {
       )
     }
 
-    // Atualizar cada categoria individualmente usando PostgreSQL
-    const updatePromises = categoryOrders.map(async (categoryOrder: any) => {
-      const { id, sort_order } = categoryOrder
-      
-      if (!id || sort_order === undefined) {
-        throw new Error('ID e sort_order são obrigatórios')
-      }
-
-      return query(
-        'UPDATE public.categories SET sort_order = $1, updated_at = NOW() WHERE id = $2',
-        [sort_order, id]
-      )
-    })
-
-    // Executar todas as atualizações
-    await Promise.all(updatePromises)
+    // Atualizar ordens via Supabase
+    await updateCategorySortOrders(categoryOrders)
 
     return NextResponse.json({ message: 'Ordem das categorias atualizada com sucesso' })
   } catch (error) {

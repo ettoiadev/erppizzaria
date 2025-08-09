@@ -14,11 +14,11 @@ export async function GET(request: NextRequest) {
   try {
     // 1. Verificar variáveis de ambiente
     diagnostics.checks.environment = {
-      hasDatabaseUrl: !!process.env.DATABASE_URL,
+      hasSupabaseUrl: !!process.env.SUPABASE_URL,
+      hasSupabaseKey: !!process.env.SUPABASE_KEY,
       hasJwtSecret: !!process.env.JWT_SECRET,
       hasMercadoPagoToken: !!process.env.MERCADOPAGO_ACCESS_TOKEN,
       nodeEnv: process.env.NODE_ENV,
-      databaseUrl: process.env.DATABASE_URL?.substring(0, 30) + "...",
     }
 
     // 2. Verificar token se fornecido
@@ -51,15 +51,15 @@ export async function GET(request: NextRequest) {
       note: "Verificar no browser: localStorage.getItem('auth-token')"
     }
 
-    // 4. Verificar conectividade com PostgreSQL
+    // 4. Verificar conectividade com Supabase
     try {
-      const { testConnection } = await import('@/lib/postgres')
-      const dbTest = await testConnection()
-      
+      const { getSupabaseServerClient } = await import('@/lib/supabase')
+      const supabase = getSupabaseServerClient()
+      const { count, error } = await supabase.from('profiles').select('id', { count: 'exact', head: true })
       diagnostics.checks.database = {
-        connected: dbTest.success,
-        message: dbTest.message,
-        error: dbTest.error || null
+        connected: !error,
+        countProfiles: count ?? null,
+        error: error?.message || null
       }
     } catch (error: any) {
       diagnostics.checks.database = {

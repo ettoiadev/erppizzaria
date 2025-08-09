@@ -773,7 +773,7 @@ export function ManualOrderForm({ onSuccess }: ManualOrderFormProps) {
                   ? `${selectedCustomer.name} - ${selectedCustomer.phone}` 
                   : "Digite nome ou telefone do cliente..."
                 }
-                disabled={selectedCustomer && !isEditingCustomer}
+                disabled={!!selectedCustomer && !isEditingCustomer}
                 className="pl-10"
               />
               {isSearching && (

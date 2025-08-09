@@ -297,6 +297,11 @@ export function DeliveryManagement() {
     averageDeliveryTime: 0
   }
 
+  // Handler de refresh (declarado antes do uso no JSX)
+  const handleRefresh = () => {
+    refetch()
+  }
+
   // FALLBACK DEFENSIVO: Verificar se há entregadores
   if (!isLoading && (!drivers || drivers.length === 0)) {
     return (
@@ -452,9 +457,7 @@ export function DeliveryManagement() {
     }
   }
 
-  const handleRefresh = () => {
-    refetch()
-  }
+  // (removido redefinição duplicada de handleRefresh)
 
   const handleDeleteDriver = () => {
     if (showDeleteModal) {

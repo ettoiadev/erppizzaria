@@ -1,4 +1,9 @@
-import supabase, { supabaseAdmin, assertSupabaseConfigured } from './supabase'
+import { getSupabaseServerClient } from './supabase'
+import type { SupabaseClient, RealtimeChannel } from '@supabase/supabase-js'
+import supabaseBrowserDefault from './supabase'
+
+// supabaseBrowser: client somente no browser, se existir default export configurado para browser
+const supabaseBrowser = typeof window !== 'undefined' ? (supabaseBrowserDefault as unknown as SupabaseClient | null) : null
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
 // Canal e eventos padronizados
@@ -12,11 +17,9 @@ let serverChannel: RealtimeChannel | null = null
 let serverChannelReady: Promise<void> | null = null
 
 function getServerChannel(): { channel: RealtimeChannel; ready: Promise<void> } {
-  if (!supabaseAdmin) {
-    throw new Error('Supabase admin client não configurado para emitir eventos')
-  }
+  const supabase = getSupabaseServerClient()
   if (!serverChannel) {
-    serverChannel = supabaseAdmin.channel(REALTIME_CHANNEL)
+    serverChannel = supabase.channel(REALTIME_CHANNEL)
     serverChannelReady = new Promise<void>((resolve) => {
       serverChannel!.subscribe((status) => {
         if (status === 'SUBSCRIBED') resolve()
@@ -40,10 +43,9 @@ export function subscribeOrdersRealtime(
     onPaymentApproved: (data: any) => void
   }> = {}
 ) {
-  assertSupabaseConfigured('subscribeOrdersRealtime')
-  if (!supabase) return { unsubscribe: () => {} }
+  if (!supabaseBrowser) return { unsubscribe: () => {} }
 
-  const channel = supabase
+  const channel = supabaseBrowser
     .channel(REALTIME_CHANNEL)
     .on('broadcast', { event: EVENT_ORDER_CREATED }, (payload) => {
       handlers.onOrderCreated?.(payload.payload)
@@ -58,7 +60,7 @@ export function subscribeOrdersRealtime(
 
   return {
     unsubscribe: () => {
-      supabase.removeChannel(channel)
+      supabaseBrowser.removeChannel(channel)
     },
   }
 }
