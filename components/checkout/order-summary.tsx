@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -14,7 +14,9 @@ import { Textarea } from "@/components/ui/textarea"
 import { useRouter } from "next/navigation"
 import { Minus, Plus, Trash2, Edit, Pizza } from "lucide-react"
 import { useCart } from "@/contexts/cart-context"
+import { useCoupon } from "@/contexts/coupon-context"
 import { useAppSettings, calculateDeliveryFee } from "@/hooks/use-app-settings"
+import { CouponInput } from "@/components/checkout/coupon-input"
 import type { CartItem, Product } from "@/types"
 
 interface OrderSummaryProps {
@@ -26,12 +28,35 @@ export function OrderSummary({ items, total }: OrderSummaryProps) {
   const router = useRouter()
   const { removeItem, updateQuantity, updateItemByIndex } = useCart()
   const { settings } = useAppSettings()
+  const { appliedCoupon } = useCoupon()
   const [editingItem, setEditingItem] = useState<{ item: CartItem; index: number } | null>(null)
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [userId, setUserId] = useState<string>("") // Será preenchido no useEffect
   
-  const deliveryFee = calculateDeliveryFee(total, settings)
+  // Calcular taxa de entrega considerando cupom de frete grátis
+  const baseDeliveryFee = calculateDeliveryFee(total, settings)
+  const deliveryFee = appliedCoupon?.type === 'free_delivery' ? 0 : baseDeliveryFee
   const finalTotal = total + deliveryFee
+  
+  // Buscar ID do usuário logado
+  useEffect(() => {
+    const fetchUserId = async () => {
+      try {
+        const response = await fetch('/api/auth/me')
+        if (response.ok) {
+          const data = await response.json()
+          if (data.user?.id) {
+            setUserId(data.user.id)
+          }
+        }
+      } catch (error) {
+        console.error('Erro ao buscar ID do usuário:', error)
+      }
+    }
+    
+    fetchUserId()
+  }, [])
 
   // Função para buscar dados do produto e abrir modal de edição
   const handleEditItem = async (item: CartItem, index: number) => {
@@ -226,18 +251,27 @@ export function OrderSummary({ items, total }: OrderSummaryProps) {
 
           <Separator />
 
-          <div className="space-y-2">
-            <div className="flex justify-between">
-              <span>Subtotal</span>
-              <span>R$ {total.toFixed(2)}</span>
+          <div className="space-y-4">
+            {userId && <CouponInput userId={userId} subtotal={total} />}
+            
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <span>Subtotal</span>
+                <span>R$ {total.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Taxa de entrega</span>
+                <span className={deliveryFee === 0 ? "text-green-600" : ""}>
+                  {deliveryFee === 0 ? "Grátis" : `R$ ${deliveryFee.toFixed(2)}`}
+                  {appliedCoupon?.type === 'free_delivery' && deliveryFee === 0 && " (cupom)"}
+                </span>
+              </div>
+              {total < settings.freeDeliveryMinValue && !appliedCoupon?.type === 'free_delivery' && (
+                <div className="text-sm text-gray-600">
+                  Frete grátis para pedidos acima de R$ {settings.freeDeliveryMinValue?.toFixed(2)}
+                </div>
+              )}
             </div>
-            <div className="flex justify-between">
-              <span>Taxa de entrega</span>
-              <span className={deliveryFee === 0 ? "text-green-600" : ""}>
-                {deliveryFee === 0 ? "Grátis" : `R$ ${deliveryFee.toFixed(2)}`}
-              </span>
-            </div>
-            {total < 50 && <div className="text-sm text-gray-600">Frete grátis para pedidos acima de R$ 50,00</div>}
           </div>
 
           <Separator />
