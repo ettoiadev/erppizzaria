@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { useRouter } from "next/navigation"
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
@@ -10,6 +11,7 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner"
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/hooks/use-toast"
 import { Package, Clock, CheckCircle, XCircle, RefreshCw } from "lucide-react"
+import { subscribeOrdersRealtime } from "@/lib/realtime"
 
 interface OrderItem {
   id: string
@@ -81,6 +83,23 @@ export default function OrdersPage() {
       })
     })
   }
+
+  // Assinar atualizações em tempo real para o usuário logado
+  useEffect(() => {
+    if (!user?.id) return
+    const sub = subscribeOrdersRealtime({
+      onOrderCreated: (data) => {
+        if (data?.order?.user_id === user.id) refetch()
+      },
+      onOrderStatusUpdated: (data) => {
+        if (data?.order?.user_id === user.id || data?.orderId) refetch()
+      },
+      onPaymentApproved: (data) => {
+        if (data?.orderId) refetch()
+      },
+    })
+    return () => sub.unsubscribe()
+  }, [user?.id])
 
   const getStatusIcon = (status: string) => {
     switch (status?.toUpperCase()) {
@@ -200,7 +219,7 @@ export default function OrdersPage() {
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-lg">
-                      Pedido #{order.order_number || order.id.slice(-8)}
+                      Pedido #{(order as any).order_number || order.id.slice(-8)}
                     </CardTitle>
                     <Badge className={getStatusColor(order.status)}>
                       <div className="flex items-center space-x-1">

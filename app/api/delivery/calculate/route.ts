@@ -41,11 +41,12 @@ async function geocodeAddress(address: string, apiKey: string): Promise<{
       const location = result.geometry.location
 
       // Extrair componentes do endereço
-      const components = result.address_components || []
-      const city = components.find(c => c.types.includes('locality'))?.long_name || 
-                   components.find(c => c.types.includes('administrative_area_level_2'))?.long_name || ''
-      const state = components.find(c => c.types.includes('administrative_area_level_1'))?.short_name || ''
-      const postal_code = components.find(c => c.types.includes('postal_code'))?.long_name || ''
+      type AddrComp = { types: string[]; long_name?: string; short_name?: string }
+      const components: AddrComp[] = (result.address_components || []) as AddrComp[]
+      const city = components.find((c: AddrComp) => c.types.includes('locality'))?.long_name || 
+                   components.find((c: AddrComp) => c.types.includes('administrative_area_level_2'))?.long_name || ''
+      const state = components.find((c: AddrComp) => c.types.includes('administrative_area_level_1'))?.short_name || ''
+      const postal_code = components.find((c: AddrComp) => c.types.includes('postal_code'))?.long_name || ''
 
       return {
         latitude: location.lat,
@@ -88,9 +89,9 @@ export async function POST(request: NextRequest) {
       )
     `)
 
-    const config = {}
-    configResult.rows.forEach(row => {
-      config[row.setting_key] = row.setting_value
+    const config: Record<string, string> = {}
+    configResult.rows.forEach((row: any) => {
+      config[String(row.setting_key)] = String(row.setting_value)
     })
 
     console.log('[DELIVERY_CALC] Configurações carregadas:', Object.keys(config))

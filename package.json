@@ -29,6 +29,7 @@
     "@types/bcryptjs": "^2.4.6",
     "@types/jsonwebtoken": "^9.0.10",
     "axios": "^1.11.0",
+    "@supabase/supabase-js": "^2.45.4",
     "bcrypt": "^6.0.0",
     "bcryptjs": "^3.0.2",
     "class-variance-authority": "^0.7.1",
@@ -45,6 +46,7 @@
     "next-themes": "latest",
     "pg": "^8.16.1",
     "socket.io": "^4.7.5",
+    "ws": "^8.18.0",
     "react": "^18",
     "react-dom": "^18",
 

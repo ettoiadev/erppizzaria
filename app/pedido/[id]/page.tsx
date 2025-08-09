@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { useParams, useRouter } from "next/navigation"
 import { Header } from "@/components/layout/header"
@@ -9,7 +10,7 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft, RefreshCw } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
-import { useEffect } from "react"
+import { subscribeOrdersRealtime } from "@/lib/realtime"
 
 export default function OrderPage() {
   const params = useParams()
@@ -50,6 +51,23 @@ export default function OrderPage() {
     refetchInterval: 30000, // Atualiza a cada 30 segundos
     enabled: !!orderId && !!user && !authLoading, // Só executa se tiver ID, usuário E terminou carregamento
   })
+
+  // Assinar atualizações em tempo real para este pedido
+  useEffect(() => {
+    if (!orderId) return
+    const sub = subscribeOrdersRealtime({
+      onOrderCreated: (data) => {
+        if (data?.orderId === orderId) refetch()
+      },
+      onOrderStatusUpdated: (data) => {
+        if (data?.orderId === orderId) refetch()
+      },
+      onPaymentApproved: (data) => {
+        if (data?.orderId === orderId) refetch()
+      },
+    })
+    return () => sub.unsubscribe()
+  }, [orderId])
 
   // Mostrar loading enquanto a autenticação está carregando
   if (authLoading) {

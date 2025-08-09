@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { query } from '@/lib/postgres'
+import { emitRealtimeEvent, EVENT_ORDER_STATUS_UPDATED } from '@/lib/realtime'
 
 export async function PATCH(
   request: NextRequest,
@@ -74,6 +75,17 @@ export async function PATCH(
     }
 
     console.log("Status atualizado com sucesso:", updatedOrder)
+
+    // Emitir evento Realtime de atualização de status
+    try {
+      await emitRealtimeEvent(EVENT_ORDER_STATUS_UPDATED, {
+        orderId,
+        status,
+        order: updatedOrder,
+      })
+    } catch (e) {
+      console.warn('⚠️ Falha ao emitir evento Realtime (order_status_updated):', (e as Error)?.message)
+    }
 
     return NextResponse.json({
       message: "Status atualizado com sucesso",

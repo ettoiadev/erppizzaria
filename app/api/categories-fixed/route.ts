@@ -19,7 +19,8 @@ export async function GET() {
       hasActiveField = columns.includes('active')
       hasSortOrderField = columns.includes('sort_order')
     } catch (err) {
-      console.log('Erro ao verificar estrutura da tabela:', err.message)
+      const message = err instanceof Error ? err.message : String(err)
+      console.log('Erro ao verificar estrutura da tabela:', message)
     }
 
     // Construir query dinamicamente baseada nos campos disponíveis
@@ -97,7 +98,8 @@ export async function POST(request: Request) {
       `)
       hasSortOrderField = tableInfo.rows.length > 0
     } catch (err) {
-      console.log('Erro ao verificar campo sort_order:', err.message)
+      const message = err instanceof Error ? err.message : String(err)
+      console.log('Erro ao verificar campo sort_order:', message)
     }
 
     let insertQuery = 'INSERT INTO categories (name'

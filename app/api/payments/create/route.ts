@@ -80,7 +80,8 @@ export async function POST(request: NextRequest) {
         customer_email,
         customer_name,
         customer_phone: customer_phone || '',
-        description: description || `Pedido #${order_id}`
+        description: description || `Pedido #${order_id}`,
+        payment_method: 'pix'
       })
     } else {
       // Criar pagamento normal

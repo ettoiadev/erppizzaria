@@ -64,6 +64,7 @@ export async function GET() {
     
   } catch (error) {
     console.error('❌ Erro no debug:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    const message = (error as any)?.message || 'Erro inesperado'
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 } 

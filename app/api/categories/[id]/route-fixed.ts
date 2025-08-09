@@ -113,7 +113,8 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       hasUpdatedAt = tableInfo.rows.length > 0
       console.log('Tabela tem campo updated_at:', hasUpdatedAt)
     } catch (error) {
-      console.log('Erro ao verificar campo updated_at:', error.message)
+      const message = error instanceof Error ? error.message : String(error)
+      console.log('Erro ao verificar campo updated_at:', message)
     }
 
     // Construir query dinamicamente
@@ -162,29 +163,29 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
   } catch (error) {
     console.error("Erro completo ao atualizar categoria:", {
-      message: error.message,
-      stack: error.stack,
+      message: (error as any)?.message,
+      stack: (error as any)?.stack,
       id: params?.id
     })
     
     // Retornar erro mais específico se possível
-    if (error.message.includes('invalid input syntax')) {
+    if (typeof (error as any)?.message === 'string' && (error as any).message.includes('invalid input syntax')) {
       return NextResponse.json({ 
         error: "Formato de dados inválido",
-        details: error.message 
+        details: (error as any).message 
       }, { status: 400 })
     }
     
-    if (error.message.includes('relation') && error.message.includes('does not exist')) {
+    if (typeof (error as any)?.message === 'string' && (error as any).message.includes('relation') && (error as any).message.includes('does not exist')) {
       return NextResponse.json({ 
         error: "Tabela categories não encontrada",
-        details: error.message 
+        details: (error as any).message 
       }, { status: 500 })
     }
 
     return NextResponse.json({ 
       error: "Erro interno do servidor",
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      details: process.env.NODE_ENV === 'development' ? (error as any)?.message : undefined
     }, { status: 500 })
   }
 }
@@ -233,7 +234,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     console.error("Erro ao excluir categoria:", error)
     return NextResponse.json({ 
       error: "Erro interno do servidor",
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined 
+      details: process.env.NODE_ENV === 'development' ? (error as any)?.message : undefined 
     }, { status: 500 })
   }
 } 

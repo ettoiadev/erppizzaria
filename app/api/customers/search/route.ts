@@ -116,7 +116,12 @@ export async function GET(request: NextRequest) {
             totalSpent: parseFloat(orderStats.total_spent) || 0,
             createdAt: profile.created_at,
             // Destacar o termo encontrado
-            matchType: nameMatch ? 'name' : emailMatch ? 'email' : 'phone'
+            matchType: ((): 'name' | 'email' | 'phone' => {
+              if (codeSearch) return 'name'
+              const nameMatch = normalizedName.includes(normalizedSearchTerm)
+              const emailMatch = normalizedEmail.includes(normalizedSearchTerm)
+              return nameMatch ? 'name' : emailMatch ? 'email' : 'phone'
+            })()
           })
 
           // Limitar resultados

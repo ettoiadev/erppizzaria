@@ -159,7 +159,7 @@ export async function GET(request: NextRequest) {
                   score >= 50 ? 'WARNING' : 'CRITICAL'
 
     // Buscar dados detalhados
-    const detailedData = {}
+    const detailedData: Record<string, any> = {}
     
     try {
       const zonesData = await query('SELECT * FROM delivery_zones ORDER BY min_distance_km')
@@ -191,7 +191,7 @@ export async function GET(request: NextRequest) {
       recommendations.push('Executar setup completo se necessário')
     }
 
-    if (!detailedData.settings?.find(s => s.setting_key === 'google_maps_api_key')?.setting_value) {
+    if (!detailedData.settings?.find((s: any) => s.setting_key === 'google_maps_api_key')?.setting_value) {
       recommendations.push('Configurar chave da API do Google Maps para geocodificação')
     }
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { query } from '@/lib/postgres'
+import { emitRealtimeEvent, EVENT_PAYMENT_APPROVED } from '@/lib/realtime'
 import crypto from 'crypto'
 
 // Verificar assinatura do webhook do Mercado Pago
@@ -83,6 +84,19 @@ async function processPaymentEvent(data: any) {
   `, [external_reference, order.status, newOrderStatus, `Pagamento ${status} via Mercado Pago`])
   
   console.log(`✅ Pedido ${external_reference} atualizado: ${order.status} → ${newOrderStatus}`)
+  
+  // Realtime: notificar pagamento aprovado
+  if (newPaymentStatus === 'PAID') {
+    try {
+      await emitRealtimeEvent(EVENT_PAYMENT_APPROVED, {
+        orderId: external_reference,
+        transaction_amount,
+        status,
+      })
+    } catch (e) {
+      console.warn('⚠️ Falha ao emitir evento Realtime (payment_approved):', (e as Error)?.message)
+    }
+  }
   
   return true
 }

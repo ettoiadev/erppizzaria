@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { query } from '@/lib/postgres'
 import { ordersRateLimiter } from '@/lib/rate-limiter'
+import { emitRealtimeEvent, EVENT_ORDER_CREATED, REALTIME_CHANNEL } from '@/lib/realtime'
 
 export async function GET(request: NextRequest) {
   try {
@@ -208,6 +209,13 @@ export async function POST(request: NextRequest) {
     }
 
     console.log("✅ Pedido criado com sucesso:", order.id)
+
+    // Emitir evento Realtime para novos pedidos
+    try {
+      await emitRealtimeEvent(EVENT_ORDER_CREATED, { orderId: order.id, order })
+    } catch (e) {
+      console.warn('⚠️ Falha ao emitir evento Realtime (order_created):', (e as Error)?.message)
+    }
 
     return NextResponse.json({
       id: order.id,

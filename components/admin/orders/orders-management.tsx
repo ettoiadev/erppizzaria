@@ -16,6 +16,7 @@ import { ManualOrderForm } from "./manual-order-form"
 import { useThermalPrinter } from "@/lib/thermal-printer"
 import { SelectDriverModal } from "./select-driver-modal"
 import { OrdersKanban } from "./orders-kanban"
+import { subscribeOrdersRealtime } from '@/lib/realtime'
 
 
 const statusColors = {
@@ -164,14 +165,15 @@ export function OrdersManagement() {
     fetchOrders()
   }, [selectedStatus])
 
-  // Atualizar pedidos periodicamente
+  // Assinar atualizações em tempo real (Supabase Realtime)
   useEffect(() => {
-    const interval = setInterval(() => {
-      fetchOrders();
-    }, 30000); // Atualizar a cada 30 segundos
-
-    return () => clearInterval(interval);
-  }, [fetchOrders]);
+    const sub = subscribeOrdersRealtime({
+      onOrderCreated: () => fetchOrders(),
+      onOrderStatusUpdated: () => fetchOrders(),
+      onPaymentApproved: () => fetchOrders(),
+    })
+    return () => sub.unsubscribe()
+  }, [selectedStatus])
 
   // Função auxiliar para obter label do status
   const getStatusLabel = (status: string) => {
