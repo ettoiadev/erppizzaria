@@ -48,8 +48,8 @@ export default function EmergencyAdminPage() {
   const promoteToAdmin = async () => {
     setStatus("🔧 Promovendo para admin...")
     
-    // Esta seria uma funcionalidade que precisaria de uma API especial
-    setStatus("⚠️ Use o pgAdmin 4: UPDATE profiles SET role = 'admin' WHERE email = '" + email + "';")
+    // Usar o console do Supabase para esta operação
+    setStatus("⚠️ Use o console do Supabase: UPDATE profiles SET role = 'admin' WHERE email = '" + email + "';")
   }
 
   return (
@@ -144,7 +144,7 @@ export default function EmergencyAdminPage() {
           <div className="border-t pt-4 text-sm text-gray-600">
             <p className="font-semibold mb-2">💡 Soluções Definitivas:</p>
             <ol className="list-decimal list-inside space-y-1 text-xs">
-                              <li>Reset senha via pgAdmin 4</li>
+                              <li>Reset senha via console do Supabase</li>
               <li>Criar novo admin via Authentication &gt; Users</li>
               <li>Se login OK aqui, vá para /admin/configuracoes</li>
             </ol>
@@ -153,4 +153,4 @@ export default function EmergencyAdminPage() {
       </Card>
     </div>
   )
-} 
+}

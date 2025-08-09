@@ -1,5 +1,6 @@
-import { query, transaction } from './db-native';
-import { PoolClient } from 'pg';
+// Importar diretamente do db-supabase para usar o cliente Supabase
+import { getSupabaseServerClient } from './supabase';
+import { query } from './db';
 
 export interface OrderData {
   user_id: string;
@@ -195,27 +196,41 @@ export async function updatePaymentStatus(orderId: string, paymentStatus: string
 // Obter estatísticas de pedidos
 export async function getOrderStats(startDate?: Date, endDate?: Date) {
   try {
-    // Usar a função query do db-native que já foi adaptada para usar o Supabase
-    // A função getOrderStats foi implementada no db-native.ts
-    const statsQuery = `
-      SELECT 
-        COUNT(*) as total_orders,
-        COUNT(*) FILTER (WHERE status = 'RECEIVED') as received_orders,
-        COUNT(*) FILTER (WHERE status = 'PREPARING') as preparing_orders,
-        COUNT(*) FILTER (WHERE status = 'ON_THE_WAY') as on_the_way_orders,
-        COUNT(*) FILTER (WHERE status = 'DELIVERED') as delivered_orders,
-        COUNT(*) FILTER (WHERE status = 'CANCELLED') as cancelled_orders,
-        SUM(total) FILTER (WHERE status = 'DELIVERED') as total_revenue
-      FROM orders
-      WHERE 1=1
-    `;
-
-    const params = [];
-    if (startDate) params.push(startDate);
-    if (endDate) params.push(endDate);
-
-    const result = await query(statsQuery, params);
-    return result.rows[0];
+    console.log('📊 Obtendo estatísticas de pedidos via Supabase');
+    
+    const supabase = getSupabaseServerClient();
+    let queryBuilder = supabase.from('orders').select('*', { count: 'exact' });
+    
+    // Aplicar filtros de data se fornecidos
+    if (startDate) {
+      queryBuilder = queryBuilder.gte('created_at', startDate.toISOString());
+    }
+    
+    if (endDate) {
+      queryBuilder = queryBuilder.lte('created_at', endDate.toISOString());
+    }
+    
+    const { data, error, count } = await queryBuilder;
+    
+    if (error) {
+      console.error('❌ Erro ao obter estatísticas de pedidos:', error);
+      throw error;
+    }
+    
+    // Calcular estatísticas
+    const stats = {
+      total_orders: count || 0,
+      received_orders: (data || []).filter(o => o.status === 'RECEIVED').length,
+      preparing_orders: (data || []).filter(o => o.status === 'PREPARING').length,
+      on_the_way_orders: (data || []).filter(o => o.status === 'ON_THE_WAY').length,
+      delivered_orders: (data || []).filter(o => o.status === 'DELIVERED').length,
+      cancelled_orders: (data || []).filter(o => o.status === 'CANCELLED').length,
+      total_revenue: (data || [])
+        .filter(o => o.status === 'DELIVERED')
+        .reduce((sum, o) => sum + Number(o.total || 0), 0)
+    };
+    
+    return stats;
   } catch (error) {
     console.error('Erro ao obter estatísticas de pedidos:', error);
     throw error;

@@ -1,16 +1,15 @@
 # 🍕 William Disk Pizza - Sistema de Delivery
 
-Sistema completo de delivery de pizza desenvolvido com Next.js 14 e Supabase (PostgreSQL) usando o cliente oficial.
+Sistema completo de delivery de pizza desenvolvido com Next.js 14 e Supabase (PostgreSQL) usando exclusivamente o cliente oficial Supabase.
 
 ## 🚀 Tecnologias Utilizadas
 
 - **Frontend**: Next.js 14, React 18, TypeScript
 - **Backend**: Next.js API Routes, Supabase (cliente @supabase/supabase-js)
 - **Autenticação**: JWT com bcrypt
-- **Banco de Dados**: Supabase (PostgreSQL via cliente oficial)
+- **Banco de Dados**: Supabase (PostgreSQL via cliente oficial exclusivamente)
 - **Styling**: Tailwind CSS, Radix UI
 - **Estado**: React Context API, TanStack Query
-
 - **Pagamentos**: Mercado Pago integrado
 - **Impressão**: Servidor térmico dedicado
 
@@ -66,8 +65,9 @@ SLOW_QUERY_THRESHOLD=1000
 ```
 
 ### 3. Banco de Dados
-- Não é mais usado `DATABASE_URL` nem conexões diretas via `pg`.
-- Toda comunicação é feita via Supabase. Certifique-se de ter criado o projeto e tabelas ou use seus scripts existentes dentro do Supabase.
+- Toda comunicação é feita exclusivamente via cliente oficial Supabase.
+- Não são mais usadas conexões diretas via `pg`, `DATABASE_URL` ou pgAdmin 4.
+- Certifique-se de ter criado o projeto e tabelas no Supabase usando o console web ou CLI.
 
 ### 4. Execute a aplicação
 
@@ -160,7 +160,7 @@ npm start
 - Sistema de pedidos completo
 - Arquivamento de pedidos
 - Autenticação JWT
-- Banco Supabase (cliente oficial)
+- Banco Supabase (migração completa para cliente oficial)
 - Interface admin
 - Geolocalização
 
@@ -180,7 +180,8 @@ npm start
 ### Banco de dados não conecta
 1. Verifique `SUPABASE_URL` e `SUPABASE_KEY` no `.env.local`
 2. Confirme se o projeto Supabase está rodando (local ou cloud)
-3. Verifique políticas RLS e permissões das tabelas
+3. Verifique políticas RLS e permissões das tabelas no console do Supabase
+4. Utilize o console web do Supabase ou CLI para verificar a estrutura do banco
 
 ### Erro de autenticação
 1. Verifique o JWT_SECRET no .env.local
