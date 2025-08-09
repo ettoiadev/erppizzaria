@@ -7,17 +7,7 @@ const nextConfig = {
     })
     return config
   },
-  async rewrites() {
-    return [
-      {
-        source: '/api/socket/:path*',
-        destination: '/api/socket/:path*',
-      },
-    ]
-  },
-  env: {
-    SOCKET_PORT: process.env.SOCKET_PORT || '3001',
-  },
+
 }
 
 module.exports = nextConfig

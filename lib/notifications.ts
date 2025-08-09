@@ -45,7 +45,6 @@ export interface PushNotificationPayload {
 // Classe principal de notificações
 export class NotificationService {
   private static instance: NotificationService
-  private socket: any = null
   private pushSupported: boolean = false
   private permission: NotificationPermission = 'default'
 
@@ -90,10 +89,7 @@ export class NotificationService {
     return this.permission === 'granted'
   }
 
-  // Configurar socket para notificações em tempo real
-  setSocket(socket: any): void {
-    this.socket = socket
-  }
+
 
   // Enviar notificação toast
   showToast(notification: Omit<NotificationData, 'id' | 'timestamp' | 'read'>): void {
@@ -151,26 +147,24 @@ export class NotificationService {
     }
   }
 
-  // Enviar notificação via socket
-  sendSocketNotification(notification: NotificationData): void {
-    if (!this.socket?.connected) {
-      console.warn('Socket não conectado, usando fallback toast')
+  // Enviar notificação via Supabase Realtime
+  async sendRealtimeNotification(notification: NotificationData): Promise<void> {
+    try {
+      // Usar API para enviar notificação via Supabase Realtime
+      await fetch('/api/notifications/realtime', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(notification),
+      })
+    } catch (error) {
+      console.warn('Erro ao enviar notificação realtime, usando fallback toast')
       this.showToast(notification)
-      return
     }
-
-    this.socket.emit('notification', {
-      type: notification.type,
-      title: notification.title,
-      message: notification.message,
-      priority: notification.priority,
-      data: notification.data,
-      room: notification.room,
-      timestamp: notification.timestamp.toISOString(),
-    })
   }
 
-  // Notificação completa (toast + push + socket)
+  // Notificação completa (toast + push + realtime)
   async sendNotification(notification: Omit<NotificationData, 'id' | 'timestamp' | 'read'>): Promise<void> {
     const fullNotification: NotificationData = {
       ...notification,
@@ -195,8 +189,8 @@ export class NotificationService {
       })
     }
 
-    // Socket notification (se conectado)
-    this.sendSocketNotification(fullNotification)
+    // Realtime notification via Supabase
+    await this.sendRealtimeNotification(fullNotification)
 
     // Salvar no banco de dados
     await this.saveNotification(fullNotification)
@@ -364,4 +358,4 @@ export function useNotifications() {
     requestPermission,
     hasPermission: permission === 'granted',
   }
-} 
+}
