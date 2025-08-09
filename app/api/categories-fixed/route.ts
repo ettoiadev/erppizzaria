@@ -168,13 +168,11 @@ export async function PUT(request: Request) {
 
     // Verificar se campo sort_order existe antes de tentar atualizar
     try {
-      const tableInfo = await query(`
-        SELECT column_name 
-        FROM information_schema.columns 
-        WHERE table_name = 'categories' AND table_schema = 'public' AND column_name = 'sort_order'
-      `)
+      const supabase = getSupabaseServerClient()
+      const { data: sample } = await supabase.from('categories').select('*').limit(1)
+      const columns = sample && sample.length > 0 ? Object.keys(sample[0]) : []
       
-      if (tableInfo.rows.length === 0) {
+      if (!columns.includes('sort_order')) {
         return NextResponse.json(
           { error: 'Campo sort_order não existe na tabela. Execute a migração do banco primeiro.' },
           { status: 400 }
@@ -188,11 +186,14 @@ export async function PUT(request: Request) {
     }
 
     // Atualizar ordem de cada categoria
+    const supabase = getSupabaseServerClient()
     for (const { id, sort_order } of categoryOrders) {
-      await query(
-        'UPDATE categories SET sort_order = $1 WHERE id = $2',
-        [sort_order, id]
-      )
+      const { error } = await supabase
+        .from('categories')
+        .update({ sort_order })
+        .eq('id', id)
+      
+      if (error) throw error
     }
 
     return NextResponse.json({ success: true })
@@ -203,4 +204,4 @@ export async function PUT(request: Request) {
       { status: 500 }
     )
   }
-} 
+}

@@ -151,14 +151,15 @@ export async function GET(request: NextRequest) {
                   score >= 50 ? 'WARNING' : 'CRITICAL';
 
     // Estatísticas do banco
-    const statsResult = await Promise.all([
-      query('SELECT COUNT(*) as count FROM categories WHERE active = true'),
-      query('SELECT COUNT(*) as count FROM products WHERE active = true')
+    const supabase = getSupabaseServerClient();
+    const [categoriesResult, productsResult] = await Promise.all([
+      supabase.from('categories').select('id', { count: 'exact' }).eq('active', true),
+      supabase.from('products').select('id', { count: 'exact' }).eq('active', true)
     ]);
 
     const statistics = {
-      categories: parseInt(statsResult[0].rows[0].count),
-      products: parseInt(statsResult[1].rows[0].count)
+      categories: categoriesResult.count || 0,
+      products: productsResult.count || 0
     };
 
     // Recomendações

@@ -85,28 +85,40 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     // Verificar status atual
-    const tableCheck = await query(`
-      SELECT EXISTS (
-        SELECT 1 FROM information_schema.tables 
-        WHERE table_schema = 'public' 
-        AND table_name = 'profiles'
-      ) as table_exists
-    `);
+    const supabase = getSupabaseServerClient();
+    
+    // Verificar se a tabela profiles existe
+    let tableExists = false;
+    try {
+      const { data, error } = await supabase.from('profiles').select('id').limit(1);
+      tableExists = !error;
+    } catch (error) {
+      tableExists = false;
+    }
 
     let adminCount = 0;
     let testQueryResult = null;
 
-    if (tableCheck.rows[0].table_exists) {
-      const adminCheck = await query('SELECT COUNT(*) as count FROM public.profiles WHERE role = $1', ['admin']);
-      adminCount = parseInt(adminCheck.rows[0].count);
+    if (tableExists) {
+      // Contar usuários admin
+      const { data: adminData, error: adminError } = await supabase
+        .from('profiles')
+        .select('id', { count: 'exact' })
+        .eq('role', 'admin');
+      
+      if (!adminError) {
+        adminCount = adminData?.length || 0;
+      }
 
       // Testar query de login
       try {
-        const testResult = await query(
-          'SELECT id, email, full_name, role FROM public.profiles WHERE email = $1',
-          ['admin@pizzaria.com']
-        );
-        testQueryResult = testResult.rows[0] || null;
+        const { data: testData, error: testError } = await supabase
+          .from('profiles')
+          .select('id, email, full_name, role')
+          .eq('email', 'admin@pizzaria.com')
+          .maybeSingle();
+        
+        testQueryResult = testError ? { error: testError.message } : testData;
       } catch (error) {
         testQueryResult = { error: 'Query failed' };
       }
@@ -115,12 +127,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       status: {
-        tableExists: tableCheck.rows[0].table_exists,
+        tableExists: tableExists,
         adminUsersCount: adminCount,
         loginTestQuery: testQueryResult,
-        ready: tableCheck.rows[0].table_exists && adminCount > 0
+        ready: tableExists && adminCount > 0
       },
-      message: tableCheck.rows[0].table_exists && adminCount > 0 
+      message: tableExists && adminCount > 0 
         ? 'Sistema pronto para login!' 
         : 'Sistema precisa de correção - execute POST nesta rota'
     });

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServerClient } from '@/lib/supabase'
 import { verifyAdmin } from '@/lib/auth'
-import { query } from '@/lib/db-native'
 
 export async function POST(request: NextRequest) {
   try {
@@ -28,11 +27,19 @@ export async function POST(request: NextRequest) {
 
     // 5. Verificar se admin_settings tem a coluna setting_type
     try {
-      await query(`ALTER TABLE admin_settings ADD COLUMN IF NOT EXISTS setting_type VARCHAR(50) DEFAULT 'general'`)
-      await query(`ALTER TABLE admin_settings ADD COLUMN IF NOT EXISTS description TEXT`)
-      console.log('✅ Colunas adicionadas na admin_settings')
+      // Não podemos usar ALTER TABLE diretamente via API Supabase
+      // Vamos verificar se as colunas existem e usar RPC ou migrations para alterações estruturais
+      const { data: sample } = await supabase.from('admin_settings').select('*').limit(1)
+      const columns = sample && sample.length > 0 ? Object.keys(sample[0]) : []
+      
+      if (!columns.includes('setting_type') || !columns.includes('description')) {
+        console.log('⚠️ Colunas setting_type ou description não existem na tabela admin_settings')
+        console.log('⚠️ Use migrations do Supabase para adicionar estas colunas')
+      } else {
+        console.log('✅ Colunas setting_type e description já existem na admin_settings')
+      }
     } catch (error) {
-      console.log('⚠️ Colunas já existem ou erro ao adicionar:', error)
+      console.log('⚠️ Erro ao verificar colunas:', error)
     }
 
     // 6. Inserir configurações de geolocalização

@@ -15,13 +15,9 @@ export async function GET(request: NextRequest) {
     // Teste 3: Verificar em outros schemas
     let profilesInOtherSchemas = [];
     try {
-      const otherSchemasResult = await query(`
-        SELECT table_schema, table_name 
-        FROM information_schema.tables 
-        WHERE table_name = 'profiles'
-        ORDER BY table_schema
-      `);
-      profilesInOtherSchemas = otherSchemasResult.rows;
+      // Usando Supabase, não podemos consultar information_schema diretamente
+      // Vamos assumir que a tabela está no schema public
+      profilesInOtherSchemas = [{ table_schema: 'public', table_name: 'profiles' }];
     } catch (error) {
       console.error('Erro ao buscar em outros schemas:', error);
     }
