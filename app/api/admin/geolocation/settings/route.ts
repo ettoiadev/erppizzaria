@@ -4,6 +4,8 @@ import { verifyAdmin } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
+type GeolocationSettingsMap = Record<string, string>
+
 export async function GET(request: NextRequest) {
   try {
     const authHeader = request.headers.get("authorization")
@@ -27,8 +29,8 @@ export async function GET(request: NextRequest) {
       ORDER BY setting_key
     `)
 
-    const settings = {}
-    settingsResult.rows.forEach(row => {
+    const settings: GeolocationSettingsMap = {}
+    settingsResult.rows.forEach((row: { setting_key: string, setting_value: string }) => {
       settings[row.setting_key] = row.setting_value
     })
 
@@ -64,12 +66,12 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "Acesso negado" }, { status: 403 })
     }
 
-    const settings = await request.json()
+    const settings = await request.json() as GeolocationSettingsMap
 
     console.log('[GEOLOCATION_SETTINGS] Atualizando configurações:', Object.keys(settings))
 
     // Validações específicas
-    const validations = {
+    const validations: Record<string, (val: string) => boolean> = {
       pizzaria_latitude: (val) => {
         const lat = parseFloat(val)
         return !isNaN(lat) && lat >= -90 && lat <= 90
