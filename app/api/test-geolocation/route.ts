@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { query } from '@/lib/postgres'
+import { getSupabaseServerClient } from '@/lib/supabase'
 
 export async function GET(request: NextRequest) {
   try {
@@ -9,23 +9,18 @@ export async function GET(request: NextRequest) {
     let passedTests = 0
     let totalTests = 0
 
+    const supabase = getSupabaseServerClient()
+
     // Teste 1: Verificar se as tabelas foram criadas
     totalTests++
     try {
-      const tablesResult = await query(`
-        SELECT table_name FROM information_schema.tables 
-        WHERE table_schema = 'public' 
-          AND table_name IN ('delivery_zones', 'geocoded_addresses')
-        ORDER BY table_name
-      `)
-      
-      const tableNames = tablesResult.rows.map(row => row.table_name)
-      
-      if (tableNames.includes('delivery_zones') && tableNames.includes('geocoded_addresses')) {
-        tests.push({ test: 'Tabelas criadas', status: 'PASS', details: `Encontradas: ${tableNames.join(', ')}` })
+      const { data: dz, error: dzErr } = await supabase.from('delivery_zones').select('id').limit(1)
+      const { data: ga, error: gaErr } = await supabase.from('geocoded_addresses').select('id').limit(1)
+      if (!dzErr && !gaErr) {
+        tests.push({ test: 'Tabelas criadas', status: 'PASS', details: 'delivery_zones, geocoded_addresses' })
         passedTests++
       } else {
-        tests.push({ test: 'Tabelas criadas', status: 'FAIL', error: `Faltando tabelas. Encontradas: ${tableNames.join(', ')}` })
+        tests.push({ test: 'Tabelas criadas', status: 'FAIL', error: 'Falha ao acessar tabelas' })
       }
     } catch (error: any) {
       tests.push({ test: 'Tabelas criadas', status: 'FAIL', error: error.message })
@@ -34,12 +29,11 @@ export async function GET(request: NextRequest) {
     // Teste 2: Verificar configurações de geolocalização
     totalTests++
     try {
-      const settingsResult = await query(`
-        SELECT COUNT(*) as count FROM admin_settings 
-        WHERE setting_type = 'geolocation'
-      `)
-      
-      const count = parseInt(settingsResult.rows[0].count)
+      const { data } = await supabase
+        .from('admin_settings')
+        .select('id', { count: 'exact', head: true })
+        .eq('setting_type', 'geolocation')
+      const count = (data as any)?.length || 0
       
       if (count >= 8) {
         tests.push({ test: `Configurações geolocalização (${count})`, status: 'PASS' })
@@ -54,11 +48,11 @@ export async function GET(request: NextRequest) {
     // Teste 3: Verificar zonas de entrega padrão
     totalTests++
     try {
-      const zonesResult = await query(`
-        SELECT COUNT(*) as count FROM delivery_zones WHERE active = true
-      `)
-      
-      const count = parseInt(zonesResult.rows[0].count)
+      const { data } = await supabase
+        .from('delivery_zones')
+        .select('id', { count: 'exact', head: true })
+        .eq('active', true)
+      const count = (data as any)?.length || 0
       
       if (count >= 4) {
         tests.push({ test: `Zonas de entrega (${count})`, status: 'PASS' })
@@ -134,13 +128,8 @@ export async function GET(request: NextRequest) {
     // Teste 7: Verificar índices criados
     totalTests++
     try {
-      const indexesResult = await query(`
-        SELECT COUNT(*) as count FROM pg_indexes 
-        WHERE schemaname = 'public' 
-          AND (tablename = 'delivery_zones' OR tablename = 'geocoded_addresses')
-      `)
-      
-      const count = parseInt(indexesResult.rows[0].count)
+      // Supabase não expõe índices via API; marcamos como não aplicável
+      const count = 0
       
       if (count >= 8) {
         tests.push({ test: `Índices criados (${count})`, status: 'PASS' })
@@ -162,19 +151,18 @@ export async function GET(request: NextRequest) {
     const detailedData: Record<string, any> = {}
     
     try {
-      const zonesData = await query('SELECT * FROM delivery_zones ORDER BY min_distance_km')
-      detailedData.zones = zonesData.rows
+      const { data: zones } = await supabase.from('delivery_zones').select('*').order('min_distance_km', { ascending: true })
+      detailedData.zones = zones || []
 
-      const settingsData = await query(`
-        SELECT setting_key, setting_value, description 
-        FROM admin_settings 
-        WHERE setting_type = 'geolocation'
-        ORDER BY setting_key
-      `)
-      detailedData.settings = settingsData.rows
+      const { data: settings } = await supabase
+        .from('admin_settings')
+        .select('setting_key, setting_value, description')
+        .eq('setting_type', 'geolocation')
+        .order('setting_key', { ascending: true })
+      detailedData.settings = settings || []
 
-      const cacheData = await query('SELECT COUNT(*) as count FROM geocoded_addresses')
-      detailedData.cached_addresses = parseInt(cacheData.rows[0].count)
+      const { data: cached } = await supabase.from('geocoded_addresses').select('id', { count: 'exact', head: true })
+      detailedData.cached_addresses = (cached as any)?.length || 0
     } catch (error) {
       detailedData.error = 'Erro ao buscar dados detalhados'
     }

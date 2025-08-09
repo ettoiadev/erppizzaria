@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { query } from '@/lib/postgres';
+import { getSupabaseServerClient } from '@/lib/supabase';
 
 export async function GET(request: NextRequest) {
   try {
@@ -12,16 +12,10 @@ export async function GET(request: NextRequest) {
     // Teste 1: Verificar se as tabelas existem
     totalTests++;
     try {
-      const tablesCheck = await query(`
-        SELECT table_name FROM information_schema.tables 
-        WHERE table_schema = 'public' 
-        AND table_name IN ('categories', 'products')
-        ORDER BY table_name
-      `);
-      
-      const existingTables = tablesCheck.rows.map(row => row.table_name);
-      
-      if (existingTables.includes('categories') && existingTables.includes('products')) {
+      const supabase = getSupabaseServerClient();
+      const { error: catErr } = await supabase.from('categories').select('id').limit(1);
+      const { error: prodErr } = await supabase.from('products').select('id').limit(1);
+      if (!catErr && !prodErr) {
         tests.push({ test: 'Tabelas categories e products existem', status: 'PASS' });
         passedTests++;
       } else {
@@ -38,8 +32,9 @@ export async function GET(request: NextRequest) {
     // Teste 2: Verificar se há categorias cadastradas
     totalTests++;
     try {
-      const categoriesCount = await query('SELECT COUNT(*) as count FROM categories WHERE active = true');
-      const count = parseInt(categoriesCount.rows[0].count);
+      const supabase = getSupabaseServerClient();
+      const { data } = await supabase.from('categories').select('id', { count: 'exact', head: true }).eq('active', true);
+      const count = (data as any)?.length || 0;
       
       if (count > 0) {
         tests.push({ test: `Categorias cadastradas (${count})`, status: 'PASS' });
@@ -102,20 +97,12 @@ export async function GET(request: NextRequest) {
     // Teste 5: Verificar relacionamento entre produtos e categorias
     totalTests++;
     try {
-      const relationshipCheck = await query(`
-        SELECT 
-          COUNT(p.id) as products_count,
-          COUNT(c.id) as categories_with_products
-        FROM products p
-        RIGHT JOIN categories c ON p.category_id = c.id
-        WHERE c.active = true
-      `);
-      
-      tests.push({ 
-        test: 'Relacionamento produtos-categorias', 
-        status: 'PASS',
-        details: `${relationshipCheck.rows[0].products_count} produtos, ${relationshipCheck.rows[0].categories_with_products} categorias`
-      });
+      const supabase = getSupabaseServerClient();
+      const { data: productsRows } = await supabase.from('products').select('id, category_id');
+      const { data: categoriesRows } = await supabase.from('categories').select('id').eq('active', true);
+      const productsCount = (productsRows || []).length;
+      const categoriesWithProducts = (categoriesRows || []).filter(c => (productsRows || []).some(p => p.category_id === c.id)).length;
+      tests.push({ test: 'Relacionamento produtos-categorias', status: 'PASS', details: `${productsCount} produtos, ${categoriesWithProducts} categorias` });
       passedTests++;
     } catch (error: any) {
       tests.push({ test: 'Relacionamento produtos-categorias', status: 'FAIL', error: error.message });
@@ -124,29 +111,7 @@ export async function GET(request: NextRequest) {
     // Teste 6: Verificar índices importantes
     totalTests++;
     try {
-      const indexesCheck = await query(`
-        SELECT schemaname, tablename, indexname
-        FROM pg_indexes
-        WHERE schemaname = 'public'
-        AND tablename IN ('categories', 'products')
-        AND (indexname LIKE '%_pkey' OR indexname LIKE 'idx_%')
-        ORDER BY tablename, indexname
-      `);
-      
-      const expectedIndexes = ['categories_pkey', 'products_pkey', 'idx_products_category_id', 'idx_products_active'];
-      const existingIndexes = indexesCheck.rows.map(row => row.indexname);
-      const missingIndexes = expectedIndexes.filter(idx => !existingIndexes.some(existing => existing.includes(idx.replace('idx_', '').replace('_pkey', ''))));
-      
-      if (existingIndexes.length >= 2) { // Pelo menos as PKs
-        tests.push({ test: 'Índices necessários', status: 'PASS', details: `${existingIndexes.length} índices` });
-        passedTests++;
-      } else {
-        tests.push({ 
-          test: 'Índices necessários', 
-          status: 'FAIL', 
-          error: `Poucos índices encontrados: ${existingIndexes.length}` 
-        });
-      }
+      tests.push({ test: 'Índices necessários', status: 'SKIP', details: 'Não aplicável via API Supabase' });
     } catch (error: any) {
       tests.push({ test: 'Índices necessários', status: 'FAIL', error: error.message });
     }
@@ -154,10 +119,11 @@ export async function GET(request: NextRequest) {
     // Teste 7: Testar uma categoria específica
     totalTests++;
     try {
-      const categoryResult = await query('SELECT id FROM categories WHERE active = true LIMIT 1');
+      const supabase = getSupabaseServerClient();
+      const { data: cat } = await supabase.from('categories').select('id').eq('active', true).limit(1);
       
-      if (categoryResult.rows.length > 0) {
-        const categoryId = categoryResult.rows[0].id;
+      if ((cat || []).length > 0) {
+        const categoryId = cat?.[0]?.id;
         const response = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/categories/${categoryId}`);
         
         if (response.status === 200) {

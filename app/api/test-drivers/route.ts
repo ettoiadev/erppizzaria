@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { query } from '@/lib/postgres';
+import { getSupabaseServerClient } from '@/lib/supabase';
 
 export async function GET(request: NextRequest) {
   try {
@@ -12,14 +12,9 @@ export async function GET(request: NextRequest) {
     // Teste 1: Verificar se a tabela drivers existe
     totalTests++;
     try {
-      const tableCheck = await query(`
-        SELECT EXISTS (
-          SELECT 1 FROM information_schema.tables 
-          WHERE table_schema = 'public' AND table_name = 'drivers'
-        ) as exists
-      `);
-      
-      if (tableCheck.rows[0].exists) {
+      const supabase = getSupabaseServerClient();
+      const { error } = await supabase.from('drivers').select('id').limit(1);
+      if (!error) {
         tests.push({ test: 'Tabela drivers existe', status: 'PASS' });
         passedTests++;
       } else {
@@ -32,8 +27,9 @@ export async function GET(request: NextRequest) {
     // Teste 2: Verificar se há entregadores cadastrados
     totalTests++;
     try {
-      const driversCount = await query('SELECT COUNT(*) as count FROM drivers WHERE active = true');
-      const count = parseInt(driversCount.rows[0].count);
+      const supabase = getSupabaseServerClient();
+      const { data } = await supabase.from('drivers').select('id', { count: 'exact', head: true }).eq('active', true);
+      const count = (data as any)?.length || 0;
       
       if (count > 0) {
         tests.push({ test: `Entregadores cadastrados (${count})`, status: 'PASS' });
@@ -72,26 +68,7 @@ export async function GET(request: NextRequest) {
     // Teste 4: Verificar índices importantes
     totalTests++;
     try {
-      const indexesCheck = await query(`
-        SELECT indexname FROM pg_indexes 
-        WHERE schemaname = 'public' AND tablename = 'drivers'
-        AND (indexname LIKE 'idx_%' OR indexname LIKE '%_pkey')
-      `);
-      
-      const expectedIndexes = ['idx_drivers_status', 'idx_drivers_active', 'idx_drivers_email'];
-      const existingIndexes = indexesCheck.rows.map(row => row.indexname);
-      const missingIndexes = expectedIndexes.filter(idx => !existingIndexes.includes(idx));
-      
-      if (missingIndexes.length === 0) {
-        tests.push({ test: 'Índices necessários', status: 'PASS', details: `${existingIndexes.length} índices` });
-        passedTests++;
-      } else {
-        tests.push({ 
-          test: 'Índices necessários', 
-          status: 'FAIL', 
-          error: `Faltando: ${missingIndexes.join(', ')}` 
-        });
-      }
+      tests.push({ test: 'Índices necessários', status: 'SKIP', details: 'Não aplicável via API Supabase' });
     } catch (error: any) {
       tests.push({ test: 'Índices necessários', status: 'FAIL', error: error.message });
     }
@@ -99,31 +76,10 @@ export async function GET(request: NextRequest) {
     // Teste 5: Verificar estrutura da tabela
     totalTests++;
     try {
-      const columnsCheck = await query(`
-        SELECT column_name, data_type, is_nullable
-        FROM information_schema.columns 
-        WHERE table_schema = 'public' AND table_name = 'drivers'
-        ORDER BY ordinal_position
-      `);
-      
-      const requiredColumns = ['id', 'name', 'email', 'phone', 'vehicle_type', 'status'];
-      const existingColumns = columnsCheck.rows.map(row => row.column_name);
-      const missingColumns = requiredColumns.filter(col => !existingColumns.includes(col));
-      
-      if (missingColumns.length === 0) {
-        tests.push({ 
-          test: 'Estrutura da tabela', 
-          status: 'PASS', 
-          details: `${existingColumns.length} colunas`
-        });
-        passedTests++;
-      } else {
-        tests.push({ 
-          test: 'Estrutura da tabela', 
-          status: 'FAIL', 
-          error: `Colunas faltando: ${missingColumns.join(', ')}` 
-        });
-      }
+      // Amostra simples: tentar selecionar um registro
+      const { data: sample } = await supabase.from('drivers').select('id, name, email, phone, vehicle_type, status').limit(1);
+      tests.push({ test: 'Estrutura da tabela', status: sample && sample.length >= 0 ? 'PASS' : 'FAIL', details: 'amostra consultada' });
+      if (sample) passedTests++;
     } catch (error: any) {
       tests.push({ test: 'Estrutura da tabela', status: 'FAIL', error: error.message });
     }
@@ -131,14 +87,8 @@ export async function GET(request: NextRequest) {
     // Teste 6: Verificar se coluna driver_id existe na tabela orders
     totalTests++;
     try {
-      const driverColumnCheck = await query(`
-        SELECT EXISTS (
-          SELECT 1 FROM information_schema.columns 
-          WHERE table_schema = 'public' AND table_name = 'orders' AND column_name = 'driver_id'
-        ) as exists
-      `);
-      
-      if (driverColumnCheck.rows[0].exists) {
+      const { error } = await supabase.from('orders').select('driver_id').limit(1);
+      if (!error) {
         tests.push({ test: 'Coluna driver_id em orders', status: 'PASS' });
         passedTests++;
       } else {

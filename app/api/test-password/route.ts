@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
-import { query } from '@/lib/postgres';
+import { getSupabaseServerClient } from '@/lib/supabase';
 
 export async function GET(request: NextRequest) {
   try {
@@ -21,13 +21,14 @@ export async function GET(request: NextRequest) {
     const newHashWorks = await bcrypt.compare(password, correctHash);
 
     // 4. Buscar usuário atual
-    const userResult = await query(
-      'SELECT id, email, password_hash FROM public.profiles WHERE email = $1',
-      ['admin@pizzaria.com']
-    );
-
-    const user = userResult.rows[0];
-    const userHashWorks = user ? await bcrypt.compare(password, user.password_hash) : false;
+    const supabase = getSupabaseServerClient();
+    const { data: user, error } = await supabase
+      .from('profiles')
+      .select('id, email, password_hash')
+      .eq('email', 'admin@pizzaria.com')
+      .maybeSingle();
+    if (error) throw error;
+    const userHashWorks = user ? await bcrypt.compare(password, user.password_hash || '') : false;
 
     return NextResponse.json({
       success: true,
@@ -70,24 +71,24 @@ export async function POST(request: NextRequest) {
     const correctHash = await bcrypt.hash(password, saltRounds);
 
     // 2. Atualizar no banco
-    await query(
-      'UPDATE public.profiles SET password_hash = $1, updated_at = NOW() WHERE email = $2',
-      [correctHash, 'admin@pizzaria.com']
-    );
-
-    await query(
-      'UPDATE public.profiles SET password_hash = $1, updated_at = NOW() WHERE email = $2',
-      [correctHash, 'admin@williamdiskpizza.com']
-    );
+    const supabase = getSupabaseServerClient();
+    await supabase
+      .from('profiles')
+      .update({ password_hash: correctHash, updated_at: new Date().toISOString() })
+      .eq('email', 'admin@pizzaria.com');
+    await supabase
+      .from('profiles')
+      .update({ password_hash: correctHash, updated_at: new Date().toISOString() })
+      .eq('email', 'admin@williamdiskpizza.com');
 
     // 3. Verificar se funcionou
-    const testResult = await query(
-      'SELECT email, password_hash FROM public.profiles WHERE email = $1',
-      ['admin@pizzaria.com']
-    );
-
-    const user = testResult.rows[0];
-    const hashWorks = await bcrypt.compare(password, user.password_hash);
+    const { data: user, error } = await supabase
+      .from('profiles')
+      .select('email, password_hash')
+      .eq('email', 'admin@pizzaria.com')
+      .maybeSingle();
+    if (error) throw error;
+    const hashWorks = await bcrypt.compare(password, user?.password_hash || '');
 
     return NextResponse.json({
       success: true,
