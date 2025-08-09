@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { verifyAdmin } from "@/lib/auth"
-import { query } from "@/lib/postgres"
+import { getSupabaseServerClient } from "@/lib/supabase"
 import bcrypt from "bcryptjs"
 
 // Force dynamic rendering for this route  
@@ -30,18 +30,20 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "A nova senha deve ter pelo menos 6 caracteres" }, { status: 400 })
     }
 
-    // Buscar senha atual usando PostgreSQL
-    const userResult = await query(`
-      SELECT password_hash FROM profiles 
-      WHERE id = $1 AND role = 'admin'
-    `, [admin.id]);
+    const supabase = getSupabaseServerClient()
+    const { data: user, error } = await supabase
+      .from('profiles')
+      .select('password_hash')
+      .eq('id', admin.id)
+      .eq('role', 'admin')
+      .maybeSingle()
+    if (error) throw error
 
-    if (userResult.rows.length === 0) {
+    if (!user) {
       return NextResponse.json({ error: "Usuário não encontrado" }, { status: 404 })
     }
 
-    const user = userResult.rows[0];
-    const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.password_hash)
+    const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.password_hash || '')
 
     if (!isCurrentPasswordValid) {
       return NextResponse.json({ error: "Senha atual incorreta" }, { status: 400 })
@@ -50,14 +52,14 @@ export async function PATCH(request: NextRequest) {
     // Gerar nova senha hasheada
     const newPasswordHash = await bcrypt.hash(newPassword, 12)
 
-    // Atualizar senha usando PostgreSQL
-    const updateResult = await query(`
-      UPDATE profiles 
-      SET password_hash = $1, updated_at = NOW()
-      WHERE id = $2 AND role = 'admin'
-    `, [newPasswordHash, admin.id]);
+    const { error: updErr } = await supabase
+      .from('profiles')
+      .update({ password_hash: newPasswordHash, updated_at: new Date().toISOString() })
+      .eq('id', admin.id)
+      .eq('role', 'admin')
+    if (updErr) throw updErr
 
-    if (updateResult.rowCount === 0) {
+    {
       return NextResponse.json({ error: "Erro ao atualizar senha" }, { status: 500 })
     }
 

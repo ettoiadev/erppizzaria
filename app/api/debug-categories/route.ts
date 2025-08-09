@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { query } from '@/lib/postgres'
+import { getSupabaseServerClient } from '@/lib/supabase'
 
 export async function GET() {
   try {
@@ -7,59 +7,57 @@ export async function GET() {
     
     // 1. Verificar estrutura da tabela
     console.log('1. Verificando estrutura da tabela categories...')
-    const structure = await query(`
-      SELECT column_name, data_type, is_nullable, column_default 
-      FROM information_schema.columns 
-      WHERE table_name = 'categories' 
-      AND table_schema = 'public'
-      ORDER BY ordinal_position
-    `)
-    
-    console.log('Estrutura da tabela:', structure.rows)
+    const supabase = getSupabaseServerClient()
+    const { data: structure, error: structErr } = await supabase
+      .from('categories')
+      .select('*')
+      .limit(1)
+    if (structErr) throw structErr
+    console.log('Estrutura (amostra):', structure)
     
     // 2. Verificar dados atuais
     console.log('2. Verificando todas as categorias...')
-    const allCategories = await query('SELECT * FROM categories')
-    console.log('Total de categorias no banco:', allCategories.rows.length)
+    const { data: allCategories } = await supabase.from('categories').select('*')
+    console.log('Total de categorias no banco:', (allCategories || []).length)
     
-    allCategories.rows.forEach(cat => {
+    ;(allCategories || []).forEach(cat => {
       console.log(`- ${cat.name}: active=${cat.active}, id=${cat.id}`)
     })
     
     // 3. Testar categoria específica (Sobremesas)
     const sobremesasId = 'edd3f631-c717-4c54-8490-e9cc72fcd1f2'
     console.log('3. Verificando categoria Sobremesas...')
-    const sobremesas = await query('SELECT * FROM categories WHERE id = $1', [sobremesasId])
-    
-    console.log('Categoria Sobremesas:', sobremesas.rows[0] || 'NÃO ENCONTRADA')
+    const { data: sobremesas } = await supabase.from('categories').select('*').eq('id', sobremesasId).maybeSingle()
+    console.log('Categoria Sobremesas:', sobremesas || 'NÃO ENCONTRADA')
     
     // 4. Tentar update para false
     console.log('4. Testando UPDATE active = false...')
-    const updateResult = await query(
-      'UPDATE categories SET active = false WHERE id = $1 RETURNING *',
-      [sobremesasId]
-    )
-    
-    console.log('Resultado do UPDATE:', updateResult.rows[0] || 'NENHUMA LINHA AFETADA')
+    const { data: updateResult } = await supabase
+      .from('categories')
+      .update({ active: false, updated_at: new Date().toISOString() })
+      .eq('id', sobremesasId)
+      .select('*')
+      .maybeSingle()
+    console.log('Resultado do UPDATE:', updateResult || 'NENHUMA LINHA AFETADA')
     
     // 5. Verificar após update
     console.log('5. Verificando após UPDATE...')
-    const afterUpdate = await query('SELECT * FROM categories WHERE id = $1', [sobremesasId])
-    console.log('Categoria após UPDATE:', afterUpdate.rows[0] || 'NÃO ENCONTRADA')
+    const { data: afterUpdate } = await supabase.from('categories').select('*').eq('id', sobremesasId).maybeSingle()
+    console.log('Categoria após UPDATE:', afterUpdate || 'NÃO ENCONTRADA')
     
     // 6. Testar query com filtro active
     console.log('6. Testando query com filtro active = true...')
-    const activeOnly = await query('SELECT id, name, active FROM categories WHERE active = true')
-    console.log('Categorias ativas:', activeOnly.rows.length)
+    const { data: activeOnly } = await supabase.from('categories').select('id, name, active').eq('active', true)
+    console.log('Categorias ativas:', (activeOnly || []).length)
     
     return NextResponse.json({
       message: 'Debug concluído - verificar logs do servidor',
-      structure: structure.rows,
-      totalCategories: allCategories.rows.length,
-      sobremesasFound: sobremesas.rows.length > 0,
-      updateResult: updateResult.rows[0] || null,
-      afterUpdate: afterUpdate.rows[0] || null,
-      activeCategories: activeOnly.rows.length
+      structure: structure,
+      totalCategories: (allCategories || []).length,
+      sobremesasFound: !!sobremesas,
+      updateResult: updateResult || null,
+      afterUpdate: afterUpdate || null,
+      activeCategories: (activeOnly || []).length
     })
     
   } catch (error) {

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { query } from '@/lib/postgres'
+import { getSupabaseServerClient } from '@/lib/supabase'
 
 // GET handler para buscar todas as categorias
 export async function GET() {
@@ -9,13 +9,9 @@ export async function GET() {
     let hasSortOrderField = false
     
     try {
-      const tableInfo = await query(`
-        SELECT column_name 
-        FROM information_schema.columns 
-        WHERE table_name = 'categories' AND table_schema = 'public'
-      `)
-      
-      const columns = tableInfo.rows.map(row => row.column_name)
+      const supabase = getSupabaseServerClient()
+      const { data: sample } = await supabase.from('categories').select('*').limit(1)
+      const columns = sample && sample.length > 0 ? Object.keys(sample[0]) : ['id','name','description','image_url','active','sort_order']
       hasActiveField = columns.includes('active')
       hasSortOrderField = columns.includes('sort_order')
     } catch (err) {
@@ -52,14 +48,19 @@ export async function GET() {
       selectQuery += ' ORDER BY name ASC'
     }
 
-    const result = await query(selectQuery)
+    const supabase = getSupabaseServerClient()
+    const { data: rows, error } = await supabase
+      .from('categories')
+      .select('*')
+      .order(hasSortOrderField ? 'sort_order' : 'name', { ascending: true })
+    if (error) throw error
 
     // Normalizar os dados para garantir consistência
-    const normalizedCategories = result.rows.map(category => ({
+    const normalizedCategories = (rows || []).map((category: any) => ({
       id: category.id,
       name: category.name || '',
       description: category.description || '',
-      image: category.image || '',
+      image: category.image_url || category.image || '',
       sort_order: category.sort_order || 0,
       active: category.active !== false // true por padrão
     }))
@@ -89,18 +90,7 @@ export async function POST(request: Request) {
     }
 
     // Verificar se campo sort_order existe
-    let hasSortOrderField = false
-    try {
-      const tableInfo = await query(`
-        SELECT column_name 
-        FROM information_schema.columns 
-        WHERE table_name = 'categories' AND table_schema = 'public' AND column_name = 'sort_order'
-      `)
-      hasSortOrderField = tableInfo.rows.length > 0
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      console.log('Erro ao verificar campo sort_order:', message)
-    }
+    let hasSortOrderField = true
 
     let insertQuery = 'INSERT INTO categories (name'
     let values = [name]
@@ -130,10 +120,20 @@ export async function POST(request: Request) {
 
     insertQuery += `) VALUES (${placeholders}) RETURNING *`
 
-    const result = await query(insertQuery, values)
+    const supabase = getSupabaseServerClient()
+    const payload: any = { name }
+    if (description) payload.description = description
+    if (image) payload.image_url = image
+    if (hasSortOrderField && sort_order !== undefined) payload.sort_order = sort_order
+    const { data: result, error } = await supabase
+      .from('categories')
+      .insert(payload)
+      .select('*')
+      .single()
+    if (error) throw error
     
     // Normalizar resposta para manter consistência
-    const category = result.rows[0]
+    const category = result
     const normalizedCategory = {
       id: category.id,
       name: category.name,

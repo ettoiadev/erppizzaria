@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { query } from '@/lib/postgres'
+import { getSupabaseServerClient } from '@/lib/supabase'
 import { verifyAdmin } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
@@ -29,43 +29,43 @@ export async function GET(
 
     console.log('[DELIVERY_ZONE] Buscando zona:', params.id)
 
-    const zoneResult = await query(`
-      SELECT * FROM delivery_zones WHERE id = $1
-    `, [params.id])
+    const supabase = getSupabaseServerClient()
+    const { data: zone, error } = await supabase
+      .from('delivery_zones')
+      .select('*')
+      .eq('id', params.id)
+      .maybeSingle()
+    if (error) throw error
 
-    if (zoneResult.rows.length === 0) {
+    if (!zone) {
       return NextResponse.json({ error: "Zona não encontrada" }, { status: 404 })
     }
 
-    const zone = zoneResult.rows[0]
+    // Buscar estatísticas da zona via aplicação
+    const { data: addrs, error: addrErr } = await supabase
+      .from('geocoded_addresses')
+      .select('is_deliverable, confidence_score, last_verified')
+      .eq('delivery_zone_id', params.id)
+    if (addrErr) throw addrErr
 
-    // Buscar estatísticas da zona
-    const statsResult = await query(`
-      SELECT 
-        COUNT(*) as total_addresses,
-        COUNT(CASE WHEN is_deliverable = true THEN 1 END) as deliverable_addresses,
-        AVG(confidence_score) as avg_confidence,
-        MAX(last_verified) as last_address_verified
-      FROM geocoded_addresses 
-      WHERE delivery_zone_id = $1
-    `, [params.id])
-
-    const stats = statsResult.rows[0] || {
-      total_addresses: 0,
-      deliverable_addresses: 0,
-      avg_confidence: null,
-      last_address_verified: null
-    }
+    const totalAddresses = (addrs || []).length
+    const deliverableAddresses = (addrs || []).filter(a => a.is_deliverable).length
+    const avgConfidence = (addrs || []).reduce((s, a) => s + (Number(a.confidence_score) || 0), 0) / (totalAddresses || 1)
+    const lastVerified = (addrs || []).reduce((m: string | null, a: any) => {
+      const v = a.last_verified
+      if (!v) return m
+      return !m || new Date(v) > new Date(m) ? v : m
+    }, null as string | null)
 
     return NextResponse.json({
       success: true,
       zone: {
         ...zone,
         stats: {
-          total_addresses: parseInt(stats.total_addresses),
-          deliverable_addresses: parseInt(stats.deliverable_addresses),
-          avg_confidence: stats.avg_confidence ? parseFloat(stats.avg_confidence) : null,
-          last_address_verified: stats.last_address_verified
+          total_addresses: totalAddresses,
+          deliverable_addresses: deliverableAddresses,
+          avg_confidence: totalAddresses ? Number(avgConfidence.toFixed(2)) : null,
+          last_address_verified: lastVerified
         }
       }
     })
@@ -116,12 +116,15 @@ export async function PUT(
 
     console.log('[DELIVERY_ZONE] Atualizando zona:', params.id)
 
-    // Verificar se a zona existe
-    const existingResult = await query(`
-      SELECT * FROM delivery_zones WHERE id = $1
-    `, [params.id])
+    const supabase = getSupabaseServerClient()
+    const { data: existing, error } = await supabase
+      .from('delivery_zones')
+      .select('*')
+      .eq('id', params.id)
+      .maybeSingle()
+    if (error) throw error
 
-    if (existingResult.rows.length === 0) {
+    if (!existing) {
       return NextResponse.json({ error: "Zona não encontrada" }, { status: 404 })
     }
 
@@ -148,77 +151,60 @@ export async function PUT(
 
     // Verificar sobreposição com outras zonas (se mudou distâncias)
     if (min_distance_km !== undefined || max_distance_km !== undefined) {
-      const currentZone = existingResult.rows[0]
+      const currentZone = existing
       const newMinDist = min_distance_km !== undefined ? min_distance_km : currentZone.min_distance_km
       const newMaxDist = max_distance_km !== undefined ? max_distance_km : currentZone.max_distance_km
 
-      const overlapResult = await query(`
-        SELECT id, name, min_distance_km, max_distance_km
-        FROM delivery_zones 
-        WHERE active = true AND id != $1
-          AND (
-            (min_distance_km <= $2 AND max_distance_km >= $2) OR
-            (min_distance_km <= $3 AND max_distance_km >= $3) OR
-            (min_distance_km >= $2 AND max_distance_km <= $3)
-          )
-      `, [params.id, newMinDist, newMaxDist])
+      const { data: others } = await supabase
+        .from('delivery_zones')
+        .select('id, name, min_distance_km, max_distance_km')
+        .eq('active', true)
+        .neq('id', params.id)
 
-      if (overlapResult.rows.length > 0) {
-        const overlapping = overlapResult.rows[0]
+      const overlapping = (others || []).find(o => {
+        const min = Number(o.min_distance_km)
+        const max = Number(o.max_distance_km)
+        return (min <= newMinDist && max >= newMinDist) ||
+               (min <= newMaxDist && max >= newMaxDist) ||
+               (min >= newMinDist && max <= newMaxDist)
+      })
+
+      if (overlapping) {
         return NextResponse.json({
           error: `Sobreposição detectada com a zona "${overlapping.name}" (${overlapping.min_distance_km}km - ${overlapping.max_distance_km}km)`
         }, { status: 400 })
       }
     }
 
-    // Preparar campos para atualização
-    const updateFields = []
-    const updateValues = []
-    let paramIndex = 1
+    const updates: any = {}
+    if (name !== undefined) updates.name = name?.trim()
+    if (min_distance_km !== undefined) updates.min_distance_km = min_distance_km
+    if (max_distance_km !== undefined) updates.max_distance_km = max_distance_km
+    if (delivery_fee !== undefined) updates.delivery_fee = delivery_fee
+    if (estimated_time_minutes !== undefined) updates.estimated_time_minutes = estimated_time_minutes
+    if (color_hex !== undefined) updates.color_hex = color_hex
+    if (description !== undefined) updates.description = description
+    if (active !== undefined) updates.active = active
 
-    const fieldsToUpdate = {
-      name: name?.trim(),
-      min_distance_km,
-      max_distance_km,
-      delivery_fee,
-      estimated_time_minutes,
-      color_hex,
-      description,
-      active
-    }
-
-    Object.entries(fieldsToUpdate).forEach(([field, value]) => {
-      if (value !== undefined) {
-        updateFields.push(`${field} = $${paramIndex}`)
-        updateValues.push(value)
-        paramIndex++
-      }
-    })
-
-    if (updateFields.length === 0) {
+    if (Object.keys(updates).length === 0) {
       return NextResponse.json({ error: 'Nenhum campo para atualizar' }, { status: 400 })
     }
 
-    // Sempre atualizar updated_at
-    updateFields.push('updated_at = NOW()')
-    updateValues.push(params.id)
-
-    const result = await query(`
-      UPDATE delivery_zones 
-      SET ${updateFields.join(', ')}
-      WHERE id = $${paramIndex}
-      RETURNING *
-    `, updateValues)
-
-    const updatedZone = result.rows[0]
+    updates.updated_at = new Date().toISOString()
+    const { data: updatedZone, error: updErr } = await supabase
+      .from('delivery_zones')
+      .update(updates)
+      .eq('id', params.id)
+      .select('*')
+      .single()
+    if (updErr) throw updErr
 
     // Se mudou distâncias, invalidar cache de endereços da zona
     if (min_distance_km !== undefined || max_distance_km !== undefined) {
-      await query(`
-        UPDATE geocoded_addresses 
-        SET delivery_zone_id = NULL, last_verified = NOW() - INTERVAL '1 year'
-        WHERE delivery_zone_id = $1
-      `, [params.id])
+      await supabase
+        .from('geocoded_addresses')
+        .update({ delivery_zone_id: null, last_verified: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString() })
+        .eq('delivery_zone_id', params.id)
       console.log('[DELIVERY_ZONE] Cache invalidado devido à mudança de distâncias')
     }
 
@@ -265,23 +251,26 @@ export async function DELETE(
 
     console.log('[DELIVERY_ZONE] Deletando zona:', params.id)
 
-    // Verificar se a zona existe
-    const existingResult = await query(`
-      SELECT name FROM delivery_zones WHERE id = $1
-    `, [params.id])
+    const supabase = getSupabaseServerClient()
+    const { data: existing, error } = await supabase
+      .from('delivery_zones')
+      .select('name')
+      .eq('id', params.id)
+      .maybeSingle()
+    if (error) throw error
 
-    if (existingResult.rows.length === 0) {
+    if (!existing) {
       return NextResponse.json({ error: "Zona não encontrada" }, { status: 404 })
     }
 
-    const zoneName = existingResult.rows[0].name
+    const zoneName = existing.name
 
     // Verificar quantas zonas restam
-    const totalZonesResult = await query(`
-      SELECT COUNT(*) as count FROM delivery_zones WHERE active = true
-    `)
-    
-    const totalZones = parseInt(totalZonesResult.rows[0].count)
+    const { data: zonesActive } = await supabase
+      .from('delivery_zones')
+      .select('id')
+      .eq('active', true)
+    const totalZones = (zonesActive || []).length
     
     if (totalZones <= 1) {
       return NextResponse.json({
@@ -290,18 +279,18 @@ export async function DELETE(
     }
 
     // Verificar se há endereços usando esta zona
-    const addressesResult = await query(`
-      SELECT COUNT(*) as count FROM geocoded_addresses WHERE delivery_zone_id = $1
-    `, [params.id])
-
-    const addressesCount = parseInt(addressesResult.rows[0].count)
+    const { data: addrRows } = await supabase
+      .from('geocoded_addresses')
+      .select('id')
+      .eq('delivery_zone_id', params.id)
+    const addressesCount = (addrRows || []).length
 
     // Deletar zona (isso também irá limpar as referências em geocoded_addresses devido ao ON DELETE SET NULL)
-    const deleteResult = await query(`
-      DELETE FROM delivery_zones WHERE id = $1
-    `, [params.id])
-
-    if (deleteResult.rowCount === 0) {
+    const { error: delErr } = await supabase
+      .from('delivery_zones')
+      .delete()
+      .eq('id', params.id)
+    if (delErr) {
       return NextResponse.json({ error: "Erro ao deletar zona" }, { status: 500 })
     }
 
