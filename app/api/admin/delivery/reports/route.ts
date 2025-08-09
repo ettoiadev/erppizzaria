@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     // Buscar entregas entregues (DELIVERED) com driver_id
     let ordersQuery = supabase
       .from('orders')
-      .select('id, total, subtotal, delivery_fee, delivered_at, delivery_address, driver_id, drivers:driver_id(name, email, phone)')
+      .select('id, total, subtotal, delivery_fee, delivered_at, delivery_address, driver_id, drivers:driver_id(*)')
       .eq('status', 'DELIVERED')
       .not('driver_id', 'is', null)
       .order('delivered_at', { ascending: false })
@@ -67,9 +67,9 @@ export async function GET(request: NextRequest) {
         delivered_at: ord.delivered_at,
         delivery_address: ord.delivery_address,
         driver_id: ord.driver_id,
-        driver_name: ord.drivers?.name,
-        driver_email: ord.drivers?.email,
-        driver_phone: ord.drivers?.phone,
+        driver_name: Array.isArray(ord.drivers) ? ord.drivers[0]?.name : (ord as any).drivers?.name,
+        driver_email: Array.isArray(ord.drivers) ? ord.drivers[0]?.email : (ord as any).drivers?.email,
+        driver_phone: Array.isArray(ord.drivers) ? ord.drivers[0]?.phone : (ord as any).drivers?.phone,
         products_value,
       })
     }
