@@ -13,44 +13,32 @@ if (typeof window === 'undefined') {
   }
 }
 
-// Credenciais oficiais pedidas: SUPABASE_URL e SUPABASE_KEY
+// Credenciais oficiais: SUPABASE_URL e SUPABASE_KEY
 const supabaseUrl = process.env.SUPABASE_URL as string | undefined
 const supabaseKey = process.env.SUPABASE_KEY as string | undefined
 
-if (!supabaseUrl || !supabaseKey) {
-  // Lidar com fallback durante migração (opcional): tentar variáveis antigas se existirem
-  const fallbackUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string | undefined
-  const fallbackKey = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY) as string | undefined
-  if (!supabaseUrl && fallbackUrl) {
-    (process as any).env.SUPABASE_URL = fallbackUrl
-  }
-  if (!supabaseKey && fallbackKey) {
-    (process as any).env.SUPABASE_KEY = fallbackKey
-  }
+// Validação obrigatória das variáveis de ambiente
+if (!supabaseUrl) {
+  throw new Error('[Supabase] SUPABASE_URL não configurada. Configure no arquivo .env.local')
+}
+
+if (!supabaseKey) {
+  throw new Error('[Supabase] SUPABASE_KEY não configurada. Configure no arquivo .env.local')
 }
 
 // Cliente único para o servidor. Em rotas API (Node), este é o cliente a ser usado.
-export const supabaseServer: SupabaseClient | null =
-  (process.env.SUPABASE_URL && process.env.SUPABASE_KEY)
-    ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY, {
+export const supabaseServer: SupabaseClient = createClient(supabaseUrl, supabaseKey, {
         auth: { autoRefreshToken: false, persistSession: false },
       })
-    : null
 
 export function getSupabaseServerClient(): SupabaseClient {
-  if (!supabaseServer) {
-    throw new Error('[Supabase] SUPABASE_URL/SUPABASE_KEY não configurados no servidor')
-  }
   return supabaseServer
 }
 
 export function assertSupabaseConfigured(context: string) {
-  if (!process.env.SUPABASE_URL) {
-    throw new Error(`[Supabase] SUPABASE_URL não configurada (${context})`)
-  }
-  if (!process.env.SUPABASE_KEY) {
-    throw new Error(`[Supabase] SUPABASE_KEY não configurada (${context})`)
-  }
+  // As validações já são feitas na inicialização do módulo
+  // Esta função é mantida para compatibilidade
+  return true
 }
 
 export default supabaseServer

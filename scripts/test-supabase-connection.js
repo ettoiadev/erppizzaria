@@ -48,8 +48,8 @@ async function testSupabaseConnection() {
   // 1. Verificar variáveis de ambiente
   log('1. Verificando variáveis de ambiente...', colors.blue);
   
-  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_KEY;
   
   printTestResult('SUPABASE_URL', !!supabaseUrl, supabaseUrl ? `Valor: ${supabaseUrl}` : 'Não encontrado');
   printTestResult('SUPABASE_KEY', !!supabaseKey, supabaseKey ? 'Configurado (valor oculto)' : 'Não encontrado');

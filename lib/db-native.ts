@@ -1,6 +1,11 @@
 // Adaptador para manter compatibilidade com código que usa db-native
 import { getSupabaseServerClient } from './supabase';
-import { PoolClient } from 'pg'; // Mantido apenas para tipagem
+
+// Tipagem local para compatibilidade (substitui PoolClient do pg)
+type PoolClient = {
+  query: (text: string, params?: any[]) => Promise<any>;
+  release: () => void;
+};
 
 // Função para obter estatísticas de pedidos
 async function getOrderStats(params?: any[]) {

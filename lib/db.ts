@@ -68,7 +68,7 @@ export async function query(table: string, action: string, options?: any) {
 
 // Função para obter cliente (compatibilidade)
 export async function getClient() {
-  return await pgGetClient();
+  return getSupabaseServerClient();
 }
 
 // Função para logs de debug
@@ -84,17 +84,22 @@ export function debugQuery(text: string, params?: any[]) {
 // Função para testar conexão
 export async function testConnection() {
   try {
-    const result = await pgQuery('SELECT COUNT(*) as count FROM profiles LIMIT 1');
+    const supabase = getSupabaseServerClient();
+    const { data, error, count } = await supabase
+      .from('profiles')
+      .select('*', { count: 'exact', head: true });
+    
+    if (error) throw error;
     
     return { 
       success: true, 
-      message: 'Conexão com PostgreSQL funcionando',
-      count: result.rows[0]?.count || 0
+      message: 'Conexão com Supabase funcionando',
+      count: count || 0
     };
   } catch (error: any) {
     return { 
       success: false, 
-      message: 'Erro na conexão com PostgreSQL', 
+      message: 'Erro na conexão com Supabase', 
       error: error.message 
     };
   }

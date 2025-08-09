@@ -6,7 +6,10 @@
     "dev": "next dev -H 0.0.0.0",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "node tests/integration/supabase.test.js",
+    "test:supabase": "node tests/integration/supabase.test.js",
+    "test:connection": "node scripts/test-supabase-connection.js"
   },
   "dependencies": {
     "@emotion/is-prop-valid": "latest",
@@ -54,7 +57,6 @@
   },
   "devDependencies": {
     "@types/node": "^22",
-    "@types/pg": "^8.15.4",
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "autoprefixer": "^10.0.1",

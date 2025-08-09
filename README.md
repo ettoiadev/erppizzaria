@@ -41,9 +41,11 @@ npm install
 ```
 
 ### 2. Configure as variáveis de ambiente
-Crie um arquivo `.env.local` baseado no `env.example`:
+Crie um arquivo `.env.local` baseado no `.env.example`:
+
+**Variáveis obrigatórias:**
 ```env
-# Supabase (uso oficial)
+# Supabase (configuração oficial)
 SUPABASE_URL=http://localhost:54321
 SUPABASE_KEY=your-service-role-or-anon-key
 
@@ -53,7 +55,10 @@ JWT_SECRET=sua_chave_secreta_super_segura_aqui
 # Ambiente
 NODE_ENV=development
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
+```
 
+**Variáveis opcionais:**
+```env
 # Mercado Pago
 MERCADOPAGO_ACCESS_TOKEN=TEST-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 MERCADOPAGO_WEBHOOK_SECRET=your_webhook_secret_here
@@ -63,6 +68,8 @@ ENABLE_QUERY_LOGS=true
 ENABLE_SLOW_QUERY_LOGS=true
 SLOW_QUERY_THRESHOLD=1000
 ```
+
+> ⚠️ **Importante**: Use apenas `SUPABASE_URL` e `SUPABASE_KEY`. As variáveis `NEXT_PUBLIC_SUPABASE_*` são legadas e não devem ser usadas.
 
 ### 3. Banco de Dados
 - Toda comunicação é feita exclusivamente via cliente oficial Supabase.
