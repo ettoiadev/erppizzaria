@@ -127,6 +127,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verificar sobreposição com zonas existentes
+    const supabase = getSupabaseServerClient()
     const { data: overlaps } = await supabase
       .from('delivery_zones')
       .select('id, name, min_distance_km, max_distance_km')
