@@ -372,6 +372,18 @@ export async function updateOrderStatus(id: string, status: string, notes?: stri
   return data
 }
 
+export async function updatePaymentStatus(id: string, paymentStatus: string) {
+  const supabase = getSupabaseServerClient()
+  const { data, error } = await supabase
+    .from('orders')
+    .update({ payment_status: paymentStatus, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select('*')
+    .single()
+  if (error) throw error
+  return data
+}
+
 export async function listCustomers() {
   const supabase = getSupabaseServerClient()
   const { data: customers, error } = await supabase

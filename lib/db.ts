@@ -1,5 +1,5 @@
-// Importar PostgreSQL nativo ao invés do Supabase
-import { query as pgQuery, getClient as pgGetClient } from './postgres';
+// Importar Supabase ao invés do PostgreSQL nativo
+import { getSupabaseServerClient } from './supabase';
 
 // Controle de logs baseado em ambiente
 const isDevelopment = process.env.NODE_ENV === 'development';
@@ -7,29 +7,47 @@ const enableQueryLogs = process.env.ENABLE_QUERY_LOGS === 'true' || isDevelopmen
 const enableSlowQueryLogs = process.env.ENABLE_SLOW_QUERY_LOGS === 'true';
 const slowQueryThreshold = parseInt(process.env.SLOW_QUERY_THRESHOLD || '1000');
 
-// Função principal para executar queries usando PostgreSQL nativo
-export async function query(text: string, params?: any[]) {
+// Função para executar queries usando Supabase
+export async function query(table: string, action: string, options?: any) {
   const start = Date.now();
   
   try {
     if (enableQueryLogs) {
-      console.log('🔍 Executing PostgreSQL query:', text.substring(0, 100));
-      console.log('📝 With params:', params);
+      console.log('🔍 Executing Supabase query:', { table, action, options });
     }
     
-    // Executar query diretamente no PostgreSQL
-    const result = await pgQuery(text, params);
+    const supabase = getSupabaseServerClient();
+    let query = supabase.from(table);
+    
+    // Executar a ação apropriada
+    let result;
+    switch (action) {
+      case 'select':
+        result = await query.select(options?.columns || '*', options?.options);
+        break;
+      case 'insert':
+        result = await query.insert(options?.data, options?.options);
+        break;
+      case 'update':
+        result = await query.update(options?.data).match(options?.match);
+        break;
+      case 'delete':
+        result = await query.delete().match(options?.match);
+        break;
+      default:
+        throw new Error(`Ação não suportada: ${action}`);
+    }
     
     const duration = Date.now() - start;
     
     if (enableSlowQueryLogs && duration > slowQueryThreshold) {
-      console.warn('⚠️ Query lenta detectada:', { text: text.substring(0, 100), duration });
+      console.warn('⚠️ Query lenta detectada:', { table, action, duration });
     }
     
     if (enableQueryLogs) {
       console.log('✅ Query executada com sucesso:', { 
         duration: `${duration}ms`, 
-        rows: result.rowCount || 0 
+        data: result.data ? result.data.length : 0
       });
     }
     
@@ -38,12 +56,10 @@ export async function query(text: string, params?: any[]) {
   } catch (error: any) {
     const duration = Date.now() - start;
     console.error('❌ Database query error', { 
-      text: text.substring(0, 100), 
+      table, 
+      action,
       error: error.message,
       code: error.code,
-      hint: error.hint,
-      detail: error.detail,
-      params: params ? JSON.stringify(params).substring(0, 100) : undefined,
       duration: `${duration}ms`
     });
     throw error;
@@ -82,4 +98,4 @@ export async function testConnection() {
       error: error.message 
     };
   }
-} 
+}

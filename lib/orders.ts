@@ -39,105 +39,73 @@ export interface Order extends OrderData {
 
 // Criar pedido com itens
 export async function createOrder(orderData: OrderData, items: OrderItem[]): Promise<Order> {
-  return await transaction(async (client: PoolClient) => {
-    // Inserir pedido
-    const orderQuery = `
-      INSERT INTO orders (
-        user_id, customer_name, customer_phone, customer_address,
-        total, subtotal, delivery_fee, discount, status, payment_method,
-        payment_status, delivery_type, notes, estimated_delivery_time,
-        created_at, updated_at
-      ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), NOW()
-      ) RETURNING *
-    `;
+  // Importar a função do db-supabase para manter compatibilidade
+  const { createOrder: createOrderSupabase } = require('./db-supabase');
+  
+  try {
+    // Adaptar os dados para o formato esperado pelo createOrderSupabase
+    const input = {
+      user_id: orderData.user_id,
+      customer_name: orderData.customer_name,
+      customer_phone: orderData.customer_phone,
+      customer_address: orderData.customer_address,
+      total: orderData.total,
+      subtotal: orderData.subtotal || orderData.total,
+      delivery_fee: orderData.delivery_fee || 0,
+      discount: orderData.discount || 0,
+      status: orderData.status,
+      payment_method: orderData.payment_method,
+      payment_status: orderData.payment_status || 'PENDING',
+      notes: orderData.notes,
+      estimated_delivery_time: orderData.estimated_delivery_time ? 
+        orderData.estimated_delivery_time.toISOString() : 
+        new Date(Date.now() + 45 * 60 * 1000).toISOString(),
+      items: items.map(item => ({
+        product_id: item.product_id,
+        name: item.name,
+        quantity: item.quantity,
+        unit_price: item.price,
+        total_price: item.price * item.quantity,
+        size: item.size,
+        toppings: item.toppings || [],
+        special_instructions: item.special_instructions,
+        half_and_half: item.half_and_half || null
+      }))
+    };
     
-    const orderParams = [
-      orderData.user_id,
-      orderData.customer_name,
-      orderData.customer_phone,
-      orderData.customer_address,
-      orderData.total,
-      orderData.subtotal || orderData.total,
-      orderData.delivery_fee || 0,
-      orderData.discount || 0,
-      orderData.status,
-      orderData.payment_method,
-      orderData.payment_status || 'PENDING',
-      orderData.delivery_type,
-      orderData.notes,
-      orderData.estimated_delivery_time || new Date(Date.now() + 45 * 60 * 1000)
-    ];
+    // Chamar a função do Supabase
+    const order = await createOrderSupabase(input);
     
-    const orderResult = await client.query(orderQuery, orderParams);
-    const order = orderResult.rows[0];
-    
-    // Inserir itens do pedido
-    if (items && items.length > 0) {
-      const itemsQuery = `
-        INSERT INTO order_items (
-          order_id, product_id, name, quantity, unit_price, total_price,
-          size, toppings, special_instructions, half_and_half
-        ) VALUES ${items.map((_, index) => 
-          `($${index * 10 + 1}, $${index * 10 + 2}, $${index * 10 + 3}, $${index * 10 + 4}, $${index * 10 + 5}, $${index * 10 + 6}, $${index * 10 + 7}, $${index * 10 + 8}, $${index * 10 + 9}, $${index * 10 + 10})`
-        ).join(', ')}
-      `;
-      
-      const itemsParams = items.flatMap(item => [
-        order.id,
-        item.product_id,
-        item.name,
-        item.quantity,
-        item.price,
-        item.price * item.quantity,
-        item.size,
-        JSON.stringify(item.toppings || []),
-        item.special_instructions,
-        JSON.stringify(item.half_and_half || null)
-      ]);
-      
-      await client.query(itemsQuery, itemsParams);
-    }
-    
-    return order;
-  });
+    return {
+      ...order,
+      items: items
+    };
+  } catch (error) {
+    console.error('Erro ao criar pedido:', error);
+    throw error;
+  }
 }
 
 // Buscar pedido por ID com itens
 export async function getOrderById(orderId: string): Promise<Order | null> {
-  const orderQuery = `
-    SELECT o.*, 
-           json_agg(
-             json_build_object(
-               'id', oi.id,
-               'product_id', oi.product_id,
-               'name', oi.name,
-               'quantity', oi.quantity,
-               'unit_price', oi.unit_price,
-               'total_price', oi.total_price,
-               'size', oi.size,
-               'toppings', oi.toppings,
-               'special_instructions', oi.special_instructions,
-               'half_and_half', oi.half_and_half
-             )
-           ) FILTER (WHERE oi.id IS NOT NULL) as items
-    FROM orders o
-    LEFT JOIN order_items oi ON o.id = oi.order_id
-    WHERE o.id = $1
-    GROUP BY o.id
-  `;
+  // Importar a função do db-supabase para manter compatibilidade
+  const { getOrderById: getOrderByIdSupabase } = require('./db-supabase');
   
-  const result = await query(orderQuery, [orderId]);
-  
-  if (result.rows.length === 0) {
-    return null;
+  try {
+    const order = await getOrderByIdSupabase(orderId);
+    
+    if (!order) {
+      return null;
+    }
+    
+    return {
+      ...order,
+      items: order.items || order.order_items || []
+    };
+  } catch (error) {
+    console.error('Erro ao buscar pedido por ID:', error);
+    throw error;
   }
-  
-  const order = result.rows[0];
-  return {
-    ...order,
-    items: order.items || []
-  };
 }
 
 // Listar pedidos com filtros
@@ -149,157 +117,107 @@ export async function getOrders(filters: {
   start_date?: Date;
   end_date?: Date;
   include_archived?: boolean;
-} = {}): Promise<Order[]> {
-  let whereConditions = [];
-  let params = [];
-  let paramIndex = 1;
+}): Promise<Order[]> {
+  // Importar a função do db-supabase para manter compatibilidade
+  const { listOrders } = require('./db-supabase');
   
-  if (filters.status) {
-    whereConditions.push(`o.status = $${paramIndex}`);
-    params.push(filters.status);
-    paramIndex++;
+  try {
+    // Adaptar os filtros para o formato esperado pelo listOrders
+    const params: any = {
+      status: filters.status !== 'all' ? filters.status : null,
+      userId: filters.user_id,
+      limit: filters.limit,
+      offset: filters.offset
+    };
+    
+    // Chamar a função do Supabase
+    const { orders } = await listOrders(params);
+    
+    // Filtrar por data se necessário (já que o Supabase não suporta diretamente)
+    let filteredOrders = [...orders];
+    
+    if (filters.start_date) {
+      const startTimestamp = filters.start_date.getTime();
+      filteredOrders = filteredOrders.filter(order => 
+        new Date(order.created_at).getTime() >= startTimestamp
+      );
+    }
+    
+    if (filters.end_date) {
+      const endTimestamp = filters.end_date.getTime();
+      filteredOrders = filteredOrders.filter(order => 
+        new Date(order.created_at).getTime() <= endTimestamp
+      );
+    }
+    
+    // Filtrar pedidos arquivados se necessário
+    if (!filters.include_archived) {
+      filteredOrders = filteredOrders.filter(order => !order.archived_at);
+    }
+    
+    return filteredOrders.map(order => ({
+      ...order,
+      items: order.items || order.order_items || []
+    }));
+  } catch (error) {
+    console.error('Erro ao listar pedidos:', error);
+    throw error;
   }
-  
-  if (filters.user_id) {
-    whereConditions.push(`o.user_id = $${paramIndex}`);
-    params.push(filters.user_id);
-    paramIndex++;
-  }
-  
-  if (filters.start_date) {
-    whereConditions.push(`o.created_at >= $${paramIndex}`);
-    params.push(filters.start_date);
-    paramIndex++;
-  }
-  
-  if (filters.end_date) {
-    whereConditions.push(`o.created_at <= $${paramIndex}`);
-    params.push(filters.end_date);
-    paramIndex++;
-  }
-  
-  // Filtrar pedidos não arquivados por padrão (exceto se explicitamente solicitado)
-  if (!filters.include_archived) {
-    whereConditions.push(`o.archived_at IS NULL`);
-  }
-  
-  const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
-  const limitClause = filters.limit ? `LIMIT $${paramIndex}` : '';
-  if (filters.limit) {
-    params.push(filters.limit);
-    paramIndex++;
-  }
-  
-  const offsetClause = filters.offset ? `OFFSET $${paramIndex}` : '';
-  if (filters.offset) {
-    params.push(filters.offset);
-  }
-  
-  const ordersQuery = `
-    SELECT o.*, 
-           p.full_name, p.email, p.phone,
-           json_agg(
-             json_build_object(
-               'id', oi.id,
-               'product_id', oi.product_id,
-               'name', oi.name,
-               'quantity', oi.quantity,
-               'unit_price', oi.unit_price,
-               'total_price', oi.total_price,
-               'size', oi.size,
-               'toppings', oi.toppings,
-               'special_instructions', oi.special_instructions,
-               'half_and_half', oi.half_and_half
-             )
-           ) FILTER (WHERE oi.id IS NOT NULL) as order_items
-    FROM orders o
-    LEFT JOIN profiles p ON o.user_id = p.id
-    LEFT JOIN order_items oi ON o.id = oi.order_id
-    ${whereClause}
-    GROUP BY o.id, p.full_name, p.email, p.phone
-    ORDER BY o.order_number DESC
-    ${limitClause}
-    ${offsetClause}
-  `;
-  
-  const result = await query(ordersQuery, params);
-  
-  return result.rows.map(row => ({
-    ...row,
-    order_items: row.order_items || [],
-    items: row.order_items || [] // Para compatibilidade
-  }));
+
 }
 
 // Atualizar status do pedido
-export async function updateOrderStatus(orderId: string, status: string): Promise<Order | null> {
-  const updateQuery = `
-    UPDATE orders 
-    SET status = $1, updated_at = NOW()
-    WHERE id = $2
-    RETURNING *
-  `;
-  
-  const result = await query(updateQuery, [status, orderId]);
-  
-  if (result.rows.length === 0) {
-    return null;
+export async function updateOrderStatus(orderId: string, status: string, notes?: string | null): Promise<Order | null> {
+  try {
+    // Usar a implementação do Supabase
+    const { updateOrderStatus } = await import('./db-supabase');
+    const order = await updateOrderStatus(orderId, status, notes);
+    return order as Order;
+  } catch (error) {
+    console.error('Erro ao atualizar status do pedido:', error);
+    throw error;
   }
-  
-  return result.rows[0];
 }
 
 // Atualizar status de pagamento
 export async function updatePaymentStatus(orderId: string, paymentStatus: string): Promise<Order | null> {
-  const updateQuery = `
-    UPDATE orders 
-    SET payment_status = $1, updated_at = NOW()
-    WHERE id = $2
-    RETURNING *
-  `;
-  
-  const result = await query(updateQuery, [paymentStatus, orderId]);
-  
-  if (result.rows.length === 0) {
-    return null;
+  try {
+    // Usar a implementação do Supabase
+    const { updatePaymentStatus } = await import('./db-supabase');
+    const order = await updatePaymentStatus(orderId, paymentStatus);
+    return order as Order;
+  } catch (error) {
+    console.error('Erro ao atualizar status de pagamento:', error);
+    throw error;
   }
-  
-  return result.rows[0];
 }
 
 // Obter estatísticas de pedidos
 export async function getOrderStats(startDate?: Date, endDate?: Date) {
-  const whereConditions = [];
-  const params = [];
-  let paramIndex = 1;
+  try {
+    // Usar a função query do db-native que já foi adaptada para usar o Supabase
+    // A função getOrderStats foi implementada no db-native.ts
+    const statsQuery = `
+      SELECT 
+        COUNT(*) as total_orders,
+        COUNT(*) FILTER (WHERE status = 'RECEIVED') as received_orders,
+        COUNT(*) FILTER (WHERE status = 'PREPARING') as preparing_orders,
+        COUNT(*) FILTER (WHERE status = 'ON_THE_WAY') as on_the_way_orders,
+        COUNT(*) FILTER (WHERE status = 'DELIVERED') as delivered_orders,
+        COUNT(*) FILTER (WHERE status = 'CANCELLED') as cancelled_orders,
+        SUM(total) FILTER (WHERE status = 'DELIVERED') as total_revenue
+      FROM orders
+      WHERE 1=1
+    `;
 
-  if (startDate) {
-    whereConditions.push(`created_at >= $${paramIndex}`);
-    params.push(startDate);
-    paramIndex++;
+    const params = [];
+    if (startDate) params.push(startDate);
+    if (endDate) params.push(endDate);
+
+    const result = await query(statsQuery, params);
+    return result.rows[0];
+  } catch (error) {
+    console.error('Erro ao obter estatísticas de pedidos:', error);
+    throw error;
   }
-
-  if (endDate) {
-    whereConditions.push(`created_at <= $${paramIndex}`);
-    params.push(endDate);
-    paramIndex++;
-  }
-
-  const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
-
-  const statsQuery = `
-    SELECT 
-      COUNT(*) as total_orders,
-      COUNT(*) FILTER (WHERE status = 'RECEIVED') as received_orders,
-      COUNT(*) FILTER (WHERE status = 'PREPARING') as preparing_orders,
-      COUNT(*) FILTER (WHERE status = 'ON_THE_WAY') as on_the_way_orders,
-      COUNT(*) FILTER (WHERE status = 'DELIVERED') as delivered_orders,
-      COUNT(*) FILTER (WHERE status = 'CANCELLED') as cancelled_orders,
-      SUM(total) FILTER (WHERE status = 'DELIVERED') as total_revenue
-    FROM orders
-    ${whereClause}
-  `;
-
-  const result = await query(statsQuery, params);
-  return result.rows[0];
 }
