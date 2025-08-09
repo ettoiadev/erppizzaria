@@ -187,8 +187,22 @@ npm start
 2. Limpe o localStorage do navegador
 3. Faça login novamente
 
+## 🐳 Docker MCP para Trae AI
+
+Para configurar o Docker MCP para uso com o Trae AI:
+
+```bash
+# Windows
+scripts\setup-trae-mcp-docker.bat
+
+# Linux/Mac
+bash scripts/setup-trae-mcp-docker.sh
+```
+
+Este script configura automaticamente o Docker MCP Gateway para permitir que o Trae AI interaja com o Supabase através do protocolo MCP. Para mais detalhes, consulte o arquivo `.trae/README-MCP-DOCKER.md`.
+
 ## 📞 Suporte
 
 Para dúvidas ou problemas:
 - Email: contato@williamdiskpizza.com.br
-- Documentação: Consulte os arquivos .md na pasta `md/`
+- Documentação: Consulte os arquivos .md na pasta `docs/`
