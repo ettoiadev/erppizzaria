@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { query } from '@/lib/postgres'
+import { getSupabaseServerClient } from '@/lib/supabase'
 import { verifyToken } from '@/lib/auth'
 
 // GET - Buscar notificações do usuário
@@ -14,30 +14,27 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'UserId é obrigatório' }, { status: 400 })
     }
 
-    // Construir query base
-    let whereConditions = [`user_id = $1`]
-    let params = [userId]
-    let paramIndex = 2
+    const supabase = getSupabaseServerClient()
+
+    // Construir query Supabase
+    let notificationsQuery = supabase
+      .from('notifications')
+      .select('id, type, title, message, priority, data, timestamp, read, user_id, room')
+      .eq('user_id', userId)
+      .order('timestamp', { ascending: false })
+      .limit(limit)
 
     if (unreadOnly) {
-      whereConditions.push(`read = false`)
+      notificationsQuery = notificationsQuery.eq('read', false)
     }
 
-    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : ''
+    const { data: notificationsData, error } = await notificationsQuery
+    if (error) throw error
 
-    const notificationsResult = await query(`
-      SELECT 
-        id, type, title, message, priority, data, timestamp, read, user_id, room
-      FROM notifications 
-      ${whereClause}
-      ORDER BY timestamp DESC
-      LIMIT $${paramIndex}
-    `, params)
-
-    const notifications = notificationsResult.rows.map(row => ({
+    const notifications = (notificationsData || []).map(row => ({
       ...row,
       timestamp: new Date(row.timestamp),
-      data: row.data ? JSON.parse(row.data) : null,
+      data: row.data ? (typeof row.data === 'string' ? JSON.parse(row.data) : row.data) : null,
     }))
 
     return NextResponse.json({ notifications })
@@ -73,26 +70,31 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const supabase = getSupabaseServerClient()
+
     // Inserir notificação
-    const result = await query(`
-      INSERT INTO notifications (
-        type, title, message, priority, data, user_id, room, timestamp, read
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), false)
-      RETURNING *
-    `, [
-      type,
-      title,
-      message,
-      priority,
-      data ? JSON.stringify(data) : null,
-      userId,
-      room,
-    ])
+    const { data: notificationData, error } = await supabase
+      .from('notifications')
+      .insert({
+        type,
+        title,
+        message,
+        priority,
+        data: data ? JSON.stringify(data) : null,
+        user_id: userId,
+        room,
+        timestamp: new Date().toISOString(),
+        read: false
+      })
+      .select()
+      .single()
+
+    if (error) throw error
 
     const notification = {
-      ...result.rows[0],
-      timestamp: new Date(result.rows[0].timestamp),
-      data: result.rows[0].data ? JSON.parse(result.rows[0].data) : null,
+      ...notificationData,
+      timestamp: new Date(notificationData.timestamp),
+      data: notificationData.data ? (typeof notificationData.data === 'string' ? JSON.parse(notificationData.data) : notificationData.data) : null,
     }
 
     return NextResponse.json({
@@ -115,16 +117,26 @@ export async function DELETE(request: NextRequest) {
     const body = await request.json()
     const { daysOld = 30 } = body
 
+    const supabase = getSupabaseServerClient()
+
+    // Calcular data limite
+    const cutoffDate = new Date()
+    cutoffDate.setDate(cutoffDate.getDate() - daysOld)
+
     // Deletar notificações mais antigas que o número de dias especificado
-    const result = await query(`
-      DELETE FROM notifications 
-      WHERE timestamp < NOW() - INTERVAL '${daysOld} days'
-      RETURNING id
-    `)
+    const { data: deletedNotifications, error } = await supabase
+      .from('notifications')
+      .delete()
+      .lt('timestamp', cutoffDate.toISOString())
+      .select('id')
+
+    if (error) throw error
+
+    const deletedCount = deletedNotifications?.length || 0
 
     return NextResponse.json({
-      message: `${result.rowCount} notificações antigas removidas`,
-      deletedCount: result.rowCount,
+      message: `${deletedCount} notificações antigas removidas`,
+      deletedCount,
     })
 
   } catch (error: any) {

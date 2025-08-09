@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { createUser, emailExists } from "@/lib/auth"
-import { query } from "@/lib/postgres"
+import { getSupabaseServerClient } from "@/lib/supabase"
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,13 +18,15 @@ export async function POST(request: NextRequest) {
     // Check if admin registration is allowed (default to true if setting doesn't exist)
     let allowRegistration = true
     try {
-      const settingResult = await query(`
-        SELECT setting_value FROM admin_settings 
-        WHERE setting_key = 'allowAdminRegistration'
-      `);
+      const supabase = getSupabaseServerClient()
+      const { data: setting, error } = await supabase
+        .from('admin_settings')
+        .select('setting_value')
+        .eq('setting_key', 'allowAdminRegistration')
+        .single()
       
-      if (settingResult.rows.length > 0) {
-        const value = settingResult.rows[0].setting_value
+      if (!error && setting) {
+        const value = setting.setting_value
         allowRegistration = value === "true" || value === true || value === "enabled"
       }
     } catch (error) {

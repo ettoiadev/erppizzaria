@@ -1,130 +1,77 @@
 import { NextRequest, NextResponse } from "next/server"
-import { query } from '@/lib/postgres'
+import { getSupabaseServerClient } from '@/lib/supabase'
 
 export async function GET(request: NextRequest) {
   try {
-    console.log("[DRIVERS] Iniciando busca de entregadores usando PostgreSQL")
+    console.log("[DRIVERS] Iniciando busca de entregadores usando Supabase")
     
-    // Primeiro, garantir que a tabela drivers existe
-    await query(`
-      CREATE TABLE IF NOT EXISTS public.drivers (
-        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-        name VARCHAR(255) NOT NULL,
-        email VARCHAR(255) UNIQUE NOT NULL,
-        phone VARCHAR(20) NOT NULL,
-        vehicle_type VARCHAR(50) NOT NULL CHECK (vehicle_type IN ('motorcycle', 'bicycle', 'car', 'scooter')),
-        vehicle_plate VARCHAR(20),
-        status VARCHAR(20) DEFAULT 'offline' CHECK (status IN ('available', 'busy', 'offline')),
-        current_location JSONB,
-        total_deliveries INTEGER DEFAULT 0,
-        average_rating DECIMAL(3,2) DEFAULT 0.00,
-        average_delivery_time INTEGER DEFAULT 0,
-        active BOOLEAN DEFAULT TRUE,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        last_active_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-      )
-    `);
-
-    // Criar índices se não existem
-    await query('CREATE INDEX IF NOT EXISTS idx_drivers_status ON drivers(status)');
-    await query('CREATE INDEX IF NOT EXISTS idx_drivers_active ON drivers(active)');
-    await query('CREATE INDEX IF NOT EXISTS idx_drivers_email ON drivers(email)');
-
+    const supabase = getSupabaseServerClient()
     const { searchParams } = new URL(request.url)
     const status = searchParams.get("status")
 
+    console.log(`[DRIVERS] Executando query Supabase com status: ${status}`)
+
     // Construir query com filtros
-    let whereClause = 'WHERE (active IS NULL OR active = true)'
-    const queryParams: any[] = []
+    let driversQuery = supabase
+      .from('drivers')
+      .select('id, name, email, phone, vehicle_type, vehicle_plate, status, current_location, total_deliveries, average_rating, average_delivery_time, created_at, updated_at, last_active_at, active')
+      .or('active.is.null,active.eq.true')
+      .order('name')
 
     // Filtrar por status se especificado
     if (status && status !== "all") {
-      whereClause += ' AND status = $1'
-      queryParams.push(status)
+      driversQuery = driversQuery.eq('status', status)
     }
 
-    console.log(`[DRIVERS] Executando query PostgreSQL com status: ${status}`)
+    const { data: drivers, error } = await driversQuery
+    if (error) throw error
 
-    // Executar query principal
-    const driversResult = await query(`
-      SELECT 
-        id, name, email, phone, vehicle_type, vehicle_plate, 
-        status, current_location, total_deliveries, average_rating, 
-        average_delivery_time, created_at, updated_at, last_active_at, active
-      FROM drivers 
-      ${whereClause}
-      ORDER BY 
-        CASE status 
-          WHEN 'available' THEN 1 
-          WHEN 'busy' THEN 2 
-          WHEN 'offline' THEN 3 
-          ELSE 4 
-        END,
-        name ASC
-    `, queryParams);
-
-    const drivers = driversResult.rows;
-    console.log(`[DRIVERS] Encontrados ${drivers.length} entregadores`)
+    console.log(`[DRIVERS] Encontrados ${drivers?.length || 0} entregadores`)
 
     // Se não há entregadores, criar alguns de exemplo
-    if (drivers.length === 0) {
+    if (!drivers || drivers.length === 0) {
       console.log("[DRIVERS] Criando entregadores de exemplo...")
       
-      await query(`
-        INSERT INTO drivers (name, email, phone, vehicle_type, vehicle_plate, status, total_deliveries, average_rating, average_delivery_time) VALUES
-        ('João Silva', 'joao.silva@entregador.com', '11999999001', 'motorcycle', 'ABC-1234', 'available', 45, 4.8, 25),
-        ('Maria Santos', 'maria.santos@entregador.com', '11999999002', 'bicycle', 'BIC-001', 'busy', 32, 4.9, 18),
-        ('Pedro Oliveira', 'pedro.oliveira@entregador.com', '11999999003', 'motorcycle', 'DEF-5678', 'offline', 67, 4.7, 30),
-        ('Ana Costa', 'ana.costa@entregador.com', '11999999004', 'scooter', 'GHI-9012', 'available', 28, 4.6, 22)
-        ON CONFLICT (email) DO NOTHING
-      `);
+      const sampleDrivers = [
+        { name: 'João Silva', email: 'joao.silva@entregador.com', phone: '11999999001', vehicle_type: 'motorcycle', vehicle_plate: 'ABC-1234', status: 'available', total_deliveries: 45, average_rating: 4.8, average_delivery_time: 25 },
+        { name: 'Maria Santos', email: 'maria.santos@entregador.com', phone: '11999999002', vehicle_type: 'bicycle', vehicle_plate: 'BIC-001', status: 'busy', total_deliveries: 32, average_rating: 4.9, average_delivery_time: 18 },
+        { name: 'Pedro Oliveira', email: 'pedro.oliveira@entregador.com', phone: '11999999003', vehicle_type: 'motorcycle', vehicle_plate: 'DEF-5678', status: 'offline', total_deliveries: 67, average_rating: 4.7, average_delivery_time: 30 },
+        { name: 'Ana Costa', email: 'ana.costa@entregador.com', phone: '11999999004', vehicle_type: 'scooter', vehicle_plate: 'GHI-9012', status: 'available', total_deliveries: 28, average_rating: 4.6, average_delivery_time: 22 }
+      ]
 
-      // Buscar novamente após inserir
-      const newDriversResult = await query(`
-        SELECT 
-          id, name, email, phone, vehicle_type, vehicle_plate, 
-          status, current_location, total_deliveries, average_rating, 
-          average_delivery_time, created_at, updated_at, last_active_at, active
-        FROM drivers 
-        ${whereClause}
-        ORDER BY 
-          CASE status 
-            WHEN 'available' THEN 1 
-            WHEN 'busy' THEN 2 
-            WHEN 'offline' THEN 3 
-            ELSE 4 
-          END,
-          name ASC
-      `, queryParams);
+      const { data: newDrivers, error: insertError } = await supabase
+        .from('drivers')
+        .upsert(sampleDrivers, { onConflict: 'email', ignoreDuplicates: true })
+        .select()
 
-      drivers.push(...newDriversResult.rows);
+      if (insertError) {
+        console.warn("[DRIVERS] Erro ao criar entregadores de exemplo:", insertError)
+      } else {
+        drivers.push(...(newDrivers || []))
+      }
     }
 
     // Buscar pedidos ativos do entregador
     const driversWithOrders = await Promise.all(
-      drivers.map(async (driver: any) => {
+      (drivers || []).map(async (driver: any) => {
         if (driver.status === 'busy') {
           try {
-            // Adicionar coluna driver_id na tabela orders se não existir
-            await query(`
-              ALTER TABLE orders 
-              ADD COLUMN IF NOT EXISTS driver_id UUID REFERENCES drivers(id) ON DELETE SET NULL
-            `);
+            const { data: activeOrders, error: ordersError } = await supabase
+              .from('orders')
+              .select('id, status, total, customer_address, created_at')
+              .eq('driver_id', driver.id)
+              .eq('status', 'ON_THE_WAY')
+              .order('created_at', { ascending: false })
+              .limit(5)
 
-            const ordersResult = await query(`
-              SELECT id, status, total, customer_address, created_at
-              FROM orders 
-              WHERE driver_id = $1 AND status = 'ON_THE_WAY'
-              ORDER BY created_at DESC
-              LIMIT 5
-            `, [driver.id]);
-            
-            const activeOrders = ordersResult.rows;
+            if (ordersError) {
+              console.warn(`[DRIVERS] Erro ao buscar pedidos do entregador ${driver.id}:`, ordersError)
+              return { ...driver, currentOrders: [] }
+            }
 
             return {
               ...driver,
-              currentOrders: activeOrders.map((order: any) => order.id)
+              currentOrders: (activeOrders || []).map((order: any) => order.id)
             }
           } catch (orderError) {
             console.warn(`[DRIVERS] Erro ao buscar pedidos do entregador ${driver.id}:`, orderError)
@@ -136,13 +83,14 @@ export async function GET(request: NextRequest) {
     )
 
     // Calcular estatísticas
+    const driversList = driversWithOrders || []
     const statistics = {
-      total: drivers.length,
-      available: drivers.filter((d: any) => d.status === 'available').length,
-      busy: drivers.filter((d: any) => d.status === 'busy').length,
-      offline: drivers.filter((d: any) => d.status === 'offline').length,
-      averageDeliveryTime: drivers.length > 0 
-        ? Math.round(drivers.reduce((sum: number, d: any) => sum + (d.average_delivery_time || 0), 0) / drivers.length)
+      total: driversList.length,
+      available: driversList.filter((d: any) => d.status === 'available').length,
+      busy: driversList.filter((d: any) => d.status === 'busy').length,
+      offline: driversList.filter((d: any) => d.status === 'offline').length,
+      averageDeliveryTime: driversList.length > 0 
+        ? Math.round(driversList.reduce((sum: number, d: any) => sum + (d.average_delivery_time || 0), 0) / driversList.length)
         : 0
     }
 
@@ -169,6 +117,7 @@ export async function POST(request: NextRequest) {
   try {
     console.log("[DRIVERS] Iniciando criação de entregador")
     
+    const supabase = getSupabaseServerClient()
     const data = await request.json()
     const { name, email, phone, vehicleType, vehiclePlate, currentLocation } = data
 
@@ -181,11 +130,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Verificar se já existe entregador com o mesmo email
-    const existingResult = await query(`
-      SELECT id FROM drivers WHERE email = $1 LIMIT 1
-    `, [email.trim().toLowerCase()]);
+    const { data: existing, error: existingError } = await supabase
+      .from('drivers')
+      .select('id')
+      .eq('email', email.trim().toLowerCase())
+      .single()
 
-    if (existingResult.rows.length > 0) {
+    if (existing) {
       return NextResponse.json({
         error: "Email já cadastrado",
         message: "Já existe um entregador com este email"
@@ -193,24 +144,26 @@ export async function POST(request: NextRequest) {
     }
 
     // Inserir novo entregador
-    const newDriverResult = await query(`
-      INSERT INTO drivers (
-        name, email, phone, vehicle_type, vehicle_plate, 
-        current_location, status, total_deliveries, average_rating, 
-        average_delivery_time, active, created_at, updated_at, last_active_at
-      ) VALUES (
-        $1, $2, $3, $4, $5, $6, 'offline', 0, 0.00, 0, true, NOW(), NOW(), NOW()
-      ) RETURNING *
-    `, [
-      name.trim(),
-      email.trim().toLowerCase(),
-      phone.trim(),
-      vehicleType,
-      vehiclePlate?.trim().toUpperCase() || null,
-      currentLocation ? JSON.stringify(currentLocation) : null
-    ]);
+    const { data: newDriver, error: insertError } = await supabase
+      .from('drivers')
+      .insert({
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        phone: phone.trim(),
+        vehicle_type: vehicleType,
+        vehicle_plate: vehiclePlate?.trim().toUpperCase() || null,
+        current_location: currentLocation || null,
+        status: 'offline',
+        total_deliveries: 0,
+        average_rating: 0.00,
+        average_delivery_time: 0,
+        active: true
+      })
+      .select()
+      .single()
 
-    const newDriver = newDriverResult.rows[0];
+    if (insertError) throw insertError
+
     console.log("[DRIVERS] Entregador criado com sucesso:", newDriver.id)
 
     // Normalizar resposta

@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ 
       success: true,
       settings,
-      count: settingsResult.rows.length
+      count: rows?.length || 0
     })
 
   } catch (error: any) {

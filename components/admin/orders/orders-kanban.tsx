@@ -378,7 +378,7 @@ function OrderCard({
           <div className="flex items-start gap-1 min-w-0">
             <MapPin className="h-3 w-3 mt-0.5 text-gray-500 flex-shrink-0" />
             <p className="text-gray-600 line-clamp-2 min-w-0">
-              {order.customer_address || order.delivery_address || "Endereço não informado"}
+              {(order as any).customer_address || (order as any).delivery_address || "Endereço não informado"}
             </p>
           </div>
         </div>

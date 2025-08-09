@@ -255,7 +255,7 @@ export async function DELETE(
       );
     }
 
-    const existingProduct = existingResult.rows[0];
+    const existingProduct = existing;
 
     // Soft delete - marcar como inativo
     const { error } = await supabase.from('products').update({ active: false, updated_at: new Date().toISOString() }).eq('id', params.id);

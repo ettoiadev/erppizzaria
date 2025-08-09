@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { query } from '@/lib/postgres'
+import { getSupabaseServerClient } from '@/lib/supabase'
 
 export async function PATCH(
   request: NextRequest,
@@ -20,20 +20,22 @@ export async function PATCH(
       )
     }
 
-    // Verificar se o entregador existe e está disponível
-    const driverResult = await query(`
-      SELECT id, name, status FROM drivers 
-      WHERE id = $1 AND (active IS NULL OR active = true)
-    `, [driverId]);
+    const supabase = getSupabaseServerClient()
 
-    if (driverResult.rows.length === 0) {
+    // Verificar se o entregador existe e está disponível
+    const { data: driver, error: driverError } = await supabase
+      .from('drivers')
+      .select('id, name, status')
+      .eq('id', driverId)
+      .or('active.is.null,active.eq.true')
+      .single()
+
+    if (driverError || !driver) {
       return NextResponse.json(
         { error: "Entregador não encontrado" },
         { status: 404 }
       )
     }
-
-    const driver = driverResult.rows[0];
 
     if (driver.status !== 'available') {
       return NextResponse.json(
@@ -43,19 +45,18 @@ export async function PATCH(
     }
 
     // Verificar se o pedido existe e está em preparo
-    const orderResult = await query(`
-      SELECT id, status, driver_id, customer_address FROM orders 
-      WHERE id = $1
-    `, [orderId]);
+    const { data: order, error: orderError } = await supabase
+      .from('orders')
+      .select('id, status, driver_id, customer_address')
+      .eq('id', orderId)
+      .single()
 
-    if (orderResult.rows.length === 0) {
+    if (orderError || !order) {
       return NextResponse.json(
         { error: "Pedido não encontrado" },
         { status: 404 }
       )
     }
-
-    const order = orderResult.rows[0];
 
     if (order.status !== 'PREPARING' && order.status !== 'READY') {
       return NextResponse.json(
@@ -64,47 +65,49 @@ export async function PATCH(
       )
     }
 
-    // Usar transação para garantir consistência
+    // Usar transação Supabase para garantir consistência
     try {
-      // Iniciar transação
-      await query('BEGIN');
-
       // 1. Atualizar o pedido com o entregador e mudar status para ON_THE_WAY
-      const updatedOrderResult = await query(`
-        UPDATE orders 
-        SET 
-          driver_id = $1,
-          status = 'ON_THE_WAY',
-          updated_at = NOW()
-        WHERE id = $2
-        RETURNING id, status, total, customer_address, driver_id, created_at, updated_at
-      `, [driverId, orderId]);
+      const { data: updatedOrder, error: orderUpdateError } = await supabase
+        .from('orders')
+        .update({
+          driver_id: driverId,
+          status: 'ON_THE_WAY',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', orderId)
+        .select('id, status, total, customer_address, driver_id, created_at, updated_at')
+        .single()
 
-      if (updatedOrderResult.rows.length === 0) {
-        throw new Error('Falha ao atualizar pedido');
+      if (orderUpdateError || !updatedOrder) {
+        throw new Error('Falha ao atualizar pedido: ' + orderUpdateError?.message)
       }
-
-      const updatedOrder = updatedOrderResult.rows[0];
 
       // 2. Atualizar status do entregador para busy
-      const updatedDriverResult = await query(`
-        UPDATE drivers 
-        SET 
-          status = 'busy',
-          last_active_at = NOW(),
-          updated_at = NOW()
-        WHERE id = $1
-        RETURNING id, name, status
-      `, [driverId]);
+      const { data: updatedDriver, error: driverUpdateError } = await supabase
+        .from('drivers')
+        .update({
+          status: 'busy',
+          last_active_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', driverId)
+        .select('id, name, status')
+        .single()
 
-      if (updatedDriverResult.rows.length === 0) {
-        throw new Error('Falha ao atualizar entregador');
+      if (driverUpdateError || !updatedDriver) {
+        // Tentar reverter o pedido se o driver falhou
+        await supabase
+          .from('orders')
+          .update({
+            driver_id: null,
+            status: order.status, // voltar ao status anterior
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', orderId)
+        
+        throw new Error('Falha ao atualizar entregador: ' + driverUpdateError?.message)
       }
-
-      const updatedDriver = updatedDriverResult.rows[0];
-
-      // Confirmar transação
-      await query('COMMIT');
 
       console.log("Entregador atribuído com sucesso:", {
         order: updatedOrder,
@@ -118,9 +121,7 @@ export async function PATCH(
       })
 
     } catch (transactionError) {
-      // Reverter transação em caso de erro
-      await query('ROLLBACK');
-      console.error("Erro na transação de atribuição:", transactionError);
+      console.error("Erro na operação de atribuição:", transactionError);
       throw transactionError;
     }
 

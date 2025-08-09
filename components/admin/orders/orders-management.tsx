@@ -395,7 +395,7 @@ export function OrdersManagement() {
       if (result.success) {
         toast({
           title: "Impressão Térmica",
-          description: `Pedido #${order.order_number || order.id.slice(-8)} impresso na Bematech MP-4200 TH`,
+          description: `Pedido #${(order as any).order_number || order.id.slice(-8)} impresso na Bematech MP-4200 TH`,
         })
       } else {
         toast({
@@ -535,7 +535,7 @@ export function OrdersManagement() {
         <div class="header">
           <div style="font-weight: bold; font-size: 14px;">WILLIAM DISK PIZZA</div>
           <div style="font-size: 10px;">PEDIDO PARA COZINHA</div>
-                          <div class="order-number">PEDIDO #${order.order_number || order.id.slice(-8)}</div>
+                          <div class="order-number">PEDIDO #${(order as any).order_number || order.id.slice(-8)}</div>
           <div class="status">${statusLabels[order.status]}</div>
         </div>
 
@@ -548,8 +548,8 @@ export function OrdersManagement() {
 
         <div class="section">
           <div class="section-title">CLIENTE</div>
-          <div class="customer-info">Cliente: ${order.customer_code ? `[${order.customer_code}] ` : ""}${order.customer_display_name || order.profiles?.full_name || order.customer_name || 'N/A'}</div>
-          <div class="customer-info">Fone: ${order.customer_display_phone || order.delivery_phone || order.profiles?.phone || 'N/A'}</div>
+          <div class="customer-info">Cliente: ${(order as any).customer_code ? `[${(order as any).customer_code}] ` : ""}${(order as any).customer_display_name || (order as any).profiles?.full_name || (order as any).customer_name || 'N/A'}</div>
+          <div class="customer-info">Fone: ${(order as any).customer_display_phone || (order as any).delivery_phone || (order as any).profiles?.phone || 'N/A'}</div>
         </div>
 
         <div class="section">
@@ -636,7 +636,7 @@ export function OrdersManagement() {
 
     toast({
       title: "Imprimindo via Navegador",
-              description: `Pedido #${order.order_number || order.id.slice(-8)} enviado para impressão`,
+              description: `Pedido #${(order as any).order_number || order.id.slice(-8)} enviado para impressão`,
     })
   }
 

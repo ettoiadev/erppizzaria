@@ -1,20 +1,39 @@
 import { NextResponse } from "next/server"
-import { query } from '@/lib/postgres'
+import { getSupabaseServerClient } from '@/lib/supabase'
 
 export async function GET() {
   try {
+    const supabase = getSupabaseServerClient()
+    
     // Buscar o próximo código sequencial disponível
     // Considerar apenas clientes ativos (active = true ou NULL)
-    const nextCodeResult = await query(`
-      SELECT COALESCE(MAX(CAST(customer_code AS INTEGER)), 0) + 1 as next_code
-      FROM profiles 
-      WHERE role = 'customer' 
-      AND customer_code IS NOT NULL 
-      AND customer_code ~ '^[0-9]+$'
-      AND (active = true OR active IS NULL)
-    `)
+    const { data: customers, error } = await supabase
+      .from('profiles')
+      .select('customer_code')
+      .eq('role', 'customer')
+      .not('customer_code', 'is', null)
+      .or('active.is.null,active.eq.true')
     
-    const nextNumber = nextCodeResult.rows[0]?.next_code || 1
+    if (error) {
+      console.error('[CUSTOMERS] Erro ao buscar códigos:', error)
+      throw error
+    }
+
+    // Filtrar apenas códigos numéricos e encontrar o máximo
+    let maxCode = 0
+    if (customers && customers.length > 0) {
+      for (const customer of customers) {
+        const code = customer.customer_code
+        if (code && /^[0-9]+$/.test(code)) {
+          const numericCode = parseInt(code, 10)
+          if (numericCode > maxCode) {
+            maxCode = numericCode
+          }
+        }
+      }
+    }
+    
+    const nextNumber = maxCode + 1
     const formattedCode = nextNumber.toString().padStart(4, '0')
 
     console.log(`[CUSTOMERS] Próximo código sequencial: ${formattedCode}`)

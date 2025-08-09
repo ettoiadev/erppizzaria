@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { updateOrderStatus } from '@/lib/db-supabase'
+import { updateOrderStatus, getOrderById } from '@/lib/db-supabase'
 import { emitRealtimeEvent, EVENT_ORDER_STATUS_UPDATED } from '@/lib/realtime'
 
 export async function PATCH(
@@ -23,7 +23,14 @@ export async function PATCH(
       )
     }
 
-    // Como não dependemos mais de SQL direto, tentamos atualizar e, se falhar, tratamos
+    // Buscar pedido atual para validar transição de status
+    const currentOrder = await getOrderById(orderId)
+    if (!currentOrder) {
+      return NextResponse.json(
+        { error: "Pedido não encontrado" },
+        { status: 404 }
+      )
+    }
 
     // Validar transição de status
     const statusOrder = ['RECEIVED', 'PREPARING', 'READY', 'ON_THE_WAY', 'DELIVERED']

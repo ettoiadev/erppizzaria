@@ -1468,7 +1468,7 @@ function AdminProductModal({
         
         console.log('🍕 [ADMIN] Pizzas disponíveis carregadas:', pizzas.length)
         console.log('🍕 [ADMIN] Produto atual:', product.name)
-        console.log('🍕 [ADMIN] Lista de pizzas:', pizzas.map(p => p.name))
+        console.log('🍕 [ADMIN] Lista de pizzas:', pizzas.map((p: any) => p.name))
         
         setAvailablePizzas(pizzas)
       } else {

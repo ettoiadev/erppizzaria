@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    console.log(`[DELIVERY_REPORT] Encontrados ${drivers.length} entregadores`)
+    console.log(`[DELIVERY_REPORT] Encontrados ${drivers?.length || 0} entregadores`)
     console.log(`[DELIVERY_REPORT] Encontradas ${deliveries.length} entregas entregues`)
     console.log(`[DELIVERY_REPORT] Filtros aplicados: startDate=${startDate}, endDate=${endDate}, driverId=${driverId}`)
 
@@ -126,7 +126,7 @@ export async function GET(request: NextRequest) {
       success: true,
       data: {
         deliveriesByDriver: reportData,
-        allDrivers: drivers,
+        allDrivers: drivers || [],
         summary: {
           totalDeliveries: deliveries.length,
           totalDrivers: Object.keys(deliveriesByDriver).length,

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { query } from '@/lib/postgres'
+import { getSupabaseServerClient } from '@/lib/supabase'
 
 export async function GET(
   request: NextRequest,
@@ -8,38 +8,38 @@ export async function GET(
   try {
     console.log(`[DRIVERS] Buscando entregador ID: ${params.id}`)
 
-    // Buscar entregador por ID usando PostgreSQL
-    const driverResult = await query(`
-      SELECT 
-        id, name, email, phone, vehicle_type, vehicle_plate, 
-        status, current_location, total_deliveries, average_rating, 
-        average_delivery_time, created_at, updated_at, last_active_at, active
-      FROM drivers 
-      WHERE id = $1 AND (active IS NULL OR active = true)
-    `, [params.id]);
+    const supabase = getSupabaseServerClient()
 
-    if (driverResult.rows.length === 0) {
-      console.error(`[DRIVERS] Entregador não encontrado: ${params.id}`)
+    // Buscar entregador por ID usando Supabase
+    const { data: driver, error } = await supabase
+      .from('drivers')
+      .select('id, name, email, phone, vehicle_type, vehicle_plate, status, current_location, total_deliveries, average_rating, average_delivery_time, created_at, updated_at, last_active_at, active')
+      .eq('id', params.id)
+      .or('active.is.null,active.eq.true')
+      .single()
+
+    if (error || !driver) {
+      console.error(`[DRIVERS] Entregador não encontrado: ${params.id}`, error)
       return NextResponse.json({
         error: "Entregador não encontrado",
         message: `Não existe entregador com ID ${params.id}`
       }, { status: 404 })
     }
 
-    const driver = driverResult.rows[0];
-
     // Buscar pedidos ativos do entregador se estiver ocupado
     let currentOrders = []
     if (driver.status === 'busy') {
       try {
-        const ordersResult = await query(`
-          SELECT id, status, total, customer_address, created_at
-          FROM orders 
-          WHERE driver_id = $1 AND status = 'ON_THE_WAY'
-          ORDER BY created_at DESC
-        `, [driver.id]);
+        const { data: orders, error: ordersError } = await supabase
+          .from('orders')
+          .select('id, status, total, customer_address, created_at')
+          .eq('driver_id', driver.id)
+          .eq('status', 'ON_THE_WAY')
+          .order('created_at', { ascending: false })
 
-        currentOrders = ordersResult.rows.map((order: any) => order.id)
+        if (!ordersError && orders) {
+          currentOrders = orders.map((order: any) => order.id)
+        }
       } catch (orderError) {
         console.warn(`[DRIVERS] Erro ao buscar pedidos do entregador ${driver.id}:`, orderError)
       }
@@ -69,15 +69,19 @@ export async function PATCH(
   try {
     console.log(`[DRIVERS] Atualizando entregador ID: ${params.id}`)
     
+    const supabase = getSupabaseServerClient()
     const data = await request.json()
     const { name, email, phone, vehicleType, vehiclePlate, status, currentLocation } = data
 
     // Verificar se o entregador existe
-    const existingResult = await query(`
-      SELECT id FROM drivers WHERE id = $1 AND (active IS NULL OR active = true)
-    `, [params.id]);
+    const { data: existing, error: existingError } = await supabase
+      .from('drivers')
+      .select('id')
+      .eq('id', params.id)
+      .or('active.is.null,active.eq.true')
+      .single()
 
-    if (existingResult.rows.length === 0) {
+    if (existingError || !existing) {
       return NextResponse.json({
         error: "Entregador não encontrado",
         message: `Não existe entregador com ID ${params.id}`
@@ -85,89 +89,72 @@ export async function PATCH(
     }
 
     // Preparar campos para atualização
-    const updateFields = []
-    const updateValues = []
-    let paramIndex = 1
+    const updateData: any = {}
 
     if (name !== undefined) {
-      updateFields.push(`name = $${paramIndex}`)
-      updateValues.push(name.trim())
-      paramIndex++
+      updateData.name = name.trim()
     }
 
     if (email !== undefined) {
       // Verificar se email já existe em outro entregador
-      const emailCheckResult = await query(`
-        SELECT id FROM drivers WHERE email = $1 AND id != $2
-      `, [email.trim().toLowerCase(), params.id]);
+      const { data: emailCheck, error: emailError } = await supabase
+        .from('drivers')
+        .select('id')
+        .eq('email', email.trim().toLowerCase())
+        .neq('id', params.id)
+        .single()
 
-      if (emailCheckResult.rows.length > 0) {
+      if (emailCheck) {
         return NextResponse.json({
           error: "Email já cadastrado",
           message: "Este email já está sendo usado por outro entregador"
         }, { status: 400 })
       }
 
-      updateFields.push(`email = $${paramIndex}`)
-      updateValues.push(email.trim().toLowerCase())
-      paramIndex++
+      updateData.email = email.trim().toLowerCase()
     }
 
     if (phone !== undefined) {
-      updateFields.push(`phone = $${paramIndex}`)
-      updateValues.push(phone.trim())
-      paramIndex++
+      updateData.phone = phone.trim()
     }
 
     if (vehicleType !== undefined) {
-      updateFields.push(`vehicle_type = $${paramIndex}`)
-      updateValues.push(vehicleType)
-      paramIndex++
+      updateData.vehicle_type = vehicleType
     }
 
     if (vehiclePlate !== undefined) {
-      updateFields.push(`vehicle_plate = $${paramIndex}`)
-      updateValues.push(vehiclePlate?.trim().toUpperCase() || null)
-      paramIndex++
+      updateData.vehicle_plate = vehiclePlate?.trim().toUpperCase() || null
     }
 
     if (status !== undefined) {
-      updateFields.push(`status = $${paramIndex}`)
-      updateValues.push(status)
-      paramIndex++
-
-      // Atualizar last_active_at quando status muda
-      updateFields.push(`last_active_at = NOW()`)
+      updateData.status = status
+      updateData.last_active_at = new Date().toISOString()
     }
 
     if (currentLocation !== undefined) {
-      updateFields.push(`current_location = $${paramIndex}`)
-      updateValues.push(currentLocation ? JSON.stringify(currentLocation) : null)
-      paramIndex++
+      updateData.current_location = currentLocation || null
     }
 
     // Sempre atualizar updated_at
-    updateFields.push(`updated_at = NOW()`)
+    updateData.updated_at = new Date().toISOString()
 
-    if (updateFields.length === 1) { // Apenas updated_at
+    if (Object.keys(updateData).length === 1) { // Apenas updated_at
       return NextResponse.json({
         error: "Nenhum campo para atualizar",
         message: "Forneça pelo menos um campo para atualização"
       }, { status: 400 })
     }
 
-    // Adicionar ID no final dos parâmetros
-    updateValues.push(params.id)
-
     // Executar atualização
-    const updateResult = await query(`
-      UPDATE drivers 
-      SET ${updateFields.join(', ')}
-      WHERE id = $${paramIndex}
-      RETURNING *
-    `, updateValues);
+    const { data: updatedDriver, error: updateError } = await supabase
+      .from('drivers')
+      .update(updateData)
+      .eq('id', params.id)
+      .select()
+      .single()
 
-    const updatedDriver = updateResult.rows[0];
+    if (updateError) throw updateError
+
     console.log(`[DRIVERS] Entregador ${params.id} atualizado com sucesso`)
 
     return NextResponse.json({
@@ -193,19 +180,21 @@ export async function DELETE(
   try {
     console.log(`[DRIVERS] Removendo entregador ID: ${params.id}`)
 
-    // Verificar se o entregador existe
-    const existingResult = await query(`
-      SELECT id, name, status FROM drivers WHERE id = $1
-    `, [params.id]);
+    const supabase = getSupabaseServerClient()
 
-    if (existingResult.rows.length === 0) {
+    // Verificar se o entregador existe
+    const { data: driver, error: existingError } = await supabase
+      .from('drivers')
+      .select('id, name, status')
+      .eq('id', params.id)
+      .single()
+
+    if (existingError || !driver) {
       return NextResponse.json({
         error: "Entregador não encontrado",
         message: `Não existe entregador com ID ${params.id}`
       }, { status: 404 })
     }
-
-    const driver = existingResult.rows[0];
 
     // Verificar se o entregador está ocupado
     if (driver.status === 'busy') {
@@ -216,11 +205,12 @@ export async function DELETE(
     }
 
     // Soft delete - marcar como inativo
-    await query(`
-      UPDATE drivers 
-      SET active = false, updated_at = NOW()
-      WHERE id = $1
-    `, [params.id]);
+    const { error: deleteError } = await supabase
+      .from('drivers')
+      .update({ active: false, updated_at: new Date().toISOString() })
+      .eq('id', params.id)
+
+    if (deleteError) throw deleteError
 
     console.log(`[DRIVERS] Entregador ${driver.name} marcado como inativo`)
 

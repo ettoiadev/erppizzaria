@@ -57,6 +57,9 @@ export async function GET(request: NextRequest) {
     // Teste 9: Verificar índices importantes
     const indexesTest = { rows: [] as any[] };
 
+    // Teste de conexão (sempre sucesso se chegou até aqui)
+    const connectionTest = { success: true };
+
     // Análise dos resultados
     const analysis = {
       connection: connectionTest.success,

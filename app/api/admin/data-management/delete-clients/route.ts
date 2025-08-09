@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { query } from '@/lib/postgres'
+import { getSupabaseServerClient } from '@/lib/supabase'
 import { verifyAdmin } from '@/lib/auth'
 
 export async function DELETE(request: NextRequest) {
@@ -27,35 +27,28 @@ export async function DELETE(request: NextRequest) {
 
     console.log('[DELETE_CLIENTS] Admin verificado:', admin.email)
 
-    // Teste 1: Verificar se a tabela profiles existe
-    console.log('[DELETE_CLIENTS] Verificando se a tabela profiles existe...')
-    const tableExists = await query(`
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_name = 'profiles'
-      ) as exists
-    `)
+    const supabase = getSupabaseServerClient()
     
-    if (!tableExists.rows[0].exists) {
-      console.log('[DELETE_CLIENTS] Tabela profiles não existe')
-      return NextResponse.json({ 
-        error: 'Tabela profiles não existe',
-        message: 'A tabela de perfis não foi encontrada no banco de dados'
-      }, { status: 500 })
-    }
-
-    console.log('[DELETE_CLIENTS] Tabela profiles existe')
+    console.log('[DELETE_CLIENTS] Verificando se a tabela profiles existe...')
 
     // Teste 2: Verificar se há clientes
     console.log('[DELETE_CLIENTS] Contando clientes...')
-    const countResult = await query(`
-      SELECT COUNT(*) as count FROM profiles WHERE role = 'customer'
-    `)
-    const totalClients = parseInt(countResult.rows[0].count)
+    const { count: totalClients, error: countError } = await supabase
+      .from('profiles')
+      .select('*', { count: 'exact', head: true })
+      .eq('role', 'customer')
+    
+    if (countError) {
+      console.error('[DELETE_CLIENTS] Erro ao contar clientes:', countError)
+      return NextResponse.json({ 
+        error: 'Erro ao contar clientes',
+        details: countError.message
+      }, { status: 500 })
+    }
 
-    console.log(`[DELETE_CLIENTS] Encontrados ${totalClients} clientes`)
+    console.log(`[DELETE_CLIENTS] Encontrados ${totalClients || 0} clientes`)
 
-    if (totalClients === 0) {
+    if (!totalClients || totalClients === 0) {
       console.log('[DELETE_CLIENTS] Nenhum cliente encontrado para deletar')
       return NextResponse.json({ 
         success: true,
@@ -64,68 +57,92 @@ export async function DELETE(request: NextRequest) {
       })
     }
 
-    // Teste 3: Verificar se as tabelas relacionadas existem
-    console.log('[DELETE_CLIENTS] Verificando tabelas relacionadas...')
+    // Buscar IDs dos clientes para deletar dados relacionados
+    console.log('[DELETE_CLIENTS] Buscando IDs dos clientes...')
+    const { data: customers, error: customersError } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('role', 'customer')
     
-    const customerAddressesExists = await query(`
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_name = 'customer_addresses'
-      ) as exists
-    `)
-    
-    const userCouponsExists = await query(`
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_name = 'user_coupons'
-      ) as exists
-    `)
-
-    console.log('[DELETE_CLIENTS] customer_addresses existe:', customerAddressesExists.rows[0].exists)
-    console.log('[DELETE_CLIENTS] user_coupons existe:', userCouponsExists.rows[0].exists)
-
-    // Deletar endereços dos clientes se a tabela existir
-    if (customerAddressesExists.rows[0].exists) {
-      console.log('[DELETE_CLIENTS] Deletando endereços dos clientes...')
-      await query(`
-        DELETE FROM customer_addresses 
-        WHERE user_id IN (SELECT id FROM profiles WHERE role = 'customer')
-      `)
+    if (customersError) {
+      console.error('[DELETE_CLIENTS] Erro ao buscar clientes:', customersError)
+      return NextResponse.json({ 
+        error: 'Erro ao buscar clientes',
+        details: customersError.message
+      }, { status: 500 })
     }
 
-    // Deletar cupons dos usuários se a tabela existir
-    if (userCouponsExists.rows[0].exists) {
+    const customerIds = customers?.map(c => c.id) || []
+    
+    // Deletar endereços dos clientes
+    if (customerIds.length > 0) {
+      console.log('[DELETE_CLIENTS] Deletando endereços dos clientes...')
+      const { error: addressesError } = await supabase
+        .from('customer_addresses')
+        .delete()
+        .in('user_id', customerIds)
+      
+      if (addressesError) {
+        console.warn('[DELETE_CLIENTS] Erro ao deletar endereços (tabela pode não existir):', addressesError.message)
+      }
+
+      // Deletar cupons dos usuários
       console.log('[DELETE_CLIENTS] Deletando cupons dos usuários...')
-      await query(`
-        DELETE FROM user_coupons 
-        WHERE user_id IN (SELECT id FROM profiles WHERE role = 'customer')
-      `)
+      const { error: couponsError } = await supabase
+        .from('user_coupons')
+        .delete()
+        .in('user_id', customerIds)
+      
+      if (couponsError) {
+        console.warn('[DELETE_CLIENTS] Erro ao deletar cupons (tabela pode não existir):', couponsError.message)
+      }
     }
 
     // Verificar se há pedidos associados aos clientes
     console.log('[DELETE_CLIENTS] Verificando pedidos associados...')
-    const ordersResult = await query(`
-      SELECT COUNT(*) as count FROM orders 
-      WHERE user_id IN (SELECT id FROM profiles WHERE role = 'customer')
-    `)
-    const totalOrders = parseInt(ordersResult.rows[0].count)
+    const { count: totalOrders, error: ordersError } = await supabase
+      .from('orders')
+      .select('*', { count: 'exact', head: true })
+      .in('user_id', customerIds)
+    
+    if (ordersError) {
+      console.warn('[DELETE_CLIENTS] Erro ao contar pedidos (pode não existir):', ordersError.message)
+    }
 
     let message = ''
 
-    if (totalOrders > 0) {
+    if (totalOrders && totalOrders > 0) {
       // Se há pedidos, não deletar os clientes, apenas desativar
       console.log(`[DELETE_CLIENTS] ${totalOrders} pedidos encontrados, desativando clientes...`)
-      await query(`
-        UPDATE profiles 
-        SET active = false, email = CONCAT(email, '_deleted_', EXTRACT(epoch FROM NOW())), updated_at = NOW()
-        WHERE role = 'customer'
-      `)
+      
+      const timestamp = Math.floor(Date.now() / 1000)
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ 
+          active: false,
+          updated_at: new Date().toISOString()
+        })
+        .eq('role', 'customer')
+      
+      if (updateError) {
+        throw new Error('Erro ao desativar clientes: ' + updateError.message)
+      }
+      
       message = `${totalClients} clientes desativados (possuem pedidos associados)`
       console.log(`[DELETE_CLIENTS] ${message}`)
     } else {
       // Se não há pedidos, deletar completamente
       console.log('[DELETE_CLIENTS] Nenhum pedido encontrado, deletando clientes completamente...')
-      await query(`DELETE FROM profiles WHERE role = 'customer'`)
+      
+      const { error: deleteError } = await supabase
+        .from('profiles')
+        .delete()
+        .eq('role', 'customer')
+      
+      if (deleteError) {
+        throw new Error('Erro ao deletar clientes: ' + deleteError.message)
+      }
+      
       message = `${totalClients} clientes deletados completamente`
       console.log(`[DELETE_CLIENTS] ${message}`)
     }
