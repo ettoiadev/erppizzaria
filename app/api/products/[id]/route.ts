@@ -163,7 +163,6 @@ export async function PATCH(
       category_id: 'category_id',
       categoryId: 'category_id',
       image: 'image',
-      image: 'image',
       available: 'active',
       active: 'active',
       sizes: 'sizes',
