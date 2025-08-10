@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
     
     const token = jwt.sign(
       { 
-        userId: user.id, 
+        id: user.id, 
         email: user.email,
         role: user.role || 'customer'
       },

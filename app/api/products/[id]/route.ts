@@ -26,7 +26,7 @@ export async function GET(
     const supabase = getSupabaseServerClient();
     const { data, error } = await supabase
       .from('products')
-      .select('id, name, description, price, category_id, image_url, active, has_sizes, has_toppings, preparation_time, sort_order, created_at, updated_at, categories:category_id(name)')
+      .select('id, name, description, price, category_id, image, active, has_sizes, has_toppings, preparation_time, sort_order, created_at, updated_at, categories:category_id(name)')
       .eq('id', params.id)
       .maybeSingle();
     if (error) throw error;
@@ -107,7 +107,7 @@ export async function PUT(
       description: description?.trim() || '',
       price,
       category_id: finalCategoryId,
-      image_url: image || null,
+      image: image || null,
       active: available !== false,
       updated_at: new Date().toISOString(),
     };
@@ -115,7 +115,7 @@ export async function PUT(
       .from('products')
       .update(updates)
       .eq('id', params.id)
-      .select('id, name, description, price, category_id, image_url, active, has_sizes, has_toppings, preparation_time, sort_order, created_at, updated_at')
+      .select('id, name, description, price, category_id, image, active, has_sizes, has_toppings, preparation_time, sort_order, created_at, updated_at')
       .single();
     if (updateErr) throw updateErr;
 
@@ -155,34 +155,36 @@ export async function PATCH(
     
     const body = await request.json();
     
-    // Preparar campos para atualização
-    const updateFields = []
-    const updateValues = []
-    let paramIndex = 1
-
+    // Mapeamento de campos permitidos
     const allowedFields = {
       name: 'name',
       description: 'description', 
       price: 'price',
       category_id: 'category_id',
       categoryId: 'category_id',
-      image: 'image_url',
+      image: 'image',
+      image: 'image',
       available: 'active',
-      showImage: null, // Ignorar por enquanto
-      sizes: null, // Ignorar por enquanto
-      toppings: null // Ignorar por enquanto
+      active: 'active',
+      sizes: 'sizes',
+      toppings: 'toppings',
+      show_image: 'show_image',
+      product_number: 'product_number'
     };
+
+    // Construir objeto de atualização
+    const updates: any = {};
+    let hasValidFields = false;
 
     Object.entries(body).forEach(([key, value]) => {
       const dbField = allowedFields[key as keyof typeof allowedFields];
-      if (dbField) {
-        updateFields.push(`${dbField} = $${paramIndex}`);
-        updateValues.push(value);
-        paramIndex++;
+      if (dbField && value !== undefined) {
+        updates[dbField] = value;
+        hasValidFields = true;
       }
     });
 
-    if (updateFields.length === 0) {
+    if (!hasValidFields) {
       return NextResponse.json(
         { error: "Nenhum campo válido para atualização" },
         { status: 400 }
@@ -190,35 +192,52 @@ export async function PATCH(
     }
 
     // Sempre atualizar updated_at
-    updateFields.push(`updated_at = NOW()`);
-
-    // Adicionar ID no final
-    updateValues.push(params.id);
+    updates.updated_at = new Date().toISOString();
 
     const supabase = getSupabaseServerClient();
-    const updates: any = {};
-    for (let i = 0; i < updateFields.length; i++) {
-      const key = updateFields[i].split('=')[0].trim();
-      updates[key.replace('image_url', 'image_url')] = updateValues[i];
+    
+    // Verificar se o produto existe
+    const { data: existingProduct, error: existsError } = await supabase
+      .from('products')
+      .select('id')
+      .eq('id', params.id)
+      .maybeSingle();
+    
+    if (existsError) throw existsError;
+    
+    if (!existingProduct) {
+      return NextResponse.json(
+        { error: "Produto não encontrado" },
+        { status: 404 }
+      );
     }
-    updates.updated_at = new Date().toISOString();
-    const { data: updatedProduct, error: updErr } = await supabase
+
+    // Atualizar o produto
+    const { data: updatedProduct, error: updateError } = await supabase
       .from('products')
       .update(updates)
       .eq('id', params.id)
-      .select('id, name, description, price, category_id, image_url, active, has_sizes, has_toppings, preparation_time, sort_order, created_at, updated_at')
+      .select('id, name, description, price, category_id, image, active, sizes, toppings, available, show_image, product_number, created_at, updated_at')
       .single();
-    if (updErr) throw updErr;
-    const { data: categoryRow2 } = await supabase.from('categories').select('name').eq('id', updatedProduct.category_id).maybeSingle();
+    
+    if (updateError) throw updateError;
+
+    // Buscar nome da categoria
+    const { data: categoryData } = await supabase
+      .from('categories')
+      .select('name')
+      .eq('id', updatedProduct.category_id)
+      .maybeSingle();
 
     const normalizedProduct = {
       ...updatedProduct,
       categoryId: updatedProduct.category_id,
-      category_name: categoryRow2?.name || "",
-      available: Boolean(updatedProduct.active),
-      showImage: true,
-      sizes: [],
-      toppings: []
+      category_name: categoryData?.name || "",
+      image: updatedProduct.image,
+      available: Boolean(updatedProduct.active || updatedProduct.available),
+      showImage: Boolean(updatedProduct.show_image ?? true),
+      sizes: updatedProduct.sizes || [],
+      toppings: updatedProduct.toppings || []
     };
 
     return NextResponse.json({ product: normalizedProduct });

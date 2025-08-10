@@ -101,8 +101,14 @@ export async function verifyAdmin(token: string): Promise<any> {
       return null;
     }
 
-    console.log('✅ Admin verificado:', payload.email);
-    return payload;
+    // Normalizar o payload para usar 'id' consistentemente
+    const normalizedPayload = {
+      ...payload,
+      id: payload.id || payload.userId // Aceitar tanto 'id' quanto 'userId'
+    };
+
+    console.log('✅ Admin verificado:', normalizedPayload.email);
+    return normalizedPayload;
   } catch (error: any) {
     console.error('❌ Erro ao verificar admin:', error.message);
     return null;
@@ -165,4 +171,4 @@ export async function authenticateUser(email: string, password: string): Promise
     console.error('❌ Erro na autenticação:', error.message);
     return null;
   }
-} 
+}
