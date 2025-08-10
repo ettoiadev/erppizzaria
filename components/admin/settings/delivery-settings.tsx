@@ -85,7 +85,7 @@ export function DeliverySettings({ settings: initialSettings, onSave }: Delivery
             </div>
             <Switch
               id="deliveryEnabled"
-              checked={settings.deliveryEnabled}
+              checked={Boolean(settings.deliveryEnabled)}
               onCheckedChange={(checked) => handleInputChange("deliveryEnabled", checked)}
             />
           </div>
@@ -99,7 +99,7 @@ export function DeliverySettings({ settings: initialSettings, onSave }: Delivery
             </div>
             <Switch
               id="freeDeliveryEnabled"
-              checked={settings.freeDeliveryEnabled}
+              checked={Boolean(settings.freeDeliveryEnabled)}
               onCheckedChange={(checked) => handleInputChange("freeDeliveryEnabled", checked)}
             />
           </div>

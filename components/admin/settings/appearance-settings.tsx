@@ -456,7 +456,7 @@ export function AppearanceSettings({ settings: initialSettings, onSave, onMarkUn
             </div>
             <Switch
               id="showBranding"
-              checked={settings.showBranding}
+              checked={Boolean(settings.showBranding)}
               onCheckedChange={(checked) => handleInputChange("showBranding", checked)}
             />
           </div>
@@ -663,7 +663,7 @@ export function AppearanceSettings({ settings: initialSettings, onSave, onMarkUn
                 </Label>
                 <Switch
                   id="showTeamSection"
-                  checked={settings.showTeamSection}
+                  checked={Boolean(settings.showTeamSection)}
                   onCheckedChange={(checked) => handleInputChange("showTeamSection", checked)}
                 />
               </div>

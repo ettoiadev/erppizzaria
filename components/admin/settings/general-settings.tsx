@@ -482,7 +482,7 @@ export function GeneralSettings({ settings: initialSettings, onSave, onMarkUnsav
             </div>
             <Switch
               id="isOpen"
-              checked={settings.isOpen || false}
+              checked={Boolean(settings.isOpen)}
               onCheckedChange={(checked) => handleInputChange("isOpen", checked)}
             />
           </div>
@@ -494,7 +494,7 @@ export function GeneralSettings({ settings: initialSettings, onSave, onMarkUnsav
             </div>
             <Switch
               id="acceptOrders"
-              checked={settings.acceptOrders || false}
+              checked={Boolean(settings.acceptOrders)}
               onCheckedChange={(checked) => handleInputChange("acceptOrders", checked)}
             />
           </div>

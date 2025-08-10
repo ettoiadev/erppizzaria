@@ -298,7 +298,7 @@ export function ProductsManagement() {
               <div className="text-xl font-bold text-primary">{formatCurrency(product.price)}</div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
-                  <Switch checked={product.available} onCheckedChange={() => toggleProductAvailability(product.id)} disabled={loading} />
+                  <Switch checked={Boolean(product.available)} onCheckedChange={() => toggleProductAvailability(product.id)} disabled={loading} />
                   <span className="text-sm">Disponível</span>
                 </div>
                 <div className="flex gap-2">
@@ -324,4 +324,4 @@ export function ProductsManagement() {
       />
     </div>
   )
-} 
+}

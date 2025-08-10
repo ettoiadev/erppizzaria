@@ -68,7 +68,7 @@ export function NotificationSettings({ settings: initialSettings, onSave, onMark
                 </div>
               </div>
               <Switch
-                checked={settings.emailNotifications}
+                checked={Boolean(settings.emailNotifications)}
                 onCheckedChange={(checked) => handleInputChange("emailNotifications", checked)}
               />
             </div>
@@ -82,7 +82,7 @@ export function NotificationSettings({ settings: initialSettings, onSave, onMark
                 </div>
               </div>
               <Switch
-                checked={settings.smsNotifications}
+                checked={Boolean(settings.smsNotifications)}
                 onCheckedChange={(checked) => handleInputChange("smsNotifications", checked)}
               />
             </div>
@@ -96,7 +96,7 @@ export function NotificationSettings({ settings: initialSettings, onSave, onMark
                 </div>
               </div>
               <Switch
-                checked={settings.pushNotifications}
+                checked={Boolean(settings.pushNotifications)}
                 onCheckedChange={(checked) => handleInputChange("pushNotifications", checked)}
               />
             </div>
@@ -110,7 +110,7 @@ export function NotificationSettings({ settings: initialSettings, onSave, onMark
                 </div>
               </div>
               <Switch
-                checked={settings.whatsappNotifications}
+                checked={Boolean(settings.whatsappNotifications)}
                 onCheckedChange={(checked) => handleInputChange("whatsappNotifications", checked)}
               />
             </div>
@@ -130,7 +130,7 @@ export function NotificationSettings({ settings: initialSettings, onSave, onMark
                 <p className="text-sm text-gray-600">Notificar quando um novo pedido for recebido</p>
               </div>
               <Switch
-                checked={settings.newOrderNotification}
+                checked={Boolean(settings.newOrderNotification)}
                 onCheckedChange={(checked) => handleInputChange("newOrderNotification", checked)}
               />
             </div>
@@ -141,7 +141,7 @@ export function NotificationSettings({ settings: initialSettings, onSave, onMark
                 <p className="text-sm text-gray-600">Notificar quando o status de um pedido mudar</p>
               </div>
               <Switch
-                checked={settings.orderStatusNotification}
+                checked={Boolean(settings.orderStatusNotification)}
                 onCheckedChange={(checked) => handleInputChange("orderStatusNotification", checked)}
               />
             </div>
@@ -152,7 +152,7 @@ export function NotificationSettings({ settings: initialSettings, onSave, onMark
                 <p className="text-sm text-gray-600">Notificar quando produtos estiverem com estoque baixo</p>
               </div>
               <Switch
-                checked={settings.lowStockNotification}
+                checked={Boolean(settings.lowStockNotification)}
                 onCheckedChange={(checked) => handleInputChange("lowStockNotification", checked)}
               />
             </div>
@@ -163,7 +163,7 @@ export function NotificationSettings({ settings: initialSettings, onSave, onMark
                 <p className="text-sm text-gray-600">Receber relatório diário de vendas</p>
               </div>
               <Switch
-                checked={settings.dailyReportNotification}
+                checked={Boolean(settings.dailyReportNotification)}
                 onCheckedChange={(checked) => handleInputChange("dailyReportNotification", checked)}
               />
             </div>

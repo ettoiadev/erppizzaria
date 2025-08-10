@@ -158,7 +158,7 @@ export function PaymentSettings({ settings: initialSettings, onSave, onMarkUnsav
                 </div>
               </div>
               <Switch
-                checked={settings.pixEnabled}
+                checked={Boolean(settings.pixEnabled)}
                 onCheckedChange={(checked) => handleInputChange("pixEnabled", checked)}
               />
             </div>
@@ -188,7 +188,7 @@ export function PaymentSettings({ settings: initialSettings, onSave, onMarkUnsav
                 </div>
               </div>
               <Switch
-                checked={settings.cashEnabled}
+                checked={Boolean(settings.cashEnabled)}
                 onCheckedChange={(checked) => handleInputChange("cashEnabled", checked)}
               />
             </div>
@@ -202,7 +202,7 @@ export function PaymentSettings({ settings: initialSettings, onSave, onMarkUnsav
                 </div>
               </div>
               <Switch
-                checked={settings.cardOnDeliveryEnabled}
+                checked={Boolean(settings.cardOnDeliveryEnabled)}
                 onCheckedChange={(checked) => handleInputChange("cardOnDeliveryEnabled", checked)}
               />
             </div>
@@ -225,7 +225,7 @@ export function PaymentSettings({ settings: initialSettings, onSave, onMarkUnsav
                 </div>
               </div>
               <Switch
-                checked={settings.creditCardEnabled}
+                checked={Boolean(settings.creditCardEnabled)}
                 onCheckedChange={(checked) => handleInputChange("creditCardEnabled", checked)}
               />
             </div>
@@ -239,7 +239,7 @@ export function PaymentSettings({ settings: initialSettings, onSave, onMarkUnsav
                 </div>
               </div>
               <Switch
-                checked={settings.debitCardEnabled}
+                checked={Boolean(settings.debitCardEnabled)}
                 onCheckedChange={(checked) => handleInputChange("debitCardEnabled", checked)}
               />
             </div>
