@@ -83,15 +83,25 @@ export async function POST(request: NextRequest) {
     }
 
     // Gerar token JWT
+    console.log("🔑 Gerando JWT token...")
+    console.log("🔑 JWT_SECRET exists:", !!process.env.JWT_SECRET)
+    
+    if (!process.env.JWT_SECRET) {
+      console.error("❌ JWT_SECRET não encontrado nas variáveis de ambiente")
+      throw new Error("JWT_SECRET não configurado")
+    }
+    
     const token = jwt.sign(
       { 
         userId: user.id, 
         email: user.email,
         role: user.role || 'customer'
       },
-      process.env.JWT_SECRET!,
+      process.env.JWT_SECRET,
       { expiresIn: '7d' }
     )
+    
+    console.log("✅ JWT token gerado com sucesso")
 
     console.log("✅ Login bem-sucedido:", { email, role: user.role })
 
@@ -116,4 +126,4 @@ export async function OPTIONS() {
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     },
   })
-} 
+}
