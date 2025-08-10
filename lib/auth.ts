@@ -96,18 +96,20 @@ export async function verifyAdmin(token: string): Promise<any> {
   try {
     const payload = await verifyToken(token);
     
-    if (!payload || typeof payload === 'string' || (payload.role !== 'admin' && payload.role !== 'ADMIN')) {
-      console.log('❌ Token não é de administrador:', payload?.role);
+    if (!payload) {
       return null;
     }
 
     // Normalizar o payload para usar 'id' consistentemente
     const normalizedPayload = {
       ...payload,
-      id: payload.id || payload.userId // Aceitar tanto 'id' quanto 'userId'
+      id: payload.id || payload.userId
     };
 
-    console.log('✅ Admin verificado:', normalizedPayload.email);
+    if (normalizedPayload.role !== 'admin' && normalizedPayload.role !== 'ADMIN') {
+      return null;
+    }
+
     return normalizedPayload;
   } catch (error: any) {
     console.error('❌ Erro ao verificar admin:', error.message);

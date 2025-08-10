@@ -20,16 +20,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Token de acesso requerido" }, { status: 401 })
     }
 
-    // Verify admin access
-    console.log("[ADMIN_PROFILE] Verificando admin...")
     const admin = await verifyAdmin(token)
     
-    if (!admin) {
-      console.log("[ADMIN_PROFILE] Erro: Verificação de admin falhou")
-      return NextResponse.json({ error: "Acesso negado - usuário não é admin" }, { status: 403 })
+    if (!admin || !admin.id) {
+      return NextResponse.json({ error: "Acesso negado" }, { status: 403 })
     }
-
-    console.log("[ADMIN_PROFILE] Admin verificado:", admin.email, "ID:", admin.id)
 
     // Get admin profile using Supabase
     console.log("[ADMIN_PROFILE] Buscando perfil do admin (Supabase)...")
@@ -85,12 +80,9 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "Token de acesso requerido" }, { status: 401 })
     }
 
-    // Verify admin access
-    console.log("[ADMIN_PROFILE] PUT: Verificando admin...")
     const admin = await verifyAdmin(token)
     
-    if (!admin) {
-      console.log("[ADMIN_PROFILE] PUT: Verificação de admin falhou")
+    if (!admin || !admin.id) {
       return NextResponse.json({ error: "Acesso negado" }, { status: 403 })
     }
 
