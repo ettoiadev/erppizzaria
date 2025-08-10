@@ -1,4 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
+import { appLogger } from './logging'
+import { supabaseLogger, instrumentSupabaseClient } from './supabase-logger'
 
 // Em ambientes Node, garantir WebSocket disponível para canais Realtime
 if (typeof window === 'undefined') {
@@ -7,9 +9,10 @@ if (typeof window === 'undefined') {
     const ws = require('ws')
     if (ws && !(globalThis as any).WebSocket) {
       ;(globalThis as any).WebSocket = ws
+      appLogger.debug('supabase', 'WebSocket configurado para ambiente Node.js')
     }
-  } catch {
-    // Ignorar se já existir WebSocket global ou módulo indisponível
+  } catch (error) {
+    appLogger.warn('supabase', 'Falha ao configurar WebSocket para Node.js', { error: error instanceof Error ? error.message : 'Unknown error' })
   }
 }
 
@@ -19,39 +22,77 @@ const supabaseKey = process.env.SUPABASE_KEY as string | undefined
 
 // Debug para ambiente de produção
 if (process.env.NODE_ENV === 'production') {
-  console.log('[Supabase Debug] Environment variables check:')
-  console.log('- SUPABASE_URL exists:', !!supabaseUrl)
-  console.log('- SUPABASE_KEY exists:', !!supabaseKey)
-  console.log('- NODE_ENV:', process.env.NODE_ENV)
+  appLogger.info('supabase', 'Verificação de variáveis de ambiente em produção', {
+    supabaseUrlExists: !!supabaseUrl,
+    supabaseKeyExists: !!supabaseKey,
+    nodeEnv: process.env.NODE_ENV
+  })
+} else {
+  appLogger.debug('supabase', 'Configuração Supabase carregada', {
+    supabaseUrlExists: !!supabaseUrl,
+    supabaseKeyExists: !!supabaseKey,
+    nodeEnv: process.env.NODE_ENV
+  })
 }
 
 // Validação obrigatória das variáveis de ambiente
 if (!supabaseUrl) {
-  const errorMsg = '[Supabase] SUPABASE_URL não configurada. Configure as variáveis de ambiente na Vercel ou no arquivo .env.local'
-  console.error(errorMsg)
-  console.error('Available env vars:', Object.keys(process.env).filter(key => key.includes('SUPABASE')))
-  throw new Error(errorMsg)
+  const errorMsg = 'SUPABASE_URL não configurada. Configure as variáveis de ambiente na Vercel ou no arquivo .env.local'
+  const availableVars = Object.keys(process.env).filter(key => key.includes('SUPABASE'))
+  
+  appLogger.critical('supabase', errorMsg, undefined, { availableVars })
+  
+  // Log específico do Supabase
+  supabaseLogger.logConnection(false, undefined, new Error(`[Supabase] ${errorMsg}`))
+  
+  throw new Error(`[Supabase] ${errorMsg}`)
 }
 
 if (!supabaseKey) {
-  const errorMsg = '[Supabase] SUPABASE_KEY não configurada. Configure as variáveis de ambiente na Vercel ou no arquivo .env.local'
-  console.error(errorMsg)
-  console.error('Available env vars:', Object.keys(process.env).filter(key => key.includes('SUPABASE')))
-  throw new Error(errorMsg)
+  const errorMsg = 'SUPABASE_KEY não configurada. Configure as variáveis de ambiente na Vercel ou no arquivo .env.local'
+  const availableVars = Object.keys(process.env).filter(key => key.includes('SUPABASE'))
+  
+  appLogger.critical('supabase', errorMsg, undefined, { availableVars })
+  
+  // Log específico do Supabase
+  supabaseLogger.logConnection(false, undefined, new Error(`[Supabase] ${errorMsg}`))
+  
+  throw new Error(`[Supabase] ${errorMsg}`)
 }
 
 // Cliente único para o servidor. Em rotas API (Node), este é o cliente a ser usado.
-export const supabaseServer: SupabaseClient = createClient(supabaseUrl, supabaseKey, {
-        auth: { autoRefreshToken: false, persistSession: false },
-      })
+const supabaseClient: SupabaseClient = createClient(supabaseUrl, supabaseKey, {
+  auth: { autoRefreshToken: false, persistSession: false },
+})
+
+appLogger.info('supabase', 'Cliente Supabase inicializado com sucesso', {
+  url: supabaseUrl?.substring(0, 30) + '...',
+  hasKey: !!supabaseKey,
+  authConfig: { autoRefreshToken: false, persistSession: false }
+})
+
+// Log específico de conexão
+supabaseLogger.logConnection(true, supabaseUrl)
+
+// Instrumentar cliente para logging automático
+export const supabaseServer: SupabaseClient = instrumentSupabaseClient(supabaseClient)
 
 export function getSupabaseServerClient(): SupabaseClient {
+  appLogger.debug('supabase', 'Cliente Supabase solicitado')
   return supabaseServer
 }
 
 export function assertSupabaseConfigured(context: string) {
   // As validações já são feitas na inicialização do módulo
   // Esta função é mantida para compatibilidade
+  appLogger.debug('supabase', `Verificação de configuração solicitada`, { context })
+  
+  if (!supabaseUrl || !supabaseKey) {
+    const error = new Error('Supabase is not properly configured')
+    supabaseLogger.logConnection(false, undefined, error)
+    throw error
+  }
+  
   return true
 }
 

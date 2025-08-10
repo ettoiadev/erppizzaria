@@ -1,31 +1,41 @@
 // Debug utilities for conditional logging in production
+import { appLogger } from './logging'
+import { frontendLogger } from './frontend-logger'
+
 const isProduction = process.env.NODE_ENV === 'production'
 
 export const logger = {
   log: (...args: any[]) => {
-    if (!isProduction) {
-      console.log(...args)
+    const message = args.map(arg => typeof arg === 'string' ? arg : JSON.stringify(arg)).join(' ')
+    appLogger.debug('debug', message, { args })
+    if (typeof window !== 'undefined') {
+      frontendLogger.debug(message, 'ui', { args })
     }
   },
   
   error: (...args: any[]) => {
-    // Always log errors, but in production only show generic messages
-    if (isProduction) {
-      console.error('An error occurred:', args[0]?.message || 'Unknown error')
-    } else {
-      console.error(...args)
+    const message = args.map(arg => typeof arg === 'string' ? arg : JSON.stringify(arg)).join(' ')
+    const error = args.find(arg => arg instanceof Error) || new Error(message)
+    
+    appLogger.error('debug', message, { args })
+    if (typeof window !== 'undefined') {
+      frontendLogger.logError(message, { args }, error, 'ui')
     }
   },
   
   warn: (...args: any[]) => {
-    if (!isProduction) {
-      console.warn(...args)
+    const message = args.map(arg => typeof arg === 'string' ? arg : JSON.stringify(arg)).join(' ')
+    appLogger.warn('debug', message, { args })
+    if (typeof window !== 'undefined') {
+      frontendLogger.warn(message, 'ui', { args })
     }
   },
   
   info: (...args: any[]) => {
-    if (!isProduction) {
-      console.info(...args)
+    const message = args.map(arg => typeof arg === 'string' ? arg : JSON.stringify(arg)).join(' ')
+    appLogger.info('debug', message, { args })
+    if (typeof window !== 'undefined') {
+      frontendLogger.info(message, 'ui', { args })
     }
   }
 }
@@ -70,7 +80,13 @@ export const safeStorage = {
 
 // Error boundary helper
 export const handleAsyncError = (error: any, context: string) => {
-  logger.error(`Error in ${context}:`, error)
+  const errorMessage = `Error in ${context}`
+  const actualError = error instanceof Error ? error : new Error(String(error))
+  
+  appLogger.error('debug', errorMessage, { context, error: actualError.message })
+  if (typeof window !== 'undefined') {
+    frontendLogger.logError(errorMessage, { context }, actualError, 'ui')
+  }
   
   // In production, return user-friendly messages
   if (isProduction) {
@@ -81,8 +97,8 @@ export const handleAsyncError = (error: any, context: string) => {
   }
   
   return {
-    message: error.message || 'Unknown error',
-    code: error.code || 'UNKNOWN',
-    stack: error.stack
+    message: actualError.message || 'Unknown error',
+    code: actualError.code || 'UNKNOWN',
+    stack: actualError.stack
   }
 }

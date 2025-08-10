@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verify } from 'jsonwebtoken'
 import { getUserByEmail } from './db-supabase'
+import { appLogger } from './logging'
 
 const JWT_SECRET = process.env.JWT_SECRET || 'william-disk-pizza-jwt-secret-2024-production'
 
@@ -55,7 +56,11 @@ export async function withAuth(
       role: user.role
     })
   } catch (error: any) {
-    console.error('❌ Erro na autenticação:', error.message)
+    appLogger.error('auth', 'Erro na autenticação', { 
+      error: error.message,
+      hasAuthHeader: !!request.headers.get('authorization'),
+      hasCookieToken: !!request.cookies.get('auth-token')?.value
+    })
     return NextResponse.json(
       { error: 'Token inválido ou expirado' },
       { status: 401 }
@@ -108,7 +113,10 @@ export async function getUserFromRequest(request: NextRequest): Promise<AuthUser
       role: user.role
     }
   } catch (error: any) {
-    console.error('❌ Erro ao extrair usuário do token:', error.message)
+    appLogger.error('auth', 'Erro ao extrair usuário do token', { 
+      error: error.message,
+      hasToken: !!token
+    })
     return null
   }
 }

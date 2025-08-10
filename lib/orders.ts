@@ -1,6 +1,7 @@
 // Importar diretamente do db-supabase para usar o cliente Supabase
 import { getSupabaseServerClient } from './supabase';
 import { query } from './db';
+import { appLogger } from './logging';
 
 export interface OrderData {
   user_id: string;
@@ -82,7 +83,12 @@ export async function createOrder(orderData: OrderData, items: OrderItem[]): Pro
       items: items
     };
   } catch (error) {
-    console.error('Erro ao criar pedido:', error);
+    appLogger.error('orders', 'Erro ao criar pedido', { 
+      user_id: orderData.user_id,
+      total: orderData.total,
+      items_count: items.length,
+      error: error instanceof Error ? error.message : String(error)
+    });
     throw error;
   }
 }
@@ -104,7 +110,10 @@ export async function getOrderById(orderId: string): Promise<Order | null> {
       items: order.items || order.order_items || []
     };
   } catch (error) {
-    console.error('Erro ao buscar pedido por ID:', error);
+    appLogger.error('orders', 'Erro ao buscar pedido por ID', { 
+      order_id: orderId,
+      error: error instanceof Error ? error.message : String(error)
+    });
     throw error;
   }
 }
@@ -161,7 +170,10 @@ export async function getOrders(filters: {
       items: order.items || order.order_items || []
     }));
   } catch (error) {
-    console.error('Erro ao listar pedidos:', error);
+    appLogger.error('orders', 'Erro ao listar pedidos', { 
+      filters,
+      error: error instanceof Error ? error.message : String(error)
+    });
     throw error;
   }
 
@@ -175,7 +187,12 @@ export async function updateOrderStatus(orderId: string, status: string, notes?:
     const order = await updateOrderStatus(orderId, status, notes);
     return order as Order;
   } catch (error) {
-    console.error('Erro ao atualizar status do pedido:', error);
+    appLogger.error('orders', 'Erro ao atualizar status do pedido', { 
+      order_id: orderId,
+      status,
+      notes,
+      error: error instanceof Error ? error.message : String(error)
+    });
     throw error;
   }
 }
@@ -188,7 +205,11 @@ export async function updatePaymentStatus(orderId: string, paymentStatus: string
     const order = await updatePaymentStatus(orderId, paymentStatus);
     return order as Order;
   } catch (error) {
-    console.error('Erro ao atualizar status de pagamento:', error);
+    appLogger.error('orders', 'Erro ao atualizar status de pagamento', { 
+      order_id: orderId,
+      payment_status: paymentStatus,
+      error: error instanceof Error ? error.message : String(error)
+    });
     throw error;
   }
 }
@@ -196,7 +217,10 @@ export async function updatePaymentStatus(orderId: string, paymentStatus: string
 // Obter estatísticas de pedidos
 export async function getOrderStats(startDate?: Date, endDate?: Date) {
   try {
-    console.log('📊 Obtendo estatísticas de pedidos via Supabase');
+    appLogger.info('orders', 'Obtendo estatísticas de pedidos', { 
+      start_date: startDate?.toISOString(),
+      end_date: endDate?.toISOString()
+    });
     
     const supabase = getSupabaseServerClient();
     let queryBuilder = supabase.from('orders').select('*', { count: 'exact' });
@@ -213,7 +237,11 @@ export async function getOrderStats(startDate?: Date, endDate?: Date) {
     const { data, error, count } = await queryBuilder;
     
     if (error) {
-      console.error('❌ Erro ao obter estatísticas de pedidos:', error);
+      appLogger.error('orders', 'Erro ao obter estatísticas de pedidos', { 
+        start_date: startDate?.toISOString(),
+        end_date: endDate?.toISOString(),
+        error: error.message
+      });
       throw error;
     }
     
@@ -232,7 +260,11 @@ export async function getOrderStats(startDate?: Date, endDate?: Date) {
     
     return stats;
   } catch (error) {
-    console.error('Erro ao obter estatísticas de pedidos:', error);
+    appLogger.error('orders', 'Erro ao obter estatísticas de pedidos', { 
+      start_date: startDate?.toISOString(),
+      end_date: endDate?.toISOString(),
+      error: error instanceof Error ? error.message : String(error)
+    });
     throw error;
   }
 }

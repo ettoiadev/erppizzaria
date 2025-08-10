@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { sign, verify } from 'jsonwebtoken';
 import { getUserByEmail, createUserProfile, UserProfile } from './db-supabase';
+import { appLogger } from './logging';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'william-disk-pizza-jwt-secret-2024-production';
 
@@ -26,7 +27,7 @@ export async function createUser({
   role?: string;
 }): Promise<UserProfile | null> {
   try {
-    console.log('🔐 Criando usuário:', email);
+    appLogger.info('auth', 'Criando usuário', { email: email.replace(/(.{2}).*(@.*)/, '$1***$2') });
     
     const hashedPassword = await hashPassword(password);
     
@@ -42,7 +43,10 @@ export async function createUser({
       throw new Error('Falha ao criar usuário');
     }
 
-    console.log('✅ Usuário criado com sucesso:', user.email);
+    appLogger.info('auth', 'Usuário criado com sucesso', { 
+      email: user.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+      role: user.role 
+    });
     
     return {
       id: user.id,
@@ -52,14 +56,20 @@ export async function createUser({
       role: user.role as 'customer' | 'admin' | 'kitchen' | 'delivery'
     };
   } catch (error: any) {
-    console.error('❌ Erro ao criar usuário:', error.message);
+    appLogger.error('auth', 'Erro ao criar usuário', { 
+      email: email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+      error: error.message 
+    });
     throw new Error('Erro ao criar conta: ' + error.message);
   }
 }
 
 export function generateToken(user: UserProfile): string {
   try {
-    console.log('🎫 Gerando token para:', user.email);
+    appLogger.info('auth', 'Gerando token', { 
+      email: user.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+      role: user.role 
+    });
     
     const token = sign(
       {
@@ -71,10 +81,15 @@ export function generateToken(user: UserProfile): string {
       { expiresIn: '7d' }
     );
 
-    console.log('✅ Token gerado com sucesso');
+    appLogger.info('auth', 'Token gerado com sucesso', { 
+      email: user.email.replace(/(.{2}).*(@.*)/, '$1***$2') 
+    });
     return token;
   } catch (error: any) {
-    console.error('❌ Erro ao gerar token:', error.message);
+    appLogger.error('auth', 'Erro ao gerar token', { 
+      email: user.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+      error: error.message 
+    });
     throw new Error('Erro ao gerar token de autenticação');
   }
 }
@@ -82,10 +97,10 @@ export function generateToken(user: UserProfile): string {
 export async function verifyToken(token: string): Promise<any> {
   try {
     const decoded = verify(token, JWT_SECRET);
-    console.log('✅ Token verificado com sucesso');
+    appLogger.debug('auth', 'Token verificado com sucesso');
     return decoded;
   } catch (error: any) {
-    console.error('❌ Token inválido:', error.message);
+    appLogger.warn('auth', 'Token inválido', { error: error.message });
     return null;
   }
 }
@@ -112,7 +127,7 @@ export async function verifyAdmin(token: string): Promise<any> {
 
     return normalizedPayload;
   } catch (error: any) {
-    console.error('❌ Erro ao verificar admin:', error.message);
+    appLogger.error('auth', 'Erro ao verificar admin', { error: error.message });
     return null;
   }
 }
@@ -123,7 +138,10 @@ export async function emailExists(email: string): Promise<boolean> {
     const user = await getUserByEmail(email);
     return !!user;
   } catch (error) {
-    console.error('❌ Erro ao verificar email:', error);
+    appLogger.error('auth', 'Erro ao verificar email', { 
+      email: email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+      error: error instanceof Error ? error.message : String(error) 
+    });
     return false;
   }
 }
@@ -134,31 +152,42 @@ export async function authenticateUser(email: string, password: string): Promise
   token: string;
 } | null> {
   try {
-    console.log('🔐 Autenticando usuário:', email);
+    appLogger.info('auth', 'Autenticando usuário', { 
+      email: email.replace(/(.{2}).*(@.*)/, '$1***$2') 
+    });
     
     // Buscar usuário
     const user = await getUserByEmail(email);
     if (!user) {
-      console.log('❌ Usuário não encontrado');
+      appLogger.warn('auth', 'Usuário não encontrado', { 
+        email: email.replace(/(.{2}).*(@.*)/, '$1***$2') 
+      });
       return null;
     }
 
     // Verificar senha
     if (!user.password_hash) {
-      console.log('❌ Usuário sem senha configurada');
+      appLogger.warn('auth', 'Usuário sem senha configurada', { 
+        email: email.replace(/(.{2}).*(@.*)/, '$1***$2') 
+      });
       return null;
     }
 
     const isValidPassword = await comparePasswords(password, user.password_hash);
     if (!isValidPassword) {
-      console.log('❌ Senha inválida');
+      appLogger.warn('auth', 'Senha inválida', { 
+        email: email.replace(/(.{2}).*(@.*)/, '$1***$2') 
+      });
       return null;
     }
 
     // Gerar token
     const token = generateToken(user);
 
-    console.log('✅ Usuário autenticado com sucesso');
+    appLogger.info('auth', 'Usuário autenticado com sucesso', { 
+      email: email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+      role: user.role 
+    });
     
     return {
       user: {
@@ -170,7 +199,10 @@ export async function authenticateUser(email: string, password: string): Promise
       token
     };
   } catch (error: any) {
-    console.error('❌ Erro na autenticação:', error.message);
+    appLogger.error('auth', 'Erro na autenticação', { 
+      email: email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+      error: error.message 
+    });
     return null;
   }
 }

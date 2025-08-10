@@ -1,5 +1,7 @@
 // Importar Supabase ao invés do PostgreSQL nativo
 import { getSupabaseServerClient } from './supabase';
+import { supabaseLogger } from './supabase-logger';
+import { appLogger } from './logging';
 
 // Controle de logs baseado em ambiente
 const isDevelopment = process.env.NODE_ENV === 'development';
@@ -13,7 +15,7 @@ export async function query(table: string, action: string, options?: any) {
   
   try {
     if (enableQueryLogs) {
-      console.log('🔍 Executing Supabase query:', { table, action, options });
+      supabaseLogger.logQuery(`${action} from ${table}`, { table, action, options });
     }
     
     const supabase = getSupabaseServerClient();
@@ -41,13 +43,15 @@ export async function query(table: string, action: string, options?: any) {
     const duration = Date.now() - start;
     
     if (enableSlowQueryLogs && duration > slowQueryThreshold) {
-      console.warn('⚠️ Query lenta detectada:', { table, action, duration });
+      supabaseLogger.logSlowQuery(`${action} from ${table}`, duration, { table, action });
     }
     
     if (enableQueryLogs) {
-      console.log('✅ Query executada com sucesso:', { 
-        duration: `${duration}ms`, 
-        data: result.data ? result.data.length : 0
+      supabaseLogger.logQuery(`Query executada com sucesso: ${action} from ${table}`, {
+        duration,
+        resultCount: result.data ? result.data.length : 0,
+        table,
+        action
       });
     }
     
@@ -55,13 +59,12 @@ export async function query(table: string, action: string, options?: any) {
     
   } catch (error: any) {
     const duration = Date.now() - start;
-    console.error('❌ Database query error', { 
-      table, 
+    supabaseLogger.logError(`Database query error: ${action} from ${table}`, {
+      table,
       action,
-      error: error.message,
-      code: error.code,
-      duration: `${duration}ms`
-    });
+      duration,
+      errorCode: error.code
+    }, error);
     throw error;
   }
 }
@@ -74,8 +77,8 @@ export async function getClient() {
 // Função para logs de debug
 export function debugQuery(text: string, params?: any[]) {
   if (enableQueryLogs) {
-    console.log('🔍 Debug query', { 
-      text: text.substring(0, 100),
+    supabaseLogger.logQuery('Debug query', {
+      queryText: text.substring(0, 100),
       params: params ? JSON.stringify(params) : undefined
     });
   }
