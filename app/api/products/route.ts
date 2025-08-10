@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
 import { getProductsActive, createProduct } from '@/lib/db-supabase'
 
+// Force dynamic rendering for this route
+export const dynamic = 'force-dynamic'
+
 // GET handler para buscar TODOS os produtos do banco de dados
 export async function GET() {
   try {

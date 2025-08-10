@@ -3,6 +3,9 @@ import { listOrders, createOrder as createOrderSupabase } from '@/lib/db-supabas
 import { ordersRateLimiter } from '@/lib/rate-limiter'
 import { emitRealtimeEvent, EVENT_ORDER_CREATED, REALTIME_CHANNEL } from '@/lib/realtime'
 
+// Force dynamic rendering for this route
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: NextRequest) {
   try {
 

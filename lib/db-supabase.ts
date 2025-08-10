@@ -126,7 +126,7 @@ export async function getProductsActive(): Promise<Product[]> {
   // Buscar produtos e nome da categoria com select relacionado
   const { data, error } = await supabase
     .from('products')
-    .select('id, name, description, price, category_id, image_url, active, has_sizes, has_toppings, preparation_time, sort_order, created_at, updated_at, categories:name=category_id(name)')
+    .select('id, name, description, price, category_id, image, active, has_sizes, has_toppings, preparation_time, sort_order, created_at, updated_at, categories:name=category_id(name)')
     .eq('active', true)
     .order('sort_order', { ascending: true, nullsFirst: false })
     .order('created_at', { ascending: true })
@@ -138,7 +138,7 @@ export async function getProductsActive(): Promise<Product[]> {
     description: p.description || '',
     price: p.price,
     category_id: p.category_id,
-    image: p.image_url || null,
+    image: p.image || null,
     active: !!p.active,
     has_sizes: !!p.has_sizes,
     has_toppings: !!p.has_toppings,
@@ -166,7 +166,7 @@ export async function createProduct(input: {
     description: input.description?.trim() || '',
     price: input.price,
     category_id: input.category_id,
-    image_url: input.image || null,
+    image: input.image || null,
     active: input.available !== false,
     has_sizes: Array.isArray(input.sizes) && input.sizes.length > 0,
     has_toppings: Array.isArray(input.toppings) && input.toppings.length > 0,
@@ -175,7 +175,7 @@ export async function createProduct(input: {
   const { data, error } = await supabase
     .from('products')
     .insert(payload)
-    .select('id, name, description, price, category_id, image_url, active, has_sizes, has_toppings, preparation_time, sort_order, created_at, updated_at')
+    .select('id, name, description, price, category_id, image, active, has_sizes, has_toppings, preparation_time, sort_order, created_at, updated_at)
     .single()
   if (error) throw error
 
@@ -189,7 +189,7 @@ export async function createProduct(input: {
 
   return {
     ...data,
-    image: data.image_url,
+    image: data.image,
     categoryId: data.category_id,
     category_name: cat?.name || '',
     available: !!data.active,
