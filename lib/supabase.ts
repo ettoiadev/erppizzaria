@@ -17,13 +17,27 @@ if (typeof window === 'undefined') {
 const supabaseUrl = process.env.SUPABASE_URL as string | undefined
 const supabaseKey = process.env.SUPABASE_KEY as string | undefined
 
+// Debug para ambiente de produção
+if (process.env.NODE_ENV === 'production') {
+  console.log('[Supabase Debug] Environment variables check:')
+  console.log('- SUPABASE_URL exists:', !!supabaseUrl)
+  console.log('- SUPABASE_KEY exists:', !!supabaseKey)
+  console.log('- NODE_ENV:', process.env.NODE_ENV)
+}
+
 // Validação obrigatória das variáveis de ambiente
 if (!supabaseUrl) {
-  throw new Error('[Supabase] SUPABASE_URL não configurada. Configure no arquivo .env.local')
+  const errorMsg = '[Supabase] SUPABASE_URL não configurada. Configure as variáveis de ambiente na Vercel ou no arquivo .env.local'
+  console.error(errorMsg)
+  console.error('Available env vars:', Object.keys(process.env).filter(key => key.includes('SUPABASE')))
+  throw new Error(errorMsg)
 }
 
 if (!supabaseKey) {
-  throw new Error('[Supabase] SUPABASE_KEY não configurada. Configure no arquivo .env.local')
+  const errorMsg = '[Supabase] SUPABASE_KEY não configurada. Configure as variáveis de ambiente na Vercel ou no arquivo .env.local'
+  console.error(errorMsg)
+  console.error('Available env vars:', Object.keys(process.env).filter(key => key.includes('SUPABASE')))
+  throw new Error(errorMsg)
 }
 
 // Cliente único para o servidor. Em rotas API (Node), este é o cliente a ser usado.

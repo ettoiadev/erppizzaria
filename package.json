@@ -67,5 +67,19 @@
     "supabase": "^2.33.9",
     "tailwindcss": "^3.3.0",
     "typescript": "^5"
+  },
+  "overrides": {
+    "request": "npm:@cypress/request@^3.0.0",
+    "har-validator": "npm:har-schema@^2.0.0",
+    "uuid": "^9.0.0",
+    "glob": "^10.0.0",
+    "rimraf": "^5.0.0"
+  },
+  "resolutions": {
+    "request": "npm:@cypress/request@^3.0.0",
+    "har-validator": "npm:har-schema@^2.0.0",
+    "uuid": "^9.0.0",
+    "glob": "^10.0.0",
+    "rimraf": "^5.0.0"
   }
 }
