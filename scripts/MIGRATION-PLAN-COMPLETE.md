@@ -121,10 +121,14 @@ payment_method: 'CASH', 'CREDIT_CARD', 'DEBIT_CARD', 'PIX'
 # Antes
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/williamdiskpizza
 
-# Depois  
-DATABASE_URL=postgresql://postgres:postgres@localhost:54322/postgres
-NEXT_PUBLIC_SUPABASE_URL=http://localhost:54321
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+# Depois (variáveis server-side apenas)
+SUPABASE_URL=http://localhost:54321
+SUPABASE_KEY=your-anon-key
+JWT_SECRET=sua_chave_jwt_super_segura_aqui
+
+# ❌ Variáveis legadas (NÃO usar)
+# NEXT_PUBLIC_SUPABASE_URL=http://localhost:54321
+# NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 ```
 
 ### **Portas Supabase Local**
@@ -188,4 +192,4 @@ npm run dev
 
 **📞 Em caso de dúvidas:** Interrompa o processo e solicite esclarecimentos antes de prosseguir.
 
-**🎯 Próximo passo:** Executar `migration-phase1-backup.md` 
+**🎯 Próximo passo:** Executar `migration-phase1-backup.md`

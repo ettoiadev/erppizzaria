@@ -22,13 +22,14 @@ As seguintes variáveis de ambiente são necessárias para a conexão com o Supa
 
 ```env
 # Variáveis oficiais (preferidas)
+# Variáveis obrigatórias (server-side apenas)
 SUPABASE_URL=http://localhost:54321
 SUPABASE_KEY=sua-chave-aqui
 
-# Variáveis alternativas (legado/fallback)
-NEXT_PUBLIC_SUPABASE_URL=http://localhost:54321
-NEXT_PUBLIC_SUPABASE_ANON_KEY=sua-chave-anon-aqui
-SUPABASE_SERVICE_ROLE_KEY=sua-chave-service-role-aqui
+# ❌ NÃO usar - variáveis legadas (removidas por segurança)
+# NEXT_PUBLIC_SUPABASE_URL=http://localhost:54321
+# NEXT_PUBLIC_SUPABASE_ANON_KEY=sua-chave-anon-aqui
+# SUPABASE_SERVICE_ROLE_KEY=sua-chave-service-role-aqui
 ```
 
 ### Como verificar

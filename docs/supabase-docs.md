@@ -171,32 +171,36 @@ Os JWTs contêm informações de identidade e autorização, sendo verificados p
 A configuração da autenticação server-side no Next.js com Supabase requer:
 
 1. Instalação dos pacotes `@supabase/supabase-js` e `@supabase/ssr`
-2. Configuração de variáveis de ambiente (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`)
+2. Configuração de variáveis de ambiente (`SUPABASE_URL`, `SUPABASE_KEY`) - apenas server-side
 3. Criação de clientes Supabase separados para Client Components e Server Components
 4. Implementação de middleware para refrescar tokens de autenticação
 
-**Exemplo de configuração:**
+**⚠️ Importante**: Este projeto usa variáveis de ambiente server-side apenas (`SUPABASE_URL`, `SUPABASE_KEY`) para maior segurança, ao invés das variáveis públicas (`NEXT_PUBLIC_SUPABASE_*`).
+
+**Exemplo de configuração atual:**
 
 ```typescript
-// lib/supabase.ts - Cliente para Client Components
-import { createBrowserClient } from '@supabase/ssr'
+// lib/supabase.ts - Cliente unificado (server-side)
+import { createClient } from '@supabase/supabase-js'
 
-export const createClient = () => {
-  return createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
+const supabaseUrl = process.env.SUPABASE_URL
+const supabaseKey = process.env.SUPABASE_KEY
+
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error('Missing Supabase environment variables')
 }
+
+export const supabase = createClient(supabaseUrl, supabaseKey)
 ```
 
-```typescript
-// lib/supabase-server.ts - Cliente para Server Components
-import { createServerClient } from '@supabase/ssr'
+**Configuração legada (NÃO usar):**
 
+```typescript
+// ❌ NÃO usar - expõe credenciais no cliente
 export const createClient = (cookies: () => RequestCookies) => {
   return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    process.env.NEXT_PUBLIC_SUPABASE_URL!, // ❌ Público
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, // ❌ Público
     {
       cookies: {
         get(name: string) {
@@ -490,13 +494,13 @@ Oferece três funcionalidades principais:
 3. **Postgres Changes**: Escuta de mudanças no banco de dados
 
 ```javascript
-// Configurar cliente Supabase
-import { createClient } from '@supabase/supabase-js'
+// Configurar cliente Supabase (server-side)
+import { supabase } from '../lib/supabase'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-)
+// OU para uso em API Routes:
+// const supabaseUrl = process.env.SUPABASE_URL
+// const supabaseKey = process.env.SUPABASE_KEY
+// const supabase = createClient(supabaseUrl, supabaseKey)
 
 // Escutar mudanças em uma tabela
 const channel = supabase

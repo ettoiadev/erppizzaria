@@ -1,13 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  env: {
-    SUPABASE_URL: process.env.SUPABASE_URL,
-    SUPABASE_KEY: process.env.SUPABASE_KEY,
-    JWT_SECRET: process.env.JWT_SECRET,
-    MERCADOPAGO_ACCESS_TOKEN: process.env.MERCADOPAGO_ACCESS_TOKEN,
-    MERCADOPAGO_WEBHOOK_SECRET: process.env.MERCADOPAGO_WEBHOOK_SECRET,
-    NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
-  },
+  // IMPORTANTE: Removemos a seção 'env' para evitar exposição de variáveis sensíveis
+  // As variáveis NEXT_PUBLIC_* são automaticamente expostas ao frontend
+  // Variáveis sem prefixo ficam disponíveis apenas no servidor (API Routes/Server Components)
   webpack: (config, { isServer }) => {
     config.externals.push({
       'utf-8-validate': 'commonjs utf-8-validate',
