@@ -35,6 +35,15 @@ export class BematechPrinter {
    * Imprimir pedido
    */
   async printOrder(orderData: any): Promise<PrintResult> {
+    // Em produção, simular impressão sem conectar com servidor local
+    if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+      console.log('🖨️ Impressão simulada em produção');
+      return {
+        success: true,
+        message: 'Impressão simulada - servidor local não disponível em produção'
+      };
+    }
+
     try {
       const response = await fetch(`${this.serverUrl}/print-order`, {
         method: 'POST',
@@ -66,6 +75,15 @@ export class BematechPrinter {
    * Teste de impressão
    */
   async testPrint(): Promise<PrintResult> {
+    // Em produção, simular teste sem conectar com servidor local
+    if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+      console.log('🖨️ Teste de impressão simulado em produção');
+      return {
+        success: true,
+        message: 'Teste simulado - servidor local não disponível em produção'
+      };
+    }
+
     try {
       const response = await fetch(`${this.serverUrl}/test-print`, {
         method: 'POST',
@@ -96,6 +114,15 @@ export class BematechPrinter {
    * Configurar impressora
    */
   async configurePrinter(config: PrinterConfig): Promise<PrintResult> {
+    // Em produção, simular configuração sem conectar com servidor local
+    if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+      console.log('🖨️ Configuração de impressora simulada em produção');
+      return {
+        success: true,
+        message: 'Configuração simulada - servidor local não disponível em produção'
+      };
+    }
+
     try {
       const response = await fetch(`${this.serverUrl}/configure-printer`, {
         method: 'POST',
@@ -127,6 +154,20 @@ export class BematechPrinter {
    * Obter status da impressora
    */
   async getStatus(): Promise<PrinterStatus | null> {
+    // Em produção, retornar status simulado
+    if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+      console.log('🖨️ Status de impressora simulado em produção');
+      return {
+        connected: false,
+        config: {
+          interface: 'USB',
+          type: 'BEMATECH',
+          characterSet: 'BRAZIL'
+        },
+        timestamp: new Date().toISOString()
+      };
+    }
+
     try {
       const response = await fetch(`${this.serverUrl}/printer-status`, {
         method: 'GET',
@@ -154,6 +195,12 @@ export class BematechPrinter {
    * Verificar se o servidor está rodando
    */
   async checkServer(): Promise<boolean> {
+    // Em produção, não tentar conectar com servidor local
+    if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+      console.log('🖨️ Servidor de impressão não disponível em produção');
+      return false;
+    }
+
     try {
       const response = await fetch(`${this.serverUrl}/status`, {
         method: 'GET',
