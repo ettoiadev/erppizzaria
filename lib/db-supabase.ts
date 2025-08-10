@@ -175,7 +175,7 @@ export async function createProduct(input: {
   const { data, error } = await supabase
     .from('products')
     .insert(payload)
-    .select('id, name, description, price, category_id, image, active, has_sizes, has_toppings, preparation_time, sort_order, created_at, updated_at)
+    .select('id, name, description, price, category_id, image, active, has_sizes, has_toppings, preparation_time, sort_order, created_at, updated_at')
     .single()
   if (error) throw error
 
