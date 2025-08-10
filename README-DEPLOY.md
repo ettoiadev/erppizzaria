@@ -34,7 +34,6 @@ JWT_SECRET=sua_chave_secreta_super_segura_aqui
 
 #### Ambiente
 ```
-NODE_ENV=production
 NEXT_PUBLIC_SITE_URL=https://seu-dominio.vercel.app
 ```
 
