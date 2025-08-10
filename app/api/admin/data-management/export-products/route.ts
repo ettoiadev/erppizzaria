@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
     const supabase = getSupabaseServerClient()
     const { data: productsRows, error } = await supabase
       .from('products')
-      .select('id, name, description, price, image_url, available, created_at, categories:category_id(name)')
+      .select('id, name, description, price, image, available, created_at, categories:category_id(name)')
       .order('created_at', { ascending: false })
     if (error) throw error
 
@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
       Descrição: product.description || '',
       'Preço (R$)': product.price ? parseFloat(product.price).toFixed(2) : '0.00',
       Categoria: product.categories?.name || '',
-      Imagem: product.image_url || '',
+      Imagem: product.image || '',
       Disponível: product.available ? 'Sim' : 'Não',
       'Data Cadastro': product.created_at ? new Date(product.created_at).toLocaleDateString('pt-BR') : ''
     }))

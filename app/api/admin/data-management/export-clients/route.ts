@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
     const supabase = getSupabaseServerClient()
     const { data: clientsRows, error } = await supabase
       .from('profiles')
-      .select('id, full_name, email, phone, customer_code, created_at, customer_addresses!left(*),')
+      .select('id, full_name, email, phone, customer_code, created_at, customer_addresses!left(*)')
       .eq('role', 'customer')
       .order('created_at', { ascending: false })
     if (error) throw error
