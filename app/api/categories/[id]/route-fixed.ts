@@ -197,7 +197,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
       return NextResponse.json({ error: "Categoria não encontrada" }, { status: 404 })
     }
 
-    console.log('Categoria marcada como inativa:', result.rows[0])
+    console.log('Categoria marcada como inativa:', inact)
     return NextResponse.json({ 
       message: "Categoria excluída com sucesso",
       success: true 
@@ -209,4 +209,4 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
       details: process.env.NODE_ENV === 'development' ? (error as any)?.message : undefined 
     }, { status: 500 })
   }
-} 
+}

@@ -18,6 +18,7 @@ interface OrderItem {
 
 interface Order {
   id: string;
+  order_number?: string;
   status: string;
   total: number;
   customer_name: string;
@@ -53,6 +54,8 @@ const statusLabels = {
 export function RealtimeOrders() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [connected, setConnected] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Buscar pedidos iniciais
   const fetchOrders = useCallback(async () => {
@@ -101,7 +104,7 @@ export function RealtimeOrders() {
 
         toast({
           title: "Status atualizado",
-          description: `Pedido #${order.order_number || orderId} marcado como ${statusLabels[newStatus as keyof typeof statusLabels]}`,
+          description: `Pedido #${orderId} marcado como ${statusLabels[newStatus as keyof typeof statusLabels]}`,
         });
       } else {
         throw new Error(data.error || 'Erro ao atualizar status');

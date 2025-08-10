@@ -51,7 +51,7 @@ interface OrderItem {
   total_price: number
   size?: string
   toppings?: string[]
-  products: {
+  products?: {
     name: string
     description: string
     image: string
@@ -83,6 +83,7 @@ interface Order {
   estimated_delivery_time?: string
   created_at: string
   updated_at: string
+  order_number?: string
   profiles: {
     full_name: string
     phone?: string
@@ -91,6 +92,8 @@ interface Order {
   customer_display_name?: string
   customer_display_phone?: string
   customer_name?: string
+  customer_code?: string
+  customer_phone?: string
   order_items: OrderItem[]
 }
 

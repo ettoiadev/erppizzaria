@@ -26,6 +26,7 @@ interface TeamMember {
 interface AppearanceSettingsProps {
   settings: Record<string, any>
   onSave: (settings: Record<string, any>) => Promise<boolean>
+  onMarkUnsaved?: () => void
 }
 
 // Add the image processing utility function at the top of the file, after the imports
@@ -103,7 +104,7 @@ const processImage = (file: File): Promise<File> => {
   })
 }
 
-export function AppearanceSettings({ settings: initialSettings, onSave }: AppearanceSettingsProps) {
+export function AppearanceSettings({ settings: initialSettings, onSave, onMarkUnsaved }: AppearanceSettingsProps) {
   const [settings, setSettings] = useState({
     primaryColor: initialSettings.primaryColor || "#ef4444",
     secondaryColor: initialSettings.secondaryColor || "#f97316",

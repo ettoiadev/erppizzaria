@@ -18,6 +18,7 @@ interface DeliveryResult {
   message?: string
   method?: string
   error?: string
+  max_radius_km?: number
 }
 
 interface DeliveryCalculatorProps {

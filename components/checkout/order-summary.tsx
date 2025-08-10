@@ -266,9 +266,9 @@ export function OrderSummary({ items, total }: OrderSummaryProps) {
                   {appliedCoupon?.type === 'free_delivery' && deliveryFee === 0 && " (cupom)"}
                 </span>
               </div>
-              {total < settings.freeDeliveryMinValue && !appliedCoupon?.type === 'free_delivery' && (
+              {total < parseFloat(settings.freeDeliveryMinimum || '50') && appliedCoupon?.type !== 'free_delivery' && (
                 <div className="text-sm text-gray-600">
-                  Frete grátis para pedidos acima de R$ {settings.freeDeliveryMinValue?.toFixed(2)}
+                  Frete grátis para pedidos acima de R$ {parseFloat(settings.freeDeliveryMinimum || '50').toFixed(2)}
                 </div>
               )}
             </div>

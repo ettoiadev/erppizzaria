@@ -4,7 +4,6 @@ import supabaseBrowserDefault from './supabase'
 
 // supabaseBrowser: client somente no browser, se existir default export configurado para browser
 const supabaseBrowser = typeof window !== 'undefined' ? (supabaseBrowserDefault as unknown as SupabaseClient | null) : null
-import type { RealtimeChannel } from '@supabase/supabase-js'
 
 // Canal e eventos padronizados
 export const REALTIME_CHANNEL = 'orders'

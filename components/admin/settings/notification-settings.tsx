@@ -11,9 +11,10 @@ import { Save, Bell, Mail, Smartphone, MessageSquare } from "lucide-react"
 interface NotificationSettingsProps {
   settings: Record<string, any>
   onSave: (settings: Record<string, any>) => Promise<boolean>
+  onMarkUnsaved?: () => void
 }
 
-export function NotificationSettings({ settings: initialSettings, onSave }: NotificationSettingsProps) {
+export function NotificationSettings({ settings: initialSettings, onSave, onMarkUnsaved }: NotificationSettingsProps) {
   const [settings, setSettings] = useState({
     emailNotifications: initialSettings.emailNotifications ?? true,
     smsNotifications: initialSettings.smsNotifications ?? false,

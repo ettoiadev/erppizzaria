@@ -43,7 +43,7 @@ interface OrderItem {
 
 interface Order {
   id: string
-  order_number?: number
+  order_number?: string
   status: keyof typeof statusLabels
   total: number
   subtotal: number

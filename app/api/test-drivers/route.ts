@@ -76,6 +76,7 @@ export async function GET(request: NextRequest) {
     // Teste 5: Verificar estrutura da tabela
     totalTests++;
     try {
+      const supabase = getSupabaseServerClient();
       // Amostra simples: tentar selecionar um registro
       const { data: sample } = await supabase.from('drivers').select('id, name, email, phone, vehicle_type, status').limit(1);
       tests.push({ test: 'Estrutura da tabela', status: sample && sample.length >= 0 ? 'PASS' : 'FAIL', details: 'amostra consultada' });
@@ -87,6 +88,7 @@ export async function GET(request: NextRequest) {
     // Teste 6: Verificar se coluna driver_id existe na tabela orders
     totalTests++;
     try {
+      const supabase = getSupabaseServerClient();
       const { error } = await supabase.from('orders').select('driver_id').limit(1);
       if (!error) {
         tests.push({ test: 'Coluna driver_id em orders', status: 'PASS' });

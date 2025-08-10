@@ -224,7 +224,6 @@ export function MercadoPagoPayment({
             <p className="font-medium">Debug Info:</p>
             <p>Preference ID: {paymentData.preferenceId}</p>
             <p>Payment Method: {paymentData.paymentMethod}</p>
-            <p>Socket Connected: {connected ? 'Yes' : 'No'}</p>
           </div>
         )}
       </CardContent>

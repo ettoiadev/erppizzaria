@@ -1,4 +1,5 @@
 import { toast } from '@/hooks/use-toast'
+import { useState, useEffect } from 'react'
 
 // Tipos de notificação
 export type NotificationType = 
@@ -117,7 +118,6 @@ export class NotificationService {
         badge: payload.badge || '/favicon.ico',
         tag: payload.tag,
         data: payload.data,
-        actions: payload.actions,
         requireInteraction: payload.data?.priority === 'urgent',
         silent: false,
       })

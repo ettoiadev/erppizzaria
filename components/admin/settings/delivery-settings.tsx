@@ -55,7 +55,7 @@ export function DeliverySettings({ settings: initialSettings, onSave }: Delivery
   const removeDeliveryArea = (index: number) => {
     setSettings((prev) => ({
       ...prev,
-      deliveryAreas: prev.deliveryAreas.filter((_, i) => i !== index),
+      deliveryAreas: prev.deliveryAreas.filter((_: any, i: number) => i !== index),
     }))
   }
 
@@ -175,7 +175,7 @@ export function DeliverySettings({ settings: initialSettings, onSave }: Delivery
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-3">
-            {settings.deliveryAreas.map((area, index) => (
+            {settings.deliveryAreas.map((area: any, index: number) => (
               <div key={index} className="flex items-center gap-3 p-3 border rounded-lg">
                 <div className="flex-1 grid grid-cols-3 gap-3">
                   <Input

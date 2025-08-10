@@ -40,7 +40,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       id: category.id,
       name: category.name,
       description: category.description || '',
-      image: category.image || '',
+      image: category.image_url || '',
       sort_order: category.sort_order || 0,
       active: category.active !== false
     }

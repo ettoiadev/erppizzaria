@@ -10,7 +10,7 @@ interface ApiOptions {
 }
 
 export function useProtectedApi() {
-  const { getValidToken, session } = useAuth()
+  const { getValidToken } = useAuth()
   const router = useRouter()
 
   const callApi = useCallback(async (
@@ -112,18 +112,12 @@ export function useProtectedApi() {
   const del = useCallback((endpoint: string, headers?: Record<string, string>) => 
     callApi(endpoint, { method: 'DELETE', headers }), [callApi])
 
-  // Função para verificar se o usuário tem sessão válida
-  const hasValidSession = useCallback(() => {
-    return !!session && !!session.access_token
-  }, [session])
-
   return {
     callApi,
     get,
     post,
     put,
     patch,
-    delete: del,
-    hasValidSession
+    delete: del
   }
-} 
+}

@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
         tests.push({ 
           test: 'Tabelas categories e products existem', 
           status: 'FAIL', 
-          error: `Faltando: ${['categories', 'products'].filter(t => !existingTables.includes(t)).join(', ')}` 
+          error: `Erro ao acessar tabelas: ${catErr?.message || ''} ${prodErr?.message || ''}`.trim()
         });
       }
     } catch (error: any) {
@@ -214,8 +214,20 @@ export async function POST(request: NextRequest) {
     console.log('🔧 Inserindo produtos de exemplo...');
 
     // Buscar categorias existentes
-    const categoriesResult = await query('SELECT id, name FROM categories WHERE active = true ORDER BY sort_order');
-    const categories = categoriesResult.rows;
+    const supabase = getSupabaseServerClient();
+    const { data: categories, error } = await supabase
+      .from('categories')
+      .select('id, name')
+      .eq('active', true)
+      .order('sort_order');
+    
+    if (error) {
+      return NextResponse.json({
+        success: false,
+        error: 'Erro ao buscar categorias',
+        details: error.message
+      }, { status: 500 });
+    }
 
     if (categories.length === 0) {
       return NextResponse.json({
@@ -239,12 +251,19 @@ export async function POST(request: NextRequest) {
         ];
 
         for (const product of pizzaProducts) {
-          await query(`
-            INSERT INTO products (category_id, name, description, price, active, has_sizes, preparation_time)
-            VALUES ($1, $2, $3, $4, true, true, 30)
-            ON CONFLICT DO NOTHING
-          `, [category.id, product.name, product.description, product.price]);
-          productsCreated++;
+          const { error } = await supabase
+            .from('products')
+            .upsert({
+              category_id: category.id,
+              name: product.name,
+              description: product.description,
+              price: product.price,
+              active: true,
+              has_sizes: true,
+              preparation_time: 30
+            }, { onConflict: 'name' });
+          
+          if (!error) productsCreated++;
         }
       } else if (category.name.toLowerCase().includes('bebida')) {
         // Produtos de bebida
@@ -256,12 +275,19 @@ export async function POST(request: NextRequest) {
         ];
 
         for (const product of drinkProducts) {
-          await query(`
-            INSERT INTO products (category_id, name, description, price, active, has_sizes, preparation_time)
-            VALUES ($1, $2, $3, $4, true, false, 5)
-            ON CONFLICT DO NOTHING
-          `, [category.id, product.name, product.description, product.price]);
-          productsCreated++;
+          const { error } = await supabase
+            .from('products')
+            .upsert({
+              category_id: category.id,
+              name: product.name,
+              description: product.description,
+              price: product.price,
+              active: true,
+              has_sizes: false,
+              preparation_time: 5
+            }, { onConflict: 'name' });
+          
+          if (!error) productsCreated++;
         }
       } else if (category.name.toLowerCase().includes('sobremesa')) {
         // Produtos de sobremesa
@@ -272,19 +298,29 @@ export async function POST(request: NextRequest) {
         ];
 
         for (const product of dessertProducts) {
-          await query(`
-            INSERT INTO products (category_id, name, description, price, active, has_sizes, preparation_time)
-            VALUES ($1, $2, $3, $4, true, false, 10)
-            ON CONFLICT DO NOTHING
-          `, [category.id, product.name, product.description, product.price]);
-          productsCreated++;
+          const { error } = await supabase
+            .from('products')
+            .upsert({
+              category_id: category.id,
+              name: product.name,
+              description: product.description,
+              price: product.price,
+              active: true,
+              has_sizes: false,
+              preparation_time: 15
+            }, { onConflict: 'name' });
+          
+          if (!error) productsCreated++;
         }
       }
     }
 
     // Verificar quantos produtos foram realmente inseridos
-    const finalCount = await query('SELECT COUNT(*) as count FROM products WHERE active = true');
-    const totalProducts = parseInt(finalCount.rows[0].count);
+    const { count: finalCount } = await supabase
+      .from('products')
+      .select('*', { count: 'exact', head: true })
+      .eq('active', true);
+    const totalProducts = finalCount || 0;
 
     return NextResponse.json({
       success: true,

@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
     // Inserir produtos de exemplo
     const { data: categories } = await supabase.from('categories').select('id, name').order('sort_order', { ascending: true });
 
-    if (categories.length > 0) {
+    if (categories && categories.length > 0) {
       const pizzasCategory = categories.find(c => c.name.includes('Pizza'));
       const bebidasCategory = categories.find(c => c.name.includes('Bebida'));
 
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
     // 5. Inserir alguns pedidos de exemplo
     const { data: customers } = await supabase.from('profiles').select('id').eq('role', 'customer').limit(3);
 
-    if (customers.length > 0) {
+    if (customers && customers.length > 0) {
       for (let i = 0; i < customers.length; i++) {
         const customer = customers[i];
         const orderTotal = (Math.random() * 50 + 20).toFixed(2); // Entre R$ 20 e R$ 70

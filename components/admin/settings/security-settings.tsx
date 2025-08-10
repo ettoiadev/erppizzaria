@@ -13,9 +13,10 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 interface SecuritySettingsProps {
   settings: Record<string, any>
   onSave: (settings: Record<string, any>) => Promise<boolean>
+  onMarkUnsaved?: () => void
 }
 
-export function SecuritySettings({ settings, onSave }: SecuritySettingsProps) {
+export function SecuritySettings({ settings, onSave, onMarkUnsaved }: SecuritySettingsProps) {
   const [localSettings, setLocalSettings] = useState(settings)
   const [isLoading, setIsLoading] = useState(false)
   const [message, setMessage] = useState("")

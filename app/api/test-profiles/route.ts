@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
     let allTables: any[] = [];
 
     // Teste 3: Verificar em outros schemas
-    let profilesInOtherSchemas = [];
+    let profilesInOtherSchemas: any[] = [];
     try {
       // Usando Supabase, não podemos consultar information_schema diretamente
       // Vamos assumir que a tabela está no schema public
@@ -23,9 +23,9 @@ export async function GET(request: NextRequest) {
     }
 
     // Teste 4: Se a tabela existir, verificar estrutura
-    let tableStructure = [];
+    let tableStructure: any[] = [];
     let userCount = 0;
-    let adminUsers = [];
+    let adminUsers: any[] = [];
     
     if (tableExists) {
       try {

@@ -1,8 +1,8 @@
-import mercadopago from 'mercadopago'
+import { MercadoPagoConfig, Payment, Preference, PaymentRefund } from 'mercadopago'
 
 // Configurar Mercado Pago
-mercadopago.configure({
-  access_token: process.env.MERCADOPAGO_ACCESS_TOKEN || ''
+const client = new MercadoPagoConfig({
+  accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN || ''
 })
 
 export interface PaymentData {
@@ -20,10 +20,21 @@ export interface PaymentResult {
   payment_id?: string
   init_point?: string
   qr_code?: string
+  qr_code_base64?: string
   error?: string
 }
 
 export class MercadoPagoGateway {
+  private payment: Payment
+  private preference: Preference
+  private paymentRefund: PaymentRefund
+
+  constructor() {
+    this.payment = new Payment(client)
+    this.preference = new Preference(client)
+    this.paymentRefund = new PaymentRefund(client)
+  }
+
   /**
    * Criar pagamento no Mercado Pago
    */
@@ -35,7 +46,7 @@ export class MercadoPagoGateway {
         method: paymentData.payment_method
       })
 
-      const payment = {
+      const paymentRequest = {
         transaction_amount: paymentData.amount,
         description: paymentData.description,
         payment_method_id: paymentData.payment_method,
@@ -57,22 +68,21 @@ export class MercadoPagoGateway {
         }
       }
 
-      const response = await mercadopago.payment.save(payment)
+      const response = await this.payment.create({ body: paymentRequest })
       
-      if (response.body.status === 'rejected') {
+      if (response.status === 'rejected') {
         return {
           success: false,
-          error: response.body.status_detail || 'Pagamento rejeitado'
+          error: response.status_detail || 'Pagamento rejeitado'
         }
       }
 
-      console.log('✅ Pagamento criado:', response.body.id)
+      console.log('✅ Pagamento criado:', response.id)
 
       return {
         success: true,
-        payment_id: response.body.id.toString(),
-        init_point: response.body.init_point,
-        qr_code: response.body.point_of_interaction?.transaction_data?.qr_code
+        payment_id: response.id?.toString() || '',
+        qr_code: response.point_of_interaction?.transaction_data?.qr_code
       }
 
     } catch (error: any) {
@@ -89,8 +99,8 @@ export class MercadoPagoGateway {
    */
   async getPaymentStatus(paymentId: string): Promise<any> {
     try {
-      const response = await mercadopago.payment.get(paymentId)
-      return response.body
+      const response = await this.payment.get({ id: paymentId })
+      return response
     } catch (error: any) {
       console.error('❌ Erro ao buscar pagamento:', error)
       throw error
@@ -134,21 +144,21 @@ export class MercadoPagoGateway {
         notification_url: `${process.env.NEXT_PUBLIC_SITE_URL}/api/payments/webhook`
       }
 
-      const response = await mercadopago.payment.save(payment)
+      const response = await this.payment.create({ body: payment })
       
-      if (response.body.status === 'rejected') {
+      if (response.status === 'rejected') {
         return {
           success: false,
-          error: response.body.status_detail || 'Pagamento PIX rejeitado'
+          error: response.status_detail || 'Pagamento PIX rejeitado'
         }
       }
 
-      const qrCode = response.body.point_of_interaction?.transaction_data?.qr_code
-      const qrCodeBase64 = response.body.point_of_interaction?.transaction_data?.qr_code_base64
+      const qrCode = response.point_of_interaction?.transaction_data?.qr_code
+      const qrCodeBase64 = response.point_of_interaction?.transaction_data?.qr_code_base64
 
       return {
         success: true,
-        payment_id: response.body.id.toString(),
+        payment_id: response.id?.toString() || '',
         qr_code: qrCode,
         qr_code_base64: qrCodeBase64
       }
@@ -168,12 +178,12 @@ export class MercadoPagoGateway {
   async refundPayment(paymentId: string, amount?: number): Promise<boolean> {
     try {
       const refundData = amount ? { amount } : {}
-      const response = await mercadopago.refund.create({
+      const response = await this.paymentRefund.create({
         payment_id: paymentId,
-        ...refundData
+        body: refundData
       })
 
-      console.log('✅ Reembolso processado:', response.body.id)
+      console.log('✅ Reembolso processado:', response.id)
       return true
     } catch (error: any) {
       console.error('❌ Erro ao reembolsar:', error)
