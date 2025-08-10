@@ -123,14 +123,16 @@ export async function updateCategorySortOrders(categoryOrders: Array<{ id: numbe
 
 export async function getProductsActive(): Promise<Product[]> {
   const supabase = getSupabaseServerClient()
-  // Buscar produtos e nome da categoria com select relacionado
+  // Buscar produtos ativos
   const { data, error } = await supabase
     .from('products')
-    .select('id, name, description, price, category_id, image, active, has_sizes, has_toppings, preparation_time, sort_order, created_at, updated_at, categories:name=category_id(name)')
+    .select('id, name, description, price, category_id, image, active, sizes, toppings, created_at, updated_at')
     .eq('active', true)
-    .order('sort_order', { ascending: true, nullsFirst: false })
     .order('created_at', { ascending: true })
-  if (error) throw error
+  if (error) {
+    console.error('Erro ao buscar produtos:', error)
+    throw error
+  }
 
   return (data || []).map((p: any, index: number) => ({
     id: p.id,
@@ -140,13 +142,13 @@ export async function getProductsActive(): Promise<Product[]> {
     category_id: p.category_id,
     image: p.image || null,
     active: !!p.active,
-    has_sizes: !!p.has_sizes,
-    has_toppings: !!p.has_toppings,
-    preparation_time: p.preparation_time,
-    sort_order: p.sort_order ?? index + 1,
+    has_sizes: !!(p.sizes && Array.isArray(p.sizes) && p.sizes.length > 0),
+    has_toppings: !!(p.toppings && Array.isArray(p.toppings) && p.toppings.length > 0),
+    preparation_time: 15, // valor padrão
+    sort_order: index + 1,
     created_at: p.created_at,
     updated_at: p.updated_at,
-    category_name: p.categories?.name || '',
+    category_name: '', // será buscado separadamente se necessário
   }))
 }
 
