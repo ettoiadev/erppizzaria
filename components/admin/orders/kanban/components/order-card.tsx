@@ -33,7 +33,8 @@ export function OrderCard({
       DELIVERED: CheckCircle,
       CANCELLED: XCircle,
     }
-    return icons[status as keyof typeof icons] || Package
+    const IconComponent = icons[status as keyof typeof icons] || Package
+    return <IconComponent className="w-4 h-4" />
   }
 
   const getNextStatus = (currentStatus: string) => {
@@ -49,7 +50,7 @@ export function OrderCard({
     }
   }
 
-  const StatusIcon = getStatusIcon(order.status)
+  const statusIcon = getStatusIcon(order.status)
   const nextAction = getNextStatus(order.status)
 
   return (
@@ -58,7 +59,7 @@ export function OrderCard({
       <div className={`px-4 py-2 ${statusColors[order.status]} border-b-2`}>
         <div className="flex items-center justify-between min-w-0">
           <div className="flex items-center gap-2 min-w-0 flex-1">
-            <StatusIcon className="h-4 w-4 flex-shrink-0" />
+            {statusIcon}
             <span className="text-sm font-bold truncate">#{order.order_number || order.id.slice(-8)}</span>
             {/* Badge para pedidos manuais */}
             {(order.delivery_address === "Manual (Balcão)" || order.delivery_address === "Manual (Telefone)") && (

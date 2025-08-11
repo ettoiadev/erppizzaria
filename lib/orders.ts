@@ -83,11 +83,10 @@ export async function createOrder(orderData: OrderData, items: OrderItem[]): Pro
       items: items
     };
   } catch (error) {
-    appLogger.error('orders', 'Erro ao criar pedido', { 
+    appLogger.error('api', 'Erro ao criar pedido', error instanceof Error ? error : new Error(String(error)), {
       user_id: orderData.user_id,
       total: orderData.total,
-      items_count: items.length,
-      error: error instanceof Error ? error.message : String(error)
+      items_count: items.length
     });
     throw error;
   }

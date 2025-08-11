@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getSupabaseServerClient } from '@/lib/supabase';
 import { withAdminAuth } from '@/lib/auth-middleware';
-import { frontendLogger } from '@/lib/logging';
+import { frontendLogger } from '@/lib/frontend-logger';
 
 
 
@@ -123,7 +123,7 @@ export async function PUT(
     };
 
     console.log(`[PRODUCTS] PUT: Produto ${params.id} atualizado com sucesso`);
-    frontendLogger.info('admin', 'Produto atualizado', {
+    frontendLogger.info('Produto atualizado', 'api', {
       adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
       productId: params.id,
       productName: name.trim()
@@ -132,12 +132,11 @@ export async function PUT(
     return NextResponse.json({ product: normalizedProduct });
     } catch (error: any) {
       console.error("Erro ao atualizar produto:", error);
-      frontendLogger.error('admin', 'Erro ao atualizar produto', {
-        error: error.message,
-        adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
-        productId: params.id,
-        stack: error.stack
-      });
+      frontendLogger.logError('Erro ao atualizar produto', {
+           error: error.message,
+           adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+           productId: params.id
+         }, error, 'api');
       return NextResponse.json(
         { error: "Erro interno do servidor" },
         { status: 500 }
@@ -283,7 +282,7 @@ export async function DELETE(
     if (error) throw error;
 
     console.log(`[PRODUCTS] DELETE: Produto ${params.id} excluído com sucesso`);
-    frontendLogger.info('admin', 'Produto excluído', {
+    frontendLogger.info('Produto excluído', 'api', {
       adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
       productId: params.id,
       productName: existing.name
@@ -295,12 +294,11 @@ export async function DELETE(
     });
     } catch (error: any) {
       console.error("Erro ao excluir produto:", error);
-      frontendLogger.error('admin', 'Erro ao excluir produto', {
-        error: error.message,
-        adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
-        productId: params.id,
-        stack: error.stack
-      });
+      frontendLogger.logError('Erro ao excluir produto', {
+           error: error.message,
+           adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+           productId: params.id
+         }, error, 'api');
 
       return NextResponse.json(
         { error: "Erro interno do servidor" },

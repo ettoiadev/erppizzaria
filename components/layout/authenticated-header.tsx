@@ -35,7 +35,7 @@ interface AuthenticatedHeaderProps {
 export function AuthenticatedHeader({ onCartClick }: AuthenticatedHeaderProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const { itemCount, total } = useCart()
-  const { user, logout, isLoading } = useAuth()
+  const { user, logout, loading } = useAuth()
   const { settings } = useAppSettings()
   const router = useRouter()
   const pathname = usePathname()
@@ -64,12 +64,13 @@ export function AuthenticatedHeader({ onCartClick }: AuthenticatedHeaderProps) {
   ]
 
   // Get shortened name (first name only)
-  const getShortName = (fullName: string) => {
+  const getShortName = (fullName: string | undefined) => {
+    if (!fullName) return "Usuário"
     return fullName.split(" ")[0]
   }
 
   // Se ainda está carregando, mostrar skeleton
-  if (isLoading) {
+  if (loading) {
     return (
       <header className="bg-white shadow-sm sticky top-0 z-50">
         <div className="container mx-auto px-4">

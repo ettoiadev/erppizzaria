@@ -138,7 +138,7 @@ export default function MenuPage() {
             <AlertDescription className="text-green-800">
               <div className="flex items-center justify-between">
                 <span>
-                  Bem-vindo(a), <strong>{user.name.split(" ")[0]}</strong>! Explore nosso cardápio e faça seu pedido.
+                  Bem-vindo(a), <strong>{user.full_name?.split(" ")[0] || user.email.split("@")[0]}</strong>! Explore nosso cardápio e faça seu pedido.
                 </span>
                 <Button variant="ghost" size="sm" onClick={handleDismissWelcome} className="text-green-600">
                   ✕

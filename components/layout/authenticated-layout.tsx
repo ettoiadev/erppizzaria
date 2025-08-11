@@ -14,20 +14,20 @@ interface AuthenticatedLayoutProps {
 }
 
 export function AuthenticatedLayout({ children, onCartClick }: AuthenticatedLayoutProps) {
-  const { user, isLoading } = useAuth()
+  const { user, loading } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
 
   useEffect(() => {
     // Redirect non-authenticated users to login with redirect parameter
-    if (!user && !isLoading) {
+    if (!user && !loading) {
       console.log("AuthenticatedLayout: User not authenticated, redirecting to login")
       router.push("/login?redirect=" + encodeURIComponent(pathname))
     }
-  }, [user, isLoading, router, pathname])
+  }, [user, loading, router, pathname])
 
   // Show loading while checking authentication
-  if (isLoading) {
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">

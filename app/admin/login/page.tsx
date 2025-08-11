@@ -26,7 +26,10 @@ export default function AdminLoginPage() {
     setError("")
 
     try {
-      await login(email, password, "admin")
+      const result = await login(email, password)
+      if (!result.success) {
+        throw new Error(result.error)
+      }
       router.push("/admin")
     } catch (error: any) {
       setError(error.message || "Email ou senha inválidos")

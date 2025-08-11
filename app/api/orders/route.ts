@@ -3,6 +3,7 @@ import { listOrders, createOrder as createOrderSupabase } from '@/lib/db-supabas
 import { ordersRateLimiter } from '@/lib/rate-limiter'
 import { emitRealtimeEvent, EVENT_ORDER_CREATED, REALTIME_CHANNEL } from '@/lib/realtime'
 import { withApiLogging, createApiLogger } from '@/lib/api-logger-middleware'
+import { frontendLogger } from '@/lib/frontend-logger'
 
 // Force dynamic rendering for this route
 export const dynamic = 'force-dynamic'
@@ -23,7 +24,7 @@ async function getOrdersHandler(request: NextRequest) {
     offset: offset ? parseInt(offset) : null,
   }
   
-  logger.info('api', 'Buscando pedidos', {
+  frontendLogger.info('Buscando pedidos', 'api', {
     filters: {
       status,
       userId: userId ? `user_${userId.substring(0, 8)}***` : null,
@@ -35,7 +36,7 @@ async function getOrdersHandler(request: NextRequest) {
   logger.logQuery('SELECT orders with filters', queryParams)
   const { orders, statistics } = await listOrders(queryParams)
   
-  logger.info('api', 'Pedidos encontrados', {
+  frontendLogger.info('Pedidos encontrados', 'api', {
     count: orders.length,
     total: statistics.total,
     hasFilters: !!(status || userId)
@@ -65,7 +66,7 @@ async function createOrderHandler(request: NextRequest) {
   const rateLimitResult = ordersRateLimiter(request)
   // Somente interromper o fluxo se o rate limiter BLOQUEAR (status 429)
   if (rateLimitResult && (rateLimitResult as NextResponse).status === 429) {
-    logger.warn('api', 'Rate limit atingido para criação de pedido')
+    frontendLogger.warn('Rate limit atingido para criação de pedido', 'api')
     return rateLimitResult
   }
 
@@ -88,7 +89,7 @@ async function createOrderHandler(request: NextRequest) {
   const estimated_delivery_time = body.estimated_delivery_time ?? null
   const items = Array.isArray(body.items) ? body.items : []
   
-  logger.info('api', 'Tentativa de criação de pedido', {
+  frontendLogger.info('Tentativa de criação de pedido', 'api', {
     userId: user_id ? `user_${user_id.substring(0, 8)}***` : null,
     customerName: customer_name?.substring(0, 10) + '***',
     total,
@@ -99,7 +100,7 @@ async function createOrderHandler(request: NextRequest) {
 
   // Validar dados obrigatórios
   if (!user_id || !customer_name || !customer_phone || !customer_address || !total || !payment_method) {
-    logger.warn('api', 'Dados obrigatórios ausentes na criação de pedido', {
+    frontendLogger.warn('Dados obrigatórios ausentes na criação de pedido', 'api', {
       hasUserId: !!user_id,
       hasCustomerName: !!customer_name,
       hasCustomerPhone: !!customer_phone,
@@ -113,7 +114,7 @@ async function createOrderHandler(request: NextRequest) {
     )
   }
 
-  logger.debug('api', 'Processando itens do pedido', { itemsCount: items.length })
+  frontendLogger.debug('Processando itens do pedido', 'api', { itemsCount: items.length })
   
   const itemsPayload = (items || []).map((item: any) => ({
     product_id: item.product_id ?? item.id ?? null,
@@ -127,7 +128,7 @@ async function createOrderHandler(request: NextRequest) {
     half_and_half: item.half_and_half ?? item.halfAndHalf ?? null,
   }))
   
-  logger.debug('api', 'Criando pedido no banco de dados')
+  frontendLogger.debug('Criando pedido no banco de dados', 'api')
   logger.logQuery('INSERT order', {
     userId: user_id,
     total,
@@ -151,7 +152,7 @@ async function createOrderHandler(request: NextRequest) {
     items: itemsPayload,
   })
 
-  logger.info('api', 'Pedido criado com sucesso', {
+  frontendLogger.info('Pedido criado com sucesso', 'api', {
     orderId: order.id,
     total,
     paymentMethod: payment_method,
@@ -162,14 +163,14 @@ async function createOrderHandler(request: NextRequest) {
 
   // Emitir evento Realtime para novos pedidos
   try {
-    logger.debug('api', 'Emitindo evento realtime para novo pedido')
+    frontendLogger.debug('Emitindo evento realtime para novo pedido', 'api')
     await emitRealtimeEvent(EVENT_ORDER_CREATED, { orderId: order.id, order })
-    logger.debug('api', 'Evento realtime emitido com sucesso')
+    frontendLogger.debug('Evento realtime emitido com sucesso', 'api')
   } catch (e) {
-    logger.warn('api', 'Falha ao emitir evento Realtime (não crítico)', e, {
-      orderId: order.id,
-      eventType: EVENT_ORDER_CREATED
-    })
+    frontendLogger.logError('Falha ao emitir evento Realtime (não crítico)', {
+        orderId: order.id,
+        eventType: EVENT_ORDER_CREATED
+      }, e as Error, 'api')
   }
 
   return NextResponse.json({

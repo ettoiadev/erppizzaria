@@ -25,13 +25,13 @@ export function OrdersManagementRefactored() {
   const {
     orders,
     statistics,
-    isLoading,
-    isUpdatingStatus,
+    loading,
+    updatingStatus,
     fetchOrders,
     updateOrderStatus,
-    archiveOrdersByStatus,
-    archiveAllCompletedOrders,
-  } = useOrdersData()
+    handleArchiveOrders,
+    handleArchiveAllCompleted,
+  } = useOrdersData(selectedStatus === 'ALL' ? 'all' : selectedStatus.toLowerCase())
 
   const {
     printKitchenReceipt,
@@ -39,6 +39,7 @@ export function OrdersManagementRefactored() {
 
   const {
     selectedOrder,
+    setSelectedOrder,
     cancelNotes,
     setCancelNotes,
     showManualOrderModal,
@@ -55,17 +56,17 @@ export function OrdersManagementRefactored() {
 
   // Carregar pedidos ao montar o componente
   useEffect(() => {
-    fetchOrders(selectedStatus === 'ALL' ? undefined : selectedStatus)
+    fetchOrders()
   }, [selectedStatus, fetchOrders])
 
   // Handlers
   const handleRefresh = () => {
-    fetchOrders(selectedStatus === 'ALL' ? undefined : selectedStatus)
+    fetchOrders()
   }
 
   const handleArchiveAll = async () => {
     try {
-      await archiveAllCompletedOrders()
+      await handleArchiveAllCompleted()
       toast({
         title: "Sucesso",
         description: "Pedidos arquivados com sucesso.",
@@ -138,12 +139,12 @@ export function OrdersManagementRefactored() {
         onRefresh={handleRefresh}
         onArchiveAll={handleArchiveAll}
         onNewManualOrder={openManualOrderModal}
-        isLoading={isLoading}
-        isUpdatingStatus={isUpdatingStatus}
+        isLoading={loading}
+        isUpdatingStatus={!!updatingStatus}
       />
 
       {/* Conteúdo Principal */}
-      {isLoading ? (
+      {loading ? (
         <div className="flex justify-center items-center py-8">
           <Loader2 className="h-8 w-8 animate-spin" />
           <span className="ml-2">Carregando pedidos...</span>
@@ -157,7 +158,7 @@ export function OrdersManagementRefactored() {
               onShowSelectDriverModal={(orderId: string) => openSelectDriverModal()}
               onPrintKitchenReceipt={printKitchenReceipt}
               onShowOrderDetails={openOrderDetails}
-              updatingStatus={isUpdatingStatus}
+              updatingStatus={updatingStatus}
               thermalPrintEnabled={true}
               formatCurrency={(value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)}
               formatDateTime={(dateString: string) => new Date(dateString).toLocaleString('pt-BR')}
@@ -172,7 +173,7 @@ export function OrdersManagementRefactored() {
                 return mapping[method] || method
               }}
               selectedOrder={selectedOrder}
-              setSelectedOrder={openOrderDetails}
+              setSelectedOrder={setSelectedOrder}
               cancellationNotes={cancelNotes}
               setCancellationNotes={setCancelNotes}
             />
@@ -184,7 +185,7 @@ export function OrdersManagementRefactored() {
               onUpdateStatus={handleUpdateStatus}
               onAssignDriver={openSelectDriverModal}
               onCancelOrder={openCancelModal}
-              isUpdatingStatus={isUpdatingStatus}
+              isUpdatingStatus={!!updatingStatus}
             />
           )}
         </>

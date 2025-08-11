@@ -33,6 +33,13 @@ interface UseErrorHandlingReturn {
   logInfo: (message: string, data?: any) => void
   logWarning: (message: string, data?: any) => void
   logDebug: (message: string, data?: any) => void
+  
+  // Métodos específicos do frontend logger
+  logUserAction: (action: string, data?: any) => void
+  logPerformance: (operation: string, duration: number, data?: any) => void
+  setUserId: (userId: string) => void
+  clearUserId: () => void
+  getErrorMessage: (error: Error) => import('../lib/frontend-logger').UserFriendlyError
 }
 
 // Hook principal
@@ -130,17 +137,17 @@ export function useErrorHandling(options: UseErrorHandlingOptions = {}): UseErro
   // Funções de logging específicas
   const logInfo = useCallback((message: string, data?: any) => {
     logger.info(`${context}: ${message}`, 'ui', data)
-    appLogger.info('frontend', `${context}: ${message}`, data)
+    appLogger.info('general', `${context}: ${message}`, data)
   }, [context, logger])
   
   const logWarning = useCallback((message: string, data?: any) => {
     logger.warn(`${context}: ${message}`, 'ui', data)
-    appLogger.warn('frontend', `${context}: ${message}`, data)
+    appLogger.warn('general', `${context}: ${message}`, data)
   }, [context, logger])
   
   const logDebug = useCallback((message: string, data?: any) => {
     logger.debug(`${context}: ${message}`, 'ui', data)
-    appLogger.debug('frontend', `${context}: ${message}`, data)
+    appLogger.debug('general', `${context}: ${message}`, data)
   }, [context, logger])
   
   // Funções de controle
@@ -325,7 +332,7 @@ export function useApiErrorHandling(apiName: string) {
       return result
     } catch (error) {
       const duration = Date.now() - startTime
-      const appError = error instanceof Error ? handleError(error, 'API Request') : error
+      const appError = handleError(error, 'API Request')
       
       logPerformance(`API Error: ${endpoint || apiName}`, duration)
       logUserAction('api_call_error', { endpoint: endpoint || apiName, duration, errorType: appError.type })

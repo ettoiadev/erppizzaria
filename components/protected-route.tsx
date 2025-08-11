@@ -18,7 +18,7 @@ export function ProtectedRoute({
   redirectTo = '/login',
   fallback 
 }: ProtectedRouteProps) {
-  const { user, isLoading, isValidating, validateSession, getValidToken } = useAuth()
+  const { user, loading } = useAuth()
   const [isValidSession, setIsValidSession] = useState<boolean | null>(null)
   const router = useRouter()
 
@@ -26,30 +26,19 @@ export function ProtectedRoute({
     const checkAccess = async () => {
       try {
         // Se ainda está carregando, aguardar
-        if (isLoading) return
+        if (loading) return
 
-        // Se não há usuário, verificar se há sessão válida
+        // Se não há usuário, redirecionar para login
         if (!user) {
-          const sessionValid = await validateSession()
-          if (!sessionValid) {
-            console.log('⚠️ Nenhuma sessão válida encontrada, redirecionando...')
-            router.push(`${redirectTo}?error=session_required`)
-            return
-          }
+          console.log('⚠️ Nenhuma sessão válida encontrada, redirecionando...')
+          router.push(`${redirectTo}?error=session_required`)
+          return
         }
 
         // Verificar se tem role necessário
         if (requireRole && user && user.role !== requireRole) {
           console.log(`⚠️ Role requerido: ${requireRole}, usuário tem: ${user.role}`)
           router.push(`${redirectTo}?error=insufficient_permissions`)
-          return
-        }
-
-        // Verificar se o token ainda é válido
-        const token = await getValidToken()
-        if (!token) {
-          console.log('⚠️ Token inválido, redirecionando para login...')
-          router.push(`${redirectTo}?error=session_expired`)
           return
         }
 
@@ -61,10 +50,10 @@ export function ProtectedRoute({
     }
 
     checkAccess()
-  }, [user, isLoading, requireRole, redirectTo, router, validateSession, getValidToken])
+  }, [user, loading, requireRole, redirectTo, router])
 
   // Mostrar loading enquanto valida
-  if (isLoading || isValidating || isValidSession === null) {
+  if (loading || isValidSession === null) {
     return fallback || (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <LoadingSpinner />
@@ -83,4 +72,4 @@ export function ProtectedRoute({
       <LoadingSpinner />
     </div>
   )
-} 
+}

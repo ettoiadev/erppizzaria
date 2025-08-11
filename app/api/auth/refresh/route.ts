@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { refreshAccessToken } from '@/lib/refresh-token'
 import { createAuthResponse, clearAuthResponse } from '@/lib/auth-middleware'
-import { frontendLogger } from '@/lib/logging'
+import { frontendLogger } from '@/lib/frontend-logger'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
     const refreshToken = request.cookies.get('refresh-token')?.value
     
     if (!refreshToken) {
-      frontendLogger.warn('auth', 'Tentativa de refresh sem token', {
+      frontendLogger.warn('Tentativa de refresh sem token', 'auth', {
         ip: request.ip || 'unknown',
         userAgent: request.headers.get('user-agent') || 'unknown'
       })
@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     const newTokenPair = await refreshAccessToken(refreshToken)
     
     if (!newTokenPair) {
-      frontendLogger.warn('auth', 'Falha na renovação do token', {
+      frontendLogger.warn('Falha na renovação do token', 'auth', {
         ip: request.ip || 'unknown',
         userAgent: request.headers.get('user-agent') || 'unknown'
       })
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
       }, 401)
     }
 
-    frontendLogger.info('auth', 'Token renovado com sucesso', {
+    frontendLogger.info('Token renovado com sucesso', 'auth', {
       ip: request.ip || 'unknown',
       expiresIn: newTokenPair.expiresIn
     })
@@ -48,11 +48,10 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error: any) {
-    frontendLogger.error('auth', 'Erro interno na renovação de token', {
-      error: error.message,
-      stack: error.stack,
-      ip: request.ip || 'unknown'
-    })
+    frontendLogger.logError('Erro interno na renovação de token', {
+       error: error.message,
+       ip: request.headers.get('x-forwarded-for') || 'unknown'
+     }, error, 'auth')
 
     return NextResponse.json({
       success: false,
@@ -81,9 +80,9 @@ export async function GET(request: NextRequest) {
     })
 
   } catch (error: any) {
-    frontendLogger.error('auth', 'Erro ao verificar refresh token', {
-      error: error.message
-    })
+    frontendLogger.logError('Erro ao verificar refresh token', {
+       error: error.message
+     }, error, 'auth')
 
     return NextResponse.json({
       valid: false,

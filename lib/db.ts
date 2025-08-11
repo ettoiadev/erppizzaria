@@ -15,7 +15,12 @@ export async function query(table: string, action: string, options?: any) {
   
   try {
     if (enableQueryLogs) {
-      supabaseLogger.logQuery(`${action} from ${table}`, { table, action, options });
+      supabaseLogger.logQuery({
+        operation: action,
+        table,
+        query: `${action} from ${table}`,
+        metadata: { options }
+      });
     }
     
     const supabase = getSupabaseServerClient();
@@ -43,15 +48,24 @@ export async function query(table: string, action: string, options?: any) {
     const duration = Date.now() - start;
     
     if (enableSlowQueryLogs && duration > slowQueryThreshold) {
-      supabaseLogger.logSlowQuery(`${action} from ${table}`, duration, { table, action });
+      supabaseLogger.logQuery({
+        operation: action,
+        table,
+        duration,
+        query: `${action} from ${table}`,
+        metadata: { isSlowQuery: true }
+      });
     }
     
     if (enableQueryLogs) {
-      supabaseLogger.logQuery(`Query executada com sucesso: ${action} from ${table}`, {
-        duration,
-        resultCount: result.data ? result.data.length : 0,
+      supabaseLogger.logQuery({
+        operation: action,
         table,
-        action
+        duration,
+        query: `Query executada com sucesso: ${action} from ${table}`,
+        metadata: {
+          resultCount: result.data ? result.data.length : 0
+        }
       });
     }
     
@@ -59,12 +73,16 @@ export async function query(table: string, action: string, options?: any) {
     
   } catch (error: any) {
     const duration = Date.now() - start;
-    supabaseLogger.logError(`Database query error: ${action} from ${table}`, {
+    supabaseLogger.logQuery({
+      operation: action,
       table,
-      action,
       duration,
-      errorCode: error.code
-    }, error);
+      query: `Database query error: ${action} from ${table}`,
+      error,
+      metadata: {
+        errorCode: error.code
+      }
+    });
     throw error;
   }
 }
@@ -77,9 +95,12 @@ export async function getClient() {
 // Função para logs de debug
 export function debugQuery(text: string, params?: any[]) {
   if (enableQueryLogs) {
-    supabaseLogger.logQuery('Debug query', {
-      queryText: text.substring(0, 100),
-      params: params ? JSON.stringify(params) : undefined
+    supabaseLogger.logQuery({
+      operation: 'debug',
+      query: text.substring(0, 100),
+      metadata: {
+        params: params ? JSON.stringify(params) : undefined
+      }
     });
   }
 }

@@ -1,4 +1,5 @@
 // Sistema de tratamento de erros para frontend
+import React from 'react'
 import { appLogger } from './logging'
 
 // Tipos de erro
@@ -183,16 +184,20 @@ export class ErrorHandler {
     // Usar nível apropriado baseado no tipo
     switch (appError.type) {
       case 'authentication':
-        appLogger.auth.error('Erro de autenticação', appError.originalError, logData)
+        if (appError.originalError) {
+          appLogger.auth.tokenError(appError.originalError, logData)
+        } else {
+          appLogger.error('auth', 'Erro de autenticação', undefined, logData)
+        }
         break
       case 'network':
-        appLogger.error('frontend', 'Erro de rede', appError.originalError, logData)
+        appLogger.error('general', 'Erro de rede', appError.originalError, logData)
         break
       case 'server':
         appLogger.error('api', 'Erro do servidor', appError.originalError, logData)
         break
       default:
-        appLogger.error('frontend', appError.message, appError.originalError, logData)
+        appLogger.error('general', appError.message, appError.originalError, logData)
     }
   }
   
@@ -211,7 +216,7 @@ export class ErrorHandler {
     const appError = this.handle(error, context)
     
     // Log crítico
-    appLogger.critical('frontend', `Erro crítico: ${appError.message}`, appError.originalError, {
+    appLogger.critical('general', `Erro crítico: ${appError.message}`, appError.originalError, {
       ...appError.details,
       ...additionalData,
       errorQueue: this.errorQueue.length
@@ -264,16 +269,15 @@ export function withComponentErrorHandling<P extends object>(
 ) {
   return function WrappedComponent(props: P) {
     try {
-      return <Component {...props} />
+      return React.createElement(Component, props)
     } catch (error) {
       errorHandler.handle(error, `Component: ${componentName}`)
       
       // Componente de fallback
-      return (
-        <div className="error-boundary p-4 border border-red-300 rounded bg-red-50">
-          <h3 className="text-red-800 font-semibold">Erro no componente</h3>
-          <p className="text-red-600">Ocorreu um erro inesperado. Tente recarregar a página.</p>
-        </div>
+      return React.createElement('div', 
+        { className: 'error-boundary p-4 border border-red-300 rounded bg-red-50' },
+        React.createElement('h3', { className: 'text-red-800 font-semibold' }, 'Erro no componente'),
+        React.createElement('p', { className: 'text-red-600' }, 'Ocorreu um erro inesperado. Tente recarregar a página.')
       )
     }
   }

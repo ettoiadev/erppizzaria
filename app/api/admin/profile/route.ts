@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { withAdminAuth } from "@/lib/auth-middleware"
 import { getSupabaseServerClient } from "@/lib/supabase"
-import { frontendLogger } from "@/lib/logging"
+import { frontendLogger } from "@/lib/frontend-logger"
 
 // Force dynamic rendering for this route
 export const dynamic = 'force-dynamic'
@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
 
       if (!profile) {
         console.log("[ADMIN_PROFILE] Erro: Perfil não encontrado para ID:", admin.id)
-        frontendLogger.warn('admin', 'Perfil não encontrado', {
+        frontendLogger.warn('Perfil não encontrado', 'api', {
           adminId: admin.id,
           adminEmail: admin.email
         })
@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
       }
 
       console.log("[ADMIN_PROFILE] Perfil encontrado:", profile.email)
-      frontendLogger.info('admin', 'Perfil consultado', {
+      frontendLogger.info('Perfil consultado', 'api', {
         adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2')
       })
       
@@ -52,11 +52,11 @@ export async function GET(request: NextRequest) {
         stack: error.stack,
         name: error.name
       })
-      frontendLogger.error('admin', 'Erro ao consultar perfil', {
+      frontendLogger.logError('Erro ao consultar perfil', {
         error: error.message,
         adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
         stack: error.stack
-      })
+      }, error, 'api')
       
       return NextResponse.json({ 
         error: "Erro interno do servidor",
@@ -97,14 +97,14 @@ export async function PUT(request: NextRequest) {
 
       if (!updatedProfile) {
         console.log("[ADMIN_PROFILE] PUT: Perfil não encontrado para atualização")
-        frontendLogger.error('admin', 'Falha na atualização do perfil', {
+        frontendLogger.logError('Falha na atualização do perfil', {
           adminId: admin.id,
           adminEmail: admin.email
-        })
+        }, new Error('Profile not found'), 'api')
         return NextResponse.json({ error: "Perfil não encontrado" }, { status: 404 })
       }
       console.log("[ADMIN_PROFILE] PUT: Perfil atualizado com sucesso")
-      frontendLogger.info('admin', 'Perfil atualizado', {
+      frontendLogger.info('Perfil atualizado', 'api', {
         adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
         updatedFields: { full_name: !!full_name, phone: !!phone }
       })
@@ -121,11 +121,11 @@ export async function PUT(request: NextRequest) {
         stack: error.stack,
         name: error.name
       })
-      frontendLogger.error('admin', 'Erro ao atualizar perfil', {
+      frontendLogger.logError('Erro ao atualizar perfil', {
         error: error.message,
         adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
         stack: error.stack
-      })
+      }, error, 'api')
       
       return NextResponse.json({ 
         error: "Erro interno do servidor",

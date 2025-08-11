@@ -72,7 +72,7 @@ export class NotificationService {
   // Solicitar permissão para push notifications
   async requestPermission(): Promise<boolean> {
     if (!this.pushSupported) {
-      frontendLogger.warn('notifications', 'Push notifications não são suportadas neste navegador')
+      frontendLogger.warn('Push notifications não são suportadas neste navegador', 'ui')
       return false
     }
 
@@ -81,9 +81,9 @@ export class NotificationService {
       this.permission = permission
       return permission === 'granted'
     } catch (error) {
-      frontendLogger.error('notifications', 'Erro ao solicitar permissão para notificações', {
+      frontendLogger.logError('Erro ao solicitar permissão para notificações', {
         error: error instanceof Error ? error.message : String(error)
-      })
+      }, error instanceof Error ? error : undefined, 'ui')
       return false
     }
   }
@@ -110,7 +110,7 @@ export class NotificationService {
   // Enviar notificação push
   async showPushNotification(payload: PushNotificationPayload): Promise<void> {
     if (!this.pushSupported || this.permission !== 'granted') {
-      frontendLogger.warn('notifications', 'Push notifications não disponíveis', {
+      frontendLogger.warn('Push notifications não disponíveis', 'ui', {
         pushSupported: this.pushSupported,
         permission: this.permission
       })
@@ -138,7 +138,7 @@ export class NotificationService {
       }
 
       notification.onclose = () => {
-        frontendLogger.debug('notifications', 'Notificação fechada')
+        frontendLogger.debug('Notificação fechada', 'ui')
       }
 
       // Auto-close para notificações não urgentes
@@ -149,10 +149,10 @@ export class NotificationService {
       }
 
     } catch (error) {
-      frontendLogger.error('notifications', 'Erro ao mostrar push notification', {
+      frontendLogger.logError('Erro ao exibir notificação push', {
         title: payload.title,
         error: error instanceof Error ? error.message : String(error)
-      })
+      }, error instanceof Error ? error : undefined, 'ui')
     }
   }
 
@@ -168,7 +168,7 @@ export class NotificationService {
         body: JSON.stringify(notification),
       })
     } catch (error) {
-      frontendLogger.warn('notifications', 'Erro ao enviar notificação realtime, usando fallback toast', {
+      frontendLogger.warn('Erro ao enviar notificação realtime, usando fallback toast', 'ui', {
         notification_type: notification.type,
         error: error instanceof Error ? error.message : String(error)
       })
@@ -301,11 +301,11 @@ export class NotificationService {
         body: JSON.stringify(notification),
       })
     } catch (error) {
-      frontendLogger.error('notifications', 'Erro ao salvar notificação', {
+      frontendLogger.logError('Erro ao salvar notificação', {
         notification_id: notification.id,
         notification_type: notification.type,
         error: error instanceof Error ? error.message : String(error)
-      })
+      }, error instanceof Error ? error : undefined, 'ui')
     }
   }
 
@@ -316,10 +316,10 @@ export class NotificationService {
         method: 'PATCH',
       })
     } catch (error) {
-      frontendLogger.error('notifications', 'Erro ao marcar notificação como lida', {
+      frontendLogger.logError('Erro ao marcar notificação como lida', {
         notification_id: notificationId,
         error: error instanceof Error ? error.message : String(error)
-      })
+      }, error instanceof Error ? error : undefined, 'ui')
     }
   }
 
@@ -330,11 +330,11 @@ export class NotificationService {
       const data = await response.json()
       return data.notifications || []
     } catch (error) {
-      frontendLogger.error('notifications', 'Erro ao buscar notificações', {
+      frontendLogger.logError('Erro ao buscar notificações', {
         user_id: userId,
         limit,
         error: error instanceof Error ? error.message : String(error)
-      })
+      }, error instanceof Error ? error : undefined, 'ui')
       return []
     }
   }
@@ -350,10 +350,10 @@ export class NotificationService {
         body: JSON.stringify({ daysOld }),
       })
     } catch (error) {
-      frontendLogger.error('notifications', 'Erro ao limpar notificações antigas', {
+      frontendLogger.logError('Erro ao limpar notificações antigas', {
         days_old: daysOld,
         error: error instanceof Error ? error.message : String(error)
-      })
+      }, error instanceof Error ? error : undefined, 'ui')
     }
   }
 }

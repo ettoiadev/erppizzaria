@@ -15,7 +15,7 @@ import { subscribeOrdersRealtime } from "@/lib/realtime"
 export default function OrderPage() {
   const params = useParams()
   const router = useRouter()
-  const { user, isLoading: authLoading } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const orderId = params.id as string
 
   console.log("OrderPage - Order ID:", orderId)

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verify } from 'jsonwebtoken'
 import { revokeRefreshToken, revokeAllUserTokens } from '@/lib/refresh-token'
 import { clearAuthResponse } from '@/lib/auth-middleware'
-import { frontendLogger } from '@/lib/logging'
+import { frontendLogger } from '@/lib/frontend-logger'
 
 const REFRESH_SECRET = process.env.REFRESH_TOKEN_SECRET || 'william-disk-pizza-refresh-secret-2024-production'
 
@@ -26,22 +26,22 @@ export async function POST(request: NextRequest) {
         if (revokeAll && userId) {
           // Revogar todos os tokens do usuário
           revokeAllUserTokens(userId)
-          frontendLogger.info('auth', 'Logout com revogação de todos os tokens', {
+          frontendLogger.info('Logout com revogação de todos os tokens', 'auth', {
             email: email?.replace(/(.{2}).*(@.*)/, '$1***$2'),
             userId
           })
         } else {
           // Revogar apenas o token atual
           revokeRefreshToken(payload.tokenId)
-          frontendLogger.info('auth', 'Logout com revogação do token atual', {
+          frontendLogger.info('Logout com revogação do token atual', 'auth', {
             email: email?.replace(/(.{2}).*(@.*)/, '$1***$2'),
-            tokenId: payload.tokenId
+            userId
           })
         }
       } catch (error: any) {
-        frontendLogger.warn('auth', 'Erro ao processar refresh token no logout', {
-          error: error.message
-        })
+        frontendLogger.warn('Erro ao processar refresh token no logout', 'auth', {
+            error: error.message
+          })
       }
     }
 
@@ -52,10 +52,9 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error: any) {
-    frontendLogger.error('auth', 'Erro interno no logout', {
-      error: error.message,
-      stack: error.stack
-    })
+    frontendLogger.logError('Erro interno no logout', {
+      error: error.message
+    }, error, 'auth')
 
     // Mesmo com erro, limpar cookies
     return clearAuthResponse({

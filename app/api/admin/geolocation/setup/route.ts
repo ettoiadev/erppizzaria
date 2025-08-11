@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServerClient } from '@/lib/supabase'
 import { withAdminAuth } from '@/lib/auth-middleware'
-import { frontendLogger } from '@/lib/logging'
+import { frontendLogger } from '@/lib/frontend-logger'
 
 export async function POST(request: NextRequest) {
   return withAdminAuth(request, async (req, admin) => {
@@ -95,22 +95,22 @@ export async function POST(request: NextRequest) {
 
       console.log('🎉 Setup concluído:', setupResult)
 
-      frontendLogger.info('admin', 'Setup de geolocalização concluído', {
-        adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
-        zonesCreated: setupResult.details.zones_created,
-        settingsCreated: setupResult.details.settings_created
-      })
+      frontendLogger.info('Setup de geolocalização concluído', 'api', {
+          adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+          zonesCreated: setupResult.details.zones_created,
+          settingsCreated: setupResult.details.settings_created
+        });
 
       return NextResponse.json(setupResult)
 
     } catch (error: any) {
       console.error('❌ Erro no setup de geolocalização:', error)
       
-      frontendLogger.error('admin', 'Erro no setup de geolocalização', {
+      frontendLogger.logError('Erro no setup de geolocalização', {
         error: error.message,
         adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
         stack: error.stack
-      })
+      }, error, 'api')
       
       return NextResponse.json({
         success: false,

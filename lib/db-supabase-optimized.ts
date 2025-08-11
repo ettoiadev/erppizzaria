@@ -99,7 +99,7 @@ export async function listOrdersOptimized(params: {
   }
 
   // Aplicar paginação
-  if (params.limit && params.offset !== undefined) {
+  if (params.limit && params.offset !== undefined && params.offset !== null) {
     query = query.range(params.offset, params.offset + params.limit - 1)
   } else if (params.limit) {
     query = query.limit(params.limit)

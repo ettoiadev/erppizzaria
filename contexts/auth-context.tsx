@@ -1,13 +1,15 @@
 'use client'
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
-import { frontendLogger } from '@/lib/logging'
+import { frontendLogger } from '@/lib/frontend-logger'
 
 interface User {
   id: string
   email: string
   role: string
   full_name?: string
+  name?: string
+  phone?: string
 }
 
 interface AuthContextType {
@@ -17,6 +19,7 @@ interface AuthContextType {
   logout: (revokeAll?: boolean) => Promise<void>
   checkAuth: () => Promise<void>
   refreshToken: () => Promise<boolean>
+  register: (userData: any) => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -34,7 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setLoading(true)
       
-      frontendLogger.info('auth', 'Verificando autenticação do usuário')
+      frontendLogger.info('Verificando autenticação do usuário', 'auth')
       
       const response = await fetch('/api/auth/verify', {
         method: 'POST',
@@ -45,7 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const data = await response.json()
         if (data.user) {
           setUser(data.user)
-          frontendLogger.info('auth', 'Usuário autenticado', {
+          frontendLogger.info('Usuário autenticado', 'auth', {
             email: data.user.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
             role: data.user.role
           })
@@ -55,16 +58,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const refreshed = await refreshToken()
         if (!refreshed) {
           setUser(null)
-          frontendLogger.info('auth', 'Usuário não autenticado - sessão expirada')
+          frontendLogger.info('Usuário não autenticado - sessão expirada', 'auth')
         }
       } else {
         setUser(null)
-        frontendLogger.info('auth', 'Usuário não autenticado')
+        frontendLogger.info('Usuário não autenticado', 'auth')
       }
     } catch (error: any) {
-      frontendLogger.error('auth', 'Erro ao verificar autenticação', {
-        error: error.message
-      })
+      frontendLogger.logError('Erro ao verificar autenticação', {
+         error: error.message
+       }, error, 'auth')
       setUser(null)
     } finally {
       setLoading(false)
@@ -73,7 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshToken = async (): Promise<boolean> => {
     try {
-      frontendLogger.info('auth', 'Tentando renovar token')
+      frontendLogger.info('Tentando renovar token', 'auth')
       
       const response = await fetch('/api/auth/refresh', {
         method: 'POST',
@@ -91,7 +94,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const data = await verifyResponse.json()
           if (data.user) {
             setUser(data.user)
-            frontendLogger.info('auth', 'Token renovado e usuário autenticado', {
+            frontendLogger.info('Token renovado e usuário autenticado', 'auth', {
               email: data.user.email.replace(/(.{2}).*(@.*)/, '$1***$2')
             })
             return true
@@ -99,12 +102,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
       
-      frontendLogger.warn('auth', 'Falha na renovação do token')
+      frontendLogger.warn('Falha na renovação do token', 'auth')
       return false
     } catch (error: any) {
-      frontendLogger.error('auth', 'Erro ao renovar token', {
-        error: error.message
-      })
+      frontendLogger.logError('Erro ao renovar token', {
+         error: error.message
+       }, error, 'auth')
       return false
     }
   }
@@ -113,7 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setLoading(true)
       
-      frontendLogger.info('auth', 'Tentativa de login', {
+      frontendLogger.info('Tentativa de login', 'auth', {
         email: email.replace(/(.{2}).*(@.*)/, '$1***$2')
       })
 
@@ -130,24 +133,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (response.ok && data.success) {
         setUser(data.user)
-        frontendLogger.info('auth', 'Login realizado com sucesso', {
+        frontendLogger.info('Login realizado com sucesso', 'auth', {
           email: email.replace(/(.{2}).*(@.*)/, '$1***$2'),
           role: data.user.role,
           tokenExpiry: data.expiresIn ? `${data.expiresIn}s` : 'unknown'
         })
         return { success: true }
       } else {
-        frontendLogger.warn('auth', 'Falha no login', {
+        frontendLogger.warn('Falha no login', 'auth', {
           email: email.replace(/(.{2}).*(@.*)/, '$1***$2'),
           error: data.error
         })
         return { success: false, error: data.error || 'Erro no login' }
       }
     } catch (error: any) {
-      frontendLogger.error('auth', 'Erro durante o login', {
-        email: email.replace(/(.{2}).*(@.*)/, '$1***$2'),
-        error: error.message
-      })
+      frontendLogger.logError('Erro durante o login', {
+         email: email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+         error: error.message
+       }, error, 'auth')
       return { success: false, error: 'Erro de conexão' }
     } finally {
       setLoading(false)
@@ -156,7 +159,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async (revokeAll: boolean = false) => {
     try {
-      frontendLogger.info('auth', 'Realizando logout', {
+      frontendLogger.info('Realizando logout', 'auth', {
         revokeAll
       })
       
@@ -170,13 +173,56 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })
       
       setUser(null)
-      frontendLogger.info('auth', 'Logout realizado com sucesso')
+      frontendLogger.info('Logout realizado com sucesso', 'auth')
     } catch (error: any) {
-      frontendLogger.error('auth', 'Erro durante o logout', {
-        error: error.message
-      })
+      frontendLogger.logError('Erro durante o logout', {
+         error: error.message
+       }, error, 'auth')
       // Mesmo com erro, limpar o estado local
       setUser(null)
+    }
+  }
+
+  const register = async (userData: any) => {
+    try {
+      setLoading(true)
+      
+      frontendLogger.info('Tentativa de registro', 'auth', {
+        email: userData.email?.replace(/(.{2}).*(@.*)/, '$1***$2')
+      })
+
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(userData),
+        credentials: 'include'
+      })
+
+      const data = await response.json()
+
+      if (response.ok && data.user) {
+        setUser(data.user)
+        frontendLogger.info('Registro realizado com sucesso', 'auth', {
+          email: userData.email?.replace(/(.{2}).*(@.*)/, '$1***$2'),
+          role: data.user.role
+        })
+      } else {
+        frontendLogger.warn('Falha no registro', 'auth', {
+          email: userData.email?.replace(/(.{2}).*(@.*)/, '$1***$2'),
+          error: data.error
+        })
+        throw new Error(data.error || 'Erro no registro')
+      }
+    } catch (error: any) {
+      frontendLogger.logError('Erro durante o registro', {
+         email: userData.email?.replace(/(.{2}).*(@.*)/, '$1***$2'),
+         error: error.message
+       }, error, 'auth')
+      throw error
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -186,7 +232,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     login,
     logout,
     checkAuth,
-    refreshToken
+    refreshToken,
+    register
   }
 
   return (

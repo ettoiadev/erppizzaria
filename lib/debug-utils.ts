@@ -7,7 +7,7 @@ const isProduction = process.env.NODE_ENV === 'production'
 export const logger = {
   log: (...args: any[]) => {
     const message = args.map(arg => typeof arg === 'string' ? arg : JSON.stringify(arg)).join(' ')
-    appLogger.debug('debug', message, { args })
+    appLogger.debug('general', message, { args })
     if (typeof window !== 'undefined') {
       frontendLogger.debug(message, 'ui', { args })
     }
@@ -17,7 +17,7 @@ export const logger = {
     const message = args.map(arg => typeof arg === 'string' ? arg : JSON.stringify(arg)).join(' ')
     const error = args.find(arg => arg instanceof Error) || new Error(message)
     
-    appLogger.error('debug', message, { args })
+    appLogger.error('general', message, undefined, { args })
     if (typeof window !== 'undefined') {
       frontendLogger.logError(message, { args }, error, 'ui')
     }
@@ -25,7 +25,7 @@ export const logger = {
   
   warn: (...args: any[]) => {
     const message = args.map(arg => typeof arg === 'string' ? arg : JSON.stringify(arg)).join(' ')
-    appLogger.warn('debug', message, { args })
+    appLogger.warn('general', message, { args })
     if (typeof window !== 'undefined') {
       frontendLogger.warn(message, 'ui', { args })
     }
@@ -33,7 +33,7 @@ export const logger = {
   
   info: (...args: any[]) => {
     const message = args.map(arg => typeof arg === 'string' ? arg : JSON.stringify(arg)).join(' ')
-    appLogger.info('debug', message, { args })
+    appLogger.info('general', message, { args })
     if (typeof window !== 'undefined') {
       frontendLogger.info(message, 'ui', { args })
     }
@@ -83,7 +83,7 @@ export const handleAsyncError = (error: any, context: string) => {
   const errorMessage = `Error in ${context}`
   const actualError = error instanceof Error ? error : new Error(String(error))
   
-  appLogger.error('debug', errorMessage, { context, error: actualError.message })
+  appLogger.error('general', errorMessage, actualError, { context })
   if (typeof window !== 'undefined') {
     frontendLogger.logError(errorMessage, { context }, actualError, 'ui')
   }
@@ -98,7 +98,7 @@ export const handleAsyncError = (error: any, context: string) => {
   
   return {
     message: actualError.message || 'Unknown error',
-    code: actualError.code || 'UNKNOWN',
+    code: (actualError as any).code || 'UNKNOWN',
     stack: actualError.stack
   }
 }

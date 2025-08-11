@@ -197,8 +197,7 @@ export function createApiLogger(req: NextRequest) {
     
     logAuth: (action: string, userId?: string, success?: boolean) => {
       appLogger.auth.login(userId || 'unknown', success ?? true, {
-        requestId: requestLogger.requestId,
-        action
+        requestId: requestLogger.requestId
       })
     },
     

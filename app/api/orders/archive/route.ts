@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { withAdminAuth } from "@/lib/auth-middleware"
 import { getSupabaseServerClient } from "@/lib/supabase"
-import { frontendLogger } from "@/lib/logging"
+import { frontendLogger } from "@/lib/frontend-logger"
 
 // Force dynamic rendering for this route
 export const dynamic = 'force-dynamic'
@@ -34,7 +34,7 @@ export async function PATCH(request: NextRequest) {
       if (error) throw error
 
       console.log(`${(updated || []).length} pedidos arquivados com sucesso`)
-      frontendLogger.info('admin', 'Pedidos arquivados por status', {
+      frontendLogger.info('Pedidos arquivados por status', 'api', {
         adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
         status: status,
         orderCount: (updated || []).length
@@ -49,11 +49,11 @@ export async function PATCH(request: NextRequest) {
 
     } catch (error: any) {
       console.error('Erro ao arquivar pedidos:', error)
-      frontendLogger.error('admin', 'Erro ao arquivar pedidos por status', {
-        error: error.message,
-        adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
-        stack: error.stack
-      })
+      frontendLogger.logError('Erro ao arquivar pedidos por status', {
+          error: error.message,
+          adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+          status: status
+        }, error, 'api')
       return NextResponse.json(
         { 
           error: 'Erro interno do servidor',

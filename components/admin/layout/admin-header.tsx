@@ -48,7 +48,7 @@ export function AdminHeader() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={logout}>Sair</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => logout()}>Sair</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

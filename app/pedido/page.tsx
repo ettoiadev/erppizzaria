@@ -10,7 +10,7 @@ import { useAuth } from "@/contexts/auth-context"
 
 export default function PedidoPage() {
   const router = useRouter()
-  const { user, isLoading: authLoading } = useAuth()
+  const { user, loading: authLoading } = useAuth()
 
   useEffect(() => {
     // Redirecionar automaticamente para a lista de pedidos após 2 segundos
@@ -86,4 +86,4 @@ export default function PedidoPage() {
       </main>
     </div>
   )
-} 
+}

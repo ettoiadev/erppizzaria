@@ -17,6 +17,12 @@ import { Settings, Palette, Bike, CreditCard, Bell, Shield, User, AlertTriangle,
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/contexts/auth-context"
 import { useProtectedApi } from "@/hooks/use-protected-api"
+
+interface AdminSettingsResponse {
+  success: boolean
+  settings: Record<string, any>
+  count: number
+}
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
@@ -29,7 +35,7 @@ export function SettingsManagement() {
   const [authError, setAuthError] = useState<string | null>(null)
   const [showDiagnostic, setShowDiagnostic] = useState(false)
   const { toast } = useToast()
-  const { user, isValidating } = useAuth()
+  const { user, loading } = useAuth()
   const api = useProtectedApi()
 
   // Definir aba inicial baseada na URL
@@ -59,9 +65,11 @@ export function SettingsManagement() {
 
   const runDiagnostic = async () => {
     try {
-      const response = await api.get("/api/admin/debug")
-      const data = await response.json()
-      console.log("🔍 Diagnóstico completo:", data)
+      const response = await api.callApi("/api/admin/debug")
+      if (response.error) {
+        throw new Error(response.error)
+      }
+      console.log("🔍 Diagnóstico completo:", response.data)
       
       toast({
         title: "Diagnóstico",
@@ -84,11 +92,13 @@ export function SettingsManagement() {
       
       console.log("🔄 Carregando configurações...")
       
-      const response = await api.get("/api/admin/settings")
-      const data = await response.json()
+      const response = await api.callApi<AdminSettingsResponse>("/api/admin/settings")
+      if (response.error) {
+        throw new Error(response.error)
+      }
       
-      setSettings(data.settings || {})
-      console.log("✅ Configurações carregadas:", data.settings)
+      setSettings(response.data?.settings || {})
+      console.log("✅ Configurações carregadas:", response.data?.settings)
       
     } catch (error: any) {
       console.error("❌ Erro ao carregar configurações:", error)
@@ -116,9 +126,12 @@ export function SettingsManagement() {
     try {
       const mergedSettings = { ...settings, ...newSettings }
 
-      const response = await api.post("/api/admin/settings", mergedSettings)
+      const response = await api.callApi("/api/admin/settings", {
+        method: 'POST',
+        body: mergedSettings
+      })
       
-      if (response.ok) {
+      if (!response.error) {
         setSettings(mergedSettings)
         setHasUnsavedChanges(false)
         toast({
@@ -127,10 +140,9 @@ export function SettingsManagement() {
         })
         return true
       } else {
-        const data = await response.json()
         toast({
           title: "Erro",
-          description: data.message || "Erro ao salvar configurações",
+          description: response.error || "Erro ao salvar configurações",
           variant: "destructive",
         })
         return false
@@ -166,18 +178,18 @@ export function SettingsManagement() {
   }
 
   // Se está validando sessão ou há erro de autenticação, mostrar interface de erro
-  if (isValidating || authError) {
+  if (loading || authError) {
     return (
       <div className="space-y-6">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <AlertTriangle className="w-5 h-5 text-amber-500" />
-              {isValidating ? "Validando Sessão..." : "Problema de Autenticação"}
+              {loading ? "Validando Sessão..." : "Problema de Autenticação"}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {isValidating ? (
+            {loading ? (
               <p className="text-muted-foreground">
                 Verificando sua sessão de administrador...
               </p>

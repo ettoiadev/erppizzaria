@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getSupabaseServerClient } from '@/lib/supabase'
 import { withAdminAuth } from '@/lib/auth-middleware'
-import { frontendLogger } from '@/lib/logging'
+import { frontendLogger } from '@/lib/frontend-logger'
 
 export const dynamic = 'force-dynamic'
 
@@ -43,11 +43,10 @@ export async function GET(request: NextRequest) {
 
     } catch (error: any) {
       console.error("[ADMIN_SETTINGS] Erro interno:", error)
-      frontendLogger.error('admin', 'Erro ao buscar configurações', {
+      frontendLogger.logError('Erro ao buscar configurações', {
         error: error.message,
-        stack: error.stack,
-        adminEmail: user.email
-      })
+        adminEmail: user.email.replace(/(.{2}).*(@.*)/, '$1***$2')
+      }, error, 'api')
       return NextResponse.json({ 
         error: "Erro interno do servidor",
         details: error.message 
@@ -102,7 +101,7 @@ export async function POST(request: NextRequest) {
 
       console.log(`[ADMIN_SETTINGS] Atualização concluída: ${results.length} sucessos, ${errors.length} erros`)
 
-      frontendLogger.info('admin', 'Configurações atualizadas', {
+      frontendLogger.info('Configurações atualizadas', 'api', {
         adminEmail: user.email,
         successCount: results.length,
         errorCount: errors.length,
@@ -128,11 +127,10 @@ export async function POST(request: NextRequest) {
 
     } catch (error: any) {
       console.error("[ADMIN_SETTINGS] Erro interno na atualização:", error)
-      frontendLogger.error('admin', 'Erro ao atualizar configurações', {
+      frontendLogger.logError('Erro ao atualizar configurações', {
         error: error.message,
-        stack: error.stack,
-        adminEmail: user.email
-      })
+        adminEmail: user.email.replace(/(.{2}).*(@.*)/, '$1***$2')
+      }, error, 'api')
       return NextResponse.json({ 
         error: "Erro interno do servidor",
         details: error.message 

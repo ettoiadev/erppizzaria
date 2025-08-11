@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verify } from 'jsonwebtoken'
 import { getUserByEmail } from './db-supabase'
 import { isTokenNearExpiry } from './refresh-token'
-import { frontendLogger } from './logging'
+import { frontendLogger } from './frontend-logger'
 
 const JWT_SECRET = process.env.JWT_SECRET || 'william-disk-pizza-jwt-secret-2024-production'
 
@@ -24,7 +24,7 @@ export async function getUserFromToken(token: string): Promise<AuthenticatedUser
     const decoded = verify(token, JWT_SECRET) as any
     
     if (!decoded || !decoded.email || decoded.type !== 'access') {
-      frontendLogger.warn('auth', 'Token inválido - estrutura incorreta', {
+      frontendLogger.warn('Token inválido - estrutura incorreta', 'auth', {
         hasEmail: !!decoded?.email,
         tokenType: decoded?.type
       })
@@ -35,7 +35,7 @@ export async function getUserFromToken(token: string): Promise<AuthenticatedUser
     const user = await getUserByEmail(decoded.email)
     
     if (!user) {
-      frontendLogger.warn('auth', 'Usuário não encontrado para token válido', {
+      frontendLogger.warn('Usuário não encontrado para token válido', 'auth', {
         email: decoded.email.replace(/(.{2}).*(@.*)/, '$1***$2')
       })
       return null
@@ -49,13 +49,13 @@ export async function getUserFromToken(token: string): Promise<AuthenticatedUser
     }
   } catch (error: any) {
     if (error.name === 'TokenExpiredError') {
-      frontendLogger.warn('auth', 'Token expirado')
+      frontendLogger.warn('Token expirado', 'auth')
     } else if (error.name === 'JsonWebTokenError') {
-      frontendLogger.warn('auth', 'Token malformado')
+      frontendLogger.warn('Token malformado', 'auth')
     } else {
-      frontendLogger.error('auth', 'Erro ao extrair usuário do token', {
+      frontendLogger.logError('Erro ao extrair usuário do token', {
         error: error.message
-      })
+      }, error, 'auth')
     }
     return null
   }
@@ -86,7 +86,7 @@ export function withAuth(request: NextRequest, handler: AuthenticatedHandler, re
       const token = request.cookies.get('auth-token')?.value
       
       if (!token) {
-        frontendLogger.warn('auth', 'Acesso negado - token não fornecido', {
+        frontendLogger.warn('Acesso negado - token não fornecido', 'auth', {
           path: request.nextUrl.pathname,
           method: request.method,
           ip: request.ip || 'unknown',
@@ -100,7 +100,7 @@ export function withAuth(request: NextRequest, handler: AuthenticatedHandler, re
       const user = await getUserFromToken(token)
       
       if (!user) {
-        frontendLogger.warn('auth', 'Acesso negado - token inválido', {
+        frontendLogger.warn('Acesso negado - token inválido', 'auth', {
           path: request.nextUrl.pathname,
           method: request.method,
           ip: request.ip || 'unknown'
@@ -112,7 +112,7 @@ export function withAuth(request: NextRequest, handler: AuthenticatedHandler, re
 
       // Verificar permissões se especificadas
       if (requiredRoles.length > 0 && !hasPermission(user.role, requiredRoles)) {
-        frontendLogger.warn('auth', 'Acesso negado - permissão insuficiente', {
+        frontendLogger.warn('Acesso negado - permissão insuficiente', 'auth', {
           email: user.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
           userRole: user.role,
           requiredRoles,
@@ -128,13 +128,13 @@ export function withAuth(request: NextRequest, handler: AuthenticatedHandler, re
       // Verificar se o token está próximo do vencimento
       const nearExpiry = isTokenNearExpiry(token, 5)
       if (nearExpiry) {
-        frontendLogger.info('auth', 'Token próximo do vencimento', {
+        frontendLogger.info('Token próximo do vencimento', 'auth', {
           email: user.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
           path: request.nextUrl.pathname
         })
       }
 
-      frontendLogger.info('auth', 'Acesso autorizado', {
+      frontendLogger.info('Acesso autorizado', 'auth', {
         email: user.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
         role: user.role,
         path: request.nextUrl.pathname,
@@ -145,12 +145,12 @@ export function withAuth(request: NextRequest, handler: AuthenticatedHandler, re
 
       return handler(request, user)
     } catch (error: any) {
-      frontendLogger.error('auth', 'Erro no middleware de autenticação', {
+      frontendLogger.logError('Erro no middleware de autenticação', {
         error: error.message,
         path: request.nextUrl.pathname,
         method: request.method,
         ip: request.ip || 'unknown'
-      })
+      }, error, 'auth')
       return NextResponse.json({
         error: 'Erro interno de autenticação'
       }, { status: 500 })
@@ -189,9 +189,9 @@ export async function getUserFromRequest(request: NextRequest): Promise<Authenti
 
     return await getUserFromToken(token)
   } catch (error: any) {
-    frontendLogger.error('auth', 'Erro ao extrair usuário do token', { 
+    frontendLogger.logError('Erro ao extrair usuário do token', { 
       error: error.message
-    })
+    }, error, 'auth')
     return null
   }
 }

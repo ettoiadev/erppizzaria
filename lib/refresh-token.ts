@@ -88,9 +88,8 @@ export function generateTokenPair(user: { id: string; email: string; role: strin
       expiresIn: accessTokenExpiry
     }
   } catch (error: any) {
-    appLogger.error('auth', 'Erro ao gerar par de tokens', {
-      email: user.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
-      error: error.message
+    appLogger.error('auth', 'Erro ao gerar par de tokens', error, {
+      email: user.email.replace(/(.{2}).*(@.*)/, '$1***$2')
     })
     throw new Error('Erro ao gerar tokens de autenticação')
   }
@@ -164,9 +163,7 @@ export async function refreshAccessToken(refreshToken: string): Promise<TokenPai
 
     return newTokenPair
   } catch (error: any) {
-    appLogger.error('auth', 'Erro ao renovar access token', {
-      error: error.message
-    })
+    appLogger.error('auth', 'Erro ao renovar access token', error)
     return null
   }
 }

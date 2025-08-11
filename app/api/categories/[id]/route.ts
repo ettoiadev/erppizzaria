@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getSupabaseServerClient } from '@/lib/supabase'
 import { withAdminAuth } from '@/lib/auth-middleware'
-import { frontendLogger } from '@/lib/logging'
+import { frontendLogger } from '@/lib/frontend-logger'
 
 export const dynamic = 'force-dynamic'
 
@@ -137,7 +137,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     }
 
     console.log('Categoria atualizada com sucesso:', normalizedCategory)
-    frontendLogger.info('admin', 'Categoria atualizada', {
+    frontendLogger.info('Categoria atualizada', 'api', {
       adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
       categoryId: params.id,
       categoryName: normalizedCategory.name
@@ -151,12 +151,11 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
         id: params?.id
       })
       
-      frontendLogger.error('admin', 'Erro ao atualizar categoria', {
-        error: error.message,
-        adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
-        categoryId: params.id,
-        stack: error.stack
-      })
+      frontendLogger.logError('Erro ao atualizar categoria', {
+           error: error.message,
+           adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+           categoryId: params.id
+         }, error, 'api')
       
       return NextResponse.json({ 
         error: "Erro interno do servidor",
@@ -227,7 +226,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     if (delErr) throw delErr
 
     console.log('Categoria deletada com sucesso:', params.id)
-    frontendLogger.info('admin', 'Categoria deletada', {
+    frontendLogger.info('Categoria deletada', 'api', {
       adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
       categoryId: params.id,
       categoryName: existingCategory.name
@@ -244,12 +243,11 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
         id: params?.id
       })
 
-      frontendLogger.error('admin', 'Erro ao deletar categoria', {
-        error: error.message,
-        adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
-        categoryId: params.id,
-        stack: error.stack
-      })
+      frontendLogger.logError('Erro ao deletar categoria', {
+           error: error.message,
+           adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+           categoryId: params.id
+         }, error, 'api')
 
       return NextResponse.json({ 
         error: "Erro interno do servidor",

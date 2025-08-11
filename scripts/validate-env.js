@@ -140,19 +140,28 @@ const deprecatedVars = [
 ]
 
 function loadEnvFile() {
-  const envPath = path.join(process.cwd(), '.env.local')
+  const envLocalPath = path.join(process.cwd(), '.env.local')
+  const envPath = path.join(process.cwd(), '.env')
   const envExamplePath = path.join(process.cwd(), '.env.example')
   
-  if (!fs.existsSync(envPath)) {
-    console.log(colorize('⚠️  Arquivo .env.local não encontrado', 'yellow'))
+  // Priorizar .env.local, depois .env
+  let selectedEnvPath = null
+  if (fs.existsSync(envLocalPath)) {
+    selectedEnvPath = envLocalPath
+  } else if (fs.existsSync(envPath)) {
+    selectedEnvPath = envPath
+  }
+  
+  if (!selectedEnvPath) {
+    console.log(colorize('⚠️  Arquivo .env.local ou .env não encontrado', 'yellow'))
     if (fs.existsSync(envExamplePath)) {
       console.log(colorize('💡 Copie .env.example para .env.local e configure as variáveis', 'blue'))
     }
     return false
   }
   
-  // Carregar variáveis do arquivo .env.local
-  const envContent = fs.readFileSync(envPath, 'utf8')
+  // Carregar variáveis do arquivo de ambiente
+  const envContent = fs.readFileSync(selectedEnvPath, 'utf8')
   const envLines = envContent.split('\n')
   
   envLines.forEach(line => {
@@ -161,6 +170,7 @@ function loadEnvFile() {
       const [key, ...valueParts] = trimmed.split('=')
       if (key && valueParts.length > 0) {
         process.env[key] = valueParts.join('=')
+        console.log(`Loaded: ${key}=${valueParts.join('=').substring(0, 20)}...`)
       }
     }
   })

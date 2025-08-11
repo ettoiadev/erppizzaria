@@ -14,18 +14,18 @@ import { Header } from "@/components/layout/header"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
 
 export default function HomePage() {
-  const { user, isLoading } = useAuth()
+  const { user, loading } = useAuth()
   const router = useRouter()
 
   useEffect(() => {
     // Redirect authenticated users to cardapio page
-    if (user && !isLoading) {
+    if (user && !loading) {
       router.push("/cardapio")
     }
-  }, [user, isLoading, router])
+  }, [user, loading, router])
 
   // Show loading while checking authentication
-  if (isLoading) {
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <LoadingSpinner />

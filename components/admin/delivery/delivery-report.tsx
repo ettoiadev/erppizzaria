@@ -95,21 +95,20 @@ export function DeliveryReport({ isOpen, onClose }: DeliveryReportProps) {
   // Buscar dados do relatório
   const { data: reportData, isLoading, refetch } = useQuery<ReportData>({
     queryKey: ['delivery-report', startDate, endDate, selectedDriverId],
-    queryFn: async () => {
+    queryFn: async (): Promise<ReportData> => {
       const params = new URLSearchParams({
         startDate,
         endDate,
         driverId: selectedDriverId
       })
 
-      const response = await api.callApi(`/api/admin/delivery/reports?${params}`)
+      const response = await api.callApi<ReportData>(`/api/admin/delivery/reports?${params}`)
       
-      if (!response.ok) {
-        throw new Error('Erro ao buscar relatório')
+      if (response.error) {
+        throw new Error(response.error)
       }
 
-      const result = await response.json()
-      return result.data
+      return response.data!
     },
     enabled: isOpen
   })

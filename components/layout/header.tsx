@@ -84,7 +84,7 @@ export function Header({ onCartClick }: HeaderProps) {
             {user ? (
               <div className="flex items-center space-x-2">
                 <span className="text-sm text-gray-700">Olá, {user.name}</span>
-                <Button variant="ghost" size="sm" onClick={logout}>
+                <Button variant="ghost" size="sm" onClick={() => logout()}>
                   Sair
                 </Button>
               </div>

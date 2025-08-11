@@ -3,7 +3,8 @@ import bcrypt from 'bcryptjs'
 import { getUserByEmail } from '@/lib/db-supabase'
 import { createAuthResponse } from '@/lib/auth-middleware'
 import { generateTokenPair } from '@/lib/refresh-token'
-import { frontendLogger } from '@/lib/logging'
+import { frontendLogger } from '@/lib/frontend-logger'
+import { getSupabaseServerClient } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
 
@@ -90,7 +91,7 @@ export async function POST(request: NextRequest) {
       role: user.role || 'customer'
     })
 
-    frontendLogger.info('auth', 'Login realizado com sucesso', {
+    frontendLogger.info('Login realizado com sucesso', 'auth', {
       email: email.replace(/(.{2}).*(@.*)/, '$1***$2'),
       role: user.role || 'customer',
       accessTokenExpiry: '15min',

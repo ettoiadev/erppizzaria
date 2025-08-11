@@ -43,7 +43,7 @@ export function OrderStatisticsComponent({ statistics }: OrderStatisticsProps) {
           <Truck className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{statistics.delivering}</div>
+          <div className="text-2xl font-bold">{statistics.onTheWay}</div>
           <Badge variant="outline" className="mt-1">
             Ativo
           </Badge>

@@ -35,7 +35,10 @@ export function OrderItem({
               variant="outline" 
               className={`${statusColors[order.status]} text-white font-medium`}
             >
-              {getStatusIcon(order.status)}
+              {(() => {
+                const IconComponent = getStatusIcon(order.status)
+                return <IconComponent className="w-4 h-4 mr-1" />
+              })()}
               {statusLabels[order.status]}
             </Badge>
             <span className="font-bold text-lg">

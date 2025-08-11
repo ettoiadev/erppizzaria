@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { frontendLogger } from '@/lib/logging'
+import { frontendLogger } from '@/lib/frontend-logger'
 
 interface ApiOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
@@ -57,11 +57,11 @@ export function useProtectedApi() {
 
         // Se não autorizado e é a primeira tentativa, tentar refresh
         if (retryCount === 0) {
-          frontendLogger.warn('api', 'Token expirado, tentando renovar', {
-            endpoint,
-            method,
-            attempt: retryCount + 1
-          })
+          frontendLogger.warn('Token expirado, tentando renovar', 'api', {
+          endpoint,
+          method,
+          attempt: retryCount + 1
+        })
 
           // Tentar renovar o token usando refresh token
           const refreshResponse = await fetch('/api/auth/refresh', {
@@ -70,14 +70,14 @@ export function useProtectedApi() {
           })
 
           if (refreshResponse.ok) {
-            frontendLogger.info('api', 'Token renovado com sucesso', {
-              endpoint,
-              method
-            })
+            frontendLogger.info('Token renovado com sucesso', 'api', {
+            endpoint,
+            method
+          })
             retryCount++
             continue // Tentar novamente com o novo token
           } else {
-            frontendLogger.warn('api', 'Falha na renovação do token', {
+            frontendLogger.warn('Falha na renovação do token', 'api', {
               endpoint,
               method,
               refreshStatus: refreshResponse.status
@@ -91,7 +91,7 @@ export function useProtectedApi() {
 
       // Se ainda não autorizado após tentativas, redirecionar para login
       if (response!.status === 401 && requiresAuth) {
-        frontendLogger.warn('api', 'Sessão expirada, redirecionando para login', {
+        frontendLogger.warn('Sessão expirada, redirecionando para login', 'api', {
           endpoint,
           method,
           finalStatus: response!.status
@@ -114,12 +114,12 @@ export function useProtectedApi() {
       if (!response!.ok) {
         const errorData = await response!.json().catch(() => ({ error: 'Erro desconhecido' }))
         
-        frontendLogger.error('api', 'Erro na requisição da API', {
-          endpoint,
-          method,
-          status: response!.status,
-          error: errorData.error || errorData.message
-        })
+        frontendLogger.logError('Erro na requisição da API', {
+           endpoint,
+           method,
+           status: response!.status,
+           error: errorData.error || 'Erro desconhecido'
+         }, undefined, 'api')
 
         return {
           data: null,
@@ -130,7 +130,7 @@ export function useProtectedApi() {
 
       const data = await response!.json()
       
-      frontendLogger.info('api', 'Requisição bem-sucedida', {
+      frontendLogger.info('Requisição bem-sucedida', 'api', {
         endpoint,
         method,
         status: response!.status,
@@ -144,11 +144,11 @@ export function useProtectedApi() {
       }
 
     } catch (error: any) {
-      frontendLogger.error('api', 'Erro de rede na requisição', {
-        endpoint,
-        method,
-        error: error.message
-      })
+      frontendLogger.logError('Erro de rede na requisição', {
+         endpoint,
+         method,
+         error: error.message
+       }, error, 'api')
 
       return {
         data: null,

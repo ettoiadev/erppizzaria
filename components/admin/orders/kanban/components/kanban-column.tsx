@@ -34,7 +34,7 @@ export function KanbanColumn({
         <CardHeader className={`p-4 ${statusColors[status as keyof typeof statusColors]} rounded-t-lg`}>
           <CardTitle className="flex items-center justify-between text-sm font-medium">
             <div className="flex items-center gap-2 min-w-0">
-              <StatusIcon className="h-4 w-4 flex-shrink-0" />
+              {StatusIcon && <StatusIcon className="h-4 w-4 flex-shrink-0" />}
               <span className="hidden sm:inline truncate">{statusLabels[status as keyof typeof statusLabels]}</span>
               <span className="sm:hidden truncate">{statusLabels[status as keyof typeof statusLabels].split(' ')[0]}</span>
             </div>
@@ -102,7 +102,7 @@ export function KanbanColumn({
             
             {orders.length === 0 && (
               <div className="text-center py-8 text-gray-400">
-                <StatusIcon className="h-8 w-8 mx-auto mb-2" />
+                {StatusIcon && <StatusIcon className="h-8 w-8 mx-auto mb-2" />}
                 <p className="text-sm">Nenhum pedido</p>
               </div>
             )}

@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { withAdminAuth } from "@/lib/auth-middleware"
 import { getSupabaseServerClient } from "@/lib/supabase"
-import { frontendLogger } from "@/lib/logging"
+import { frontendLogger } from "@/lib/frontend-logger"
 import bcrypt from "bcryptjs"
 
 // Force dynamic rendering for this route  
@@ -31,7 +31,7 @@ export async function PATCH(request: NextRequest) {
       if (error) throw error
 
       if (!user) {
-        frontendLogger.warn('admin', 'Tentativa de alteração de senha para usuário inexistente', {
+        frontendLogger.warn('Tentativa de alteração de senha para usuário inexistente', 'api', {
           adminId: admin.id,
           adminEmail: admin.email
         })
@@ -41,7 +41,7 @@ export async function PATCH(request: NextRequest) {
       const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.password_hash || '')
 
       if (!isCurrentPasswordValid) {
-        frontendLogger.warn('admin', 'Tentativa de alteração de senha com senha atual incorreta', {
+        frontendLogger.warn('Tentativa de alteração de senha com senha atual incorreta', 'api', {
           adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2')
         })
         return NextResponse.json({ error: "Senha atual incorreta" }, { status: 400 })
@@ -57,18 +57,18 @@ export async function PATCH(request: NextRequest) {
         .eq('role', 'admin')
       if (updErr) throw updErr
 
-      frontendLogger.info('admin', 'Senha alterada com sucesso', {
+      frontendLogger.info('Senha alterada com sucesso', 'api', {
         adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
         adminId: admin.id
       })
 
       return NextResponse.json({ message: "Senha atualizada com sucesso" })
     } catch (error: any) {
-      frontendLogger.error('admin', 'Erro ao alterar senha', {
+      frontendLogger.logError('Erro ao alterar senha', {
         error: error.message,
         adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
         stack: error.stack
-      })
+      }, error, 'api')
       return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
     }
   })

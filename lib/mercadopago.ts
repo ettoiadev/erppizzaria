@@ -41,7 +41,7 @@ export class MercadoPagoGateway {
    */
   async createPayment(paymentData: PaymentData): Promise<PaymentResult> {
     try {
-      appLogger.info('payments', 'Criando pagamento Mercado Pago', {
+      appLogger.info('payment', 'Criando pagamento Mercado Pago', {
         order_id: paymentData.order_id,
         amount: paymentData.amount,
         method: paymentData.payment_method,
@@ -79,7 +79,7 @@ export class MercadoPagoGateway {
         }
       }
 
-      appLogger.info('payments', 'Pagamento criado com sucesso', {
+      appLogger.info('payment', 'Pagamento criado com sucesso', {
         payment_id: response.id?.toString(),
         order_id: paymentData.order_id,
         status: response.status
@@ -92,11 +92,10 @@ export class MercadoPagoGateway {
       }
 
     } catch (error: any) {
-      appLogger.error('payments', 'Erro ao criar pagamento', {
+      appLogger.error('payment', 'Erro ao criar pagamento', error, {
         order_id: paymentData.order_id,
         amount: paymentData.amount,
-        method: paymentData.payment_method,
-        error: error.message || String(error)
+        method: paymentData.payment_method
       })
       return {
         success: false,
@@ -113,9 +112,8 @@ export class MercadoPagoGateway {
       const response = await this.payment.get({ id: paymentId })
       return response
     } catch (error: any) {
-      appLogger.error('payments', 'Erro ao buscar pagamento', {
-        payment_id: paymentId,
-        error: error.message || String(error)
+      appLogger.error('payment', 'Erro ao buscar pagamento', error, {
+        payment_id: paymentId
       })
       throw error
     }
@@ -129,7 +127,7 @@ export class MercadoPagoGateway {
       const payment = await this.getPaymentStatus(paymentId)
       
       if (payment.status === 'approved') {
-        appLogger.info('payments', 'Pagamento aprovado', {
+        appLogger.info('payment', 'Pagamento aprovado', {
           payment_id: paymentId,
           status: payment.status
         })
@@ -138,9 +136,8 @@ export class MercadoPagoGateway {
       
       return false
     } catch (error) {
-      appLogger.error('payments', 'Erro ao processar pagamento', {
-        payment_id: paymentId,
-        error: error instanceof Error ? error.message : String(error)
+      appLogger.error('payment', 'Erro ao processar pagamento', error instanceof Error ? error : undefined, {
+        payment_id: paymentId
       })
       return false
     }
@@ -184,11 +181,10 @@ export class MercadoPagoGateway {
       }
 
     } catch (error: any) {
-      appLogger.error('payments', 'Erro ao criar PIX', {
+      appLogger.error('payment', 'Erro ao criar PIX', error, {
         order_id: paymentData.order_id,
         amount: paymentData.amount,
-        customer_email: paymentData.customer_email.replace(/(.{2}).*(@.*)/, '$1***$2'),
-        error: error.message || String(error)
+        customer_email: paymentData.customer_email.replace(/(.{2}).*(@.*)/, '$1***$2')
       })
       return {
         success: false,
@@ -208,17 +204,16 @@ export class MercadoPagoGateway {
         body: refundData
       })
 
-      appLogger.info('payments', 'Reembolso processado', {
+      appLogger.info('payment', 'Reembolso processado', {
         payment_id: paymentId,
         refund_id: response.id,
         amount
       })
       return true
     } catch (error: any) {
-      appLogger.error('payments', 'Erro ao reembolsar', {
+      appLogger.error('payment', 'Erro ao reembolsar', error, {
         payment_id: paymentId,
-        amount,
-        error: error.message || String(error)
+        amount
       })
       return false
     }

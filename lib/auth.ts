@@ -56,9 +56,8 @@ export async function createUser({
       role: user.role as 'customer' | 'admin' | 'kitchen' | 'delivery'
     };
   } catch (error: any) {
-    appLogger.error('auth', 'Erro ao criar usuário', { 
-      email: email.replace(/(.{2}).*(@.*)/, '$1***$2'),
-      error: error.message 
+    appLogger.error('auth', 'Erro ao criar usuário', error, { 
+      email: email.replace(/(.{2}).*(@.*)/, '$1***$2')
     });
     throw new Error('Erro ao criar conta: ' + error.message);
   }
@@ -86,9 +85,8 @@ export function generateToken(user: UserProfile): string {
     });
     return token;
   } catch (error: any) {
-    appLogger.error('auth', 'Erro ao gerar token', { 
-      email: user.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
-      error: error.message 
+    appLogger.error('auth', 'Erro ao gerar token', error, { 
+      email: user.email.replace(/(.{2}).*(@.*)/, '$1***$2')
     });
     throw new Error('Erro ao gerar token de autenticação');
   }
@@ -127,7 +125,7 @@ export async function verifyAdmin(token: string): Promise<any> {
 
     return normalizedPayload;
   } catch (error: any) {
-    appLogger.error('auth', 'Erro ao verificar admin', { error: error.message });
+    appLogger.error('auth', 'Erro ao verificar admin', error);
     return null;
   }
 }
@@ -138,9 +136,8 @@ export async function emailExists(email: string): Promise<boolean> {
     const user = await getUserByEmail(email);
     return !!user;
   } catch (error) {
-    appLogger.error('auth', 'Erro ao verificar email', { 
-      email: email.replace(/(.{2}).*(@.*)/, '$1***$2'),
-      error: error instanceof Error ? error.message : String(error) 
+    appLogger.error('auth', 'Erro ao verificar email', error instanceof Error ? error : new Error(String(error)), { 
+      email: email.replace(/(.{2}).*(@.*)/, '$1***$2')
     });
     return false;
   }
@@ -199,9 +196,8 @@ export async function authenticateUser(email: string, password: string): Promise
       token
     };
   } catch (error: any) {
-    appLogger.error('auth', 'Erro na autenticação', { 
-      email: email.replace(/(.{2}).*(@.*)/, '$1***$2'),
-      error: error.message 
+    appLogger.error('auth', 'Erro na autenticação', error, { 
+      email: email.replace(/(.{2}).*(@.*)/, '$1***$2')
     });
     return null;
   }

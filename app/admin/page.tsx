@@ -7,16 +7,16 @@ import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { Dashboard } from "@/components/admin/dashboard/dashboard"
 
 export default function AdminPage() {
-  const { user, isLoading } = useAuth()
+  const { user, loading } = useAuth()
   const router = useRouter()
 
   useEffect(() => {
-    if (!isLoading && (!user || user.role !== "ADMIN")) {
+    if (!loading && (!user || user.role !== "ADMIN")) {
       router.push("/admin/login")
     }
-  }, [user, isLoading, router])
+  }, [user, loading, router])
 
-  if (isLoading) {
+  if (loading) {
     return <div className="min-h-screen flex items-center justify-center">Carregando...</div>
   }
 

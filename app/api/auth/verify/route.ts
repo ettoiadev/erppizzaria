@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import jwt from 'jsonwebtoken'
 import { getUserByEmail } from '@/lib/db-supabase'
 import { isTokenNearExpiry } from '@/lib/refresh-token'
-import { frontendLogger } from '@/lib/logging'
+import { frontendLogger } from '@/lib/frontend-logger'
 
 const JWT_SECRET = process.env.JWT_SECRET || 'william-disk-pizza-jwt-secret-2024-production'
 
@@ -14,10 +14,10 @@ export async function POST(request: NextRequest) {
     const token = request.cookies.get('auth-token')?.value
     
     if (!token) {
-      frontendLogger.warn('auth', 'Token não fornecido na verificação', {
-        ip: request.ip || 'unknown',
-        userAgent: request.headers.get('user-agent') || 'unknown'
-      })
+      frontendLogger.warn('Token não fornecido na verificação', 'auth', {
+      ip: request.headers.get('x-forwarded-for') || 'unknown',
+      userAgent: request.headers.get('user-agent') || 'unknown'
+    })
       return NextResponse.json({
         success: false,
         error: 'Token não fornecido'
@@ -28,10 +28,10 @@ export async function POST(request: NextRequest) {
     const decoded = jwt.verify(token, JWT_SECRET) as any
     
     if (!decoded || !decoded.email || decoded.type !== 'access') {
-      frontendLogger.warn('auth', 'Token inválido na verificação', {
+      frontendLogger.warn('Token inválido na verificação', 'auth', {
         hasEmail: !!decoded?.email,
         tokenType: decoded?.type,
-        ip: request.ip || 'unknown'
+        ip: request.headers.get('x-forwarded-for') || 'unknown'
       })
       return NextResponse.json({
         success: false,
@@ -43,9 +43,9 @@ export async function POST(request: NextRequest) {
     const user = await getUserByEmail(decoded.email)
     
     if (!user) {
-      frontendLogger.warn('auth', 'Usuário não encontrado na verificação', {
+      frontendLogger.warn('Usuário não encontrado na verificação', 'auth', {
         email: decoded.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
-        ip: request.ip || 'unknown'
+        ip: request.headers.get('x-forwarded-for') || 'unknown'
       })
       return NextResponse.json({
         success: false,
@@ -56,11 +56,11 @@ export async function POST(request: NextRequest) {
     // Verificar se o token está próximo do vencimento
     const nearExpiry = isTokenNearExpiry(token, 5) // 5 minutos
     
-    frontendLogger.info('auth', 'Token verificado com sucesso', {
+    frontendLogger.info('Token verificado com sucesso', 'auth', {
       email: user.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
       role: user.role,
       nearExpiry,
-      ip: request.ip || 'unknown'
+      ip: request.headers.get('x-forwarded-for') || 'unknown'
     })
 
     return NextResponse.json({
@@ -76,8 +76,8 @@ export async function POST(request: NextRequest) {
 
   } catch (error: any) {
     if (error.name === 'TokenExpiredError') {
-      frontendLogger.warn('auth', 'Token expirado na verificação', {
-        ip: request.ip || 'unknown'
+      frontendLogger.warn('Token expirado na verificação', 'auth', {
+        ip: request.headers.get('x-forwarded-for') || 'unknown'
       })
       return NextResponse.json({
         success: false,
@@ -86,20 +86,19 @@ export async function POST(request: NextRequest) {
     }
     
     if (error.name === 'JsonWebTokenError') {
-      frontendLogger.warn('auth', 'Token malformado na verificação', {
-        ip: request.ip || 'unknown'
-      })
+      frontendLogger.warn('Token malformado na verificação', 'auth', {
+         ip: request.headers.get('x-forwarded-for') || 'unknown'
+       })
       return NextResponse.json({
         success: false,
         error: 'Token inválido'
       }, { status: 401 })
     }
 
-    frontendLogger.error('auth', 'Erro interno na verificação de token', {
-      error: error.message,
-      stack: error.stack,
-      ip: request.ip || 'unknown'
-    })
+    frontendLogger.logError('Erro interno na verificação de token', {
+       error: error.message,
+       ip: request.headers.get('x-forwarded-for') || 'unknown'
+     }, error, 'auth')
 
     return NextResponse.json({
       success: false,

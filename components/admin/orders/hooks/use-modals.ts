@@ -43,6 +43,7 @@ export function useModals() {
 
   return {
     selectedOrder,
+    setSelectedOrder,
     cancelNotes,
     setCancelNotes,
     showManualOrderModal,
