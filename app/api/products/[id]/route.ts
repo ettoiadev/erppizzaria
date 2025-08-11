@@ -1,21 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getSupabaseServerClient } from '@/lib/supabase';
-import { verifyAdmin } from "@/lib/auth";
+import { withAdminAuth } from '@/lib/auth-middleware';
+import { frontendLogger } from '@/lib/logging';
 
-// Função auxiliar para extrair e verificar o admin
-async function handleAdminAuth(request: NextRequest) {
-  const authHeader = request.headers.get("authorization");
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    throw new Error("Token não fornecido");
-  }
-  const token = authHeader.split(" ")[1];
-  
-  const admin = await verifyAdmin(token);
-  if (!admin) {
-    throw new Error("Acesso não autorizado");
-  }
-  return admin;
-}
+
 
 // GET - Publicly fetch a specific product
 export async function GET(
@@ -65,8 +53,10 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  try {
-    await handleAdminAuth(request);
+  return withAdminAuth(request, async (req, admin) => {
+    try {
+      console.log(`[PRODUCTS] PUT request iniciado para produto ID: ${params.id}`);
+      console.log(`[PRODUCTS] PUT: Acesso autorizado para admin: ${admin.email}`);
 
     const body = await request.json();
     const {
@@ -132,17 +122,28 @@ export async function PUT(
       toppings: toppings || []
     };
 
+    console.log(`[PRODUCTS] PUT: Produto ${params.id} atualizado com sucesso`);
+    frontendLogger.info('admin', 'Produto atualizado', {
+      adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+      productId: params.id,
+      productName: name.trim()
+    });
+
     return NextResponse.json({ product: normalizedProduct });
-  } catch (error: any) {
-    console.error("Erro ao atualizar produto:", error);
-    if (error.message.includes('Token não fornecido') || error.message.includes('Acesso não autorizado')) {
-        return NextResponse.json({ error: error.message }, { status: 401 });
+    } catch (error: any) {
+      console.error("Erro ao atualizar produto:", error);
+      frontendLogger.error('admin', 'Erro ao atualizar produto', {
+        error: error.message,
+        adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+        productId: params.id,
+        stack: error.stack
+      });
+      return NextResponse.json(
+        { error: "Erro interno do servidor" },
+        { status: 500 }
+      );
     }
-    return NextResponse.json(
-      { error: "Erro interno do servidor" },
-      { status: 500 }
-    );
-  }
+  });
 }
 
 // PATCH - Partially update a product (Admin only)
@@ -151,7 +152,7 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
-    await handleAdminAuth(request);
+
     
     const body = await request.json();
     
@@ -260,8 +261,10 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  try {
-    await handleAdminAuth(request);
+  return withAdminAuth(request, async (req, admin) => {
+    try {
+      console.log(`[PRODUCTS] DELETE request iniciado para produto ID: ${params.id}`);
+      console.log(`[PRODUCTS] DELETE: Acesso autorizado para admin: ${admin.email}`);
     
     const supabase = getSupabaseServerClient();
     const { data: existing, error: existErr } = await supabase.from('products').select('id, name').eq('id', params.id).maybeSingle();
@@ -279,23 +282,30 @@ export async function DELETE(
     const { error } = await supabase.from('products').update({ active: false, updated_at: new Date().toISOString() }).eq('id', params.id);
     if (error) throw error;
 
+    console.log(`[PRODUCTS] DELETE: Produto ${params.id} excluído com sucesso`);
+    frontendLogger.info('admin', 'Produto excluído', {
+      adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+      productId: params.id,
+      productName: existing.name
+    });
+
     return NextResponse.json({
       message: "Produto excluído com sucesso",
       product: { id: params.id, name: existing.name }
     });
-  } catch (error: any) {
-    console.error("Erro ao excluir produto:", error);
+    } catch (error: any) {
+      console.error("Erro ao excluir produto:", error);
+      frontendLogger.error('admin', 'Erro ao excluir produto', {
+        error: error.message,
+        adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+        productId: params.id,
+        stack: error.stack
+      });
 
-    if (
-      error.message.includes("Token não fornecido") ||
-      error.message.includes("Acesso não autorizado")
-    ) {
-      return NextResponse.json({ error: error.message }, { status: 401 });
+      return NextResponse.json(
+        { error: "Erro interno do servidor" },
+        { status: 500 }
+      );
     }
-
-    return NextResponse.json(
-      { error: "Erro interno do servidor" },
-      { status: 500 }
-    );
-  }
+  });
 }

@@ -1,149 +1,142 @@
 import { NextRequest, NextResponse } from "next/server"
-import jwt from "jsonwebtoken"
-import { getAdminSettings, updateAdminSetting } from "@/lib/db-supabase"
-import { verifyToken } from "@/lib/auth"
-import { JwtPayload } from "jsonwebtoken"
+import { getSupabaseServerClient } from '@/lib/supabase'
+import { withAdminAuth } from '@/lib/auth-middleware'
+import { frontendLogger } from '@/lib/logging'
 
-const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret"
-
-interface DecodedToken {
-  id: string
-  email: string
-  role: string
-}
-
-interface CustomJwtPayload extends JwtPayload {
-  role?: string;
-}
-
-async function verifyAdminToken(request: NextRequest) {
-  const authHeader = request.headers.get("authorization")
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return null
-  }
-
-  try {
-    const token = authHeader.substring(7)
-    const decoded = jwt.verify(token, JWT_SECRET) as DecodedToken
-    if (!decoded || typeof decoded === 'string' || decoded.role !== "admin") {
-      return null
-    }
-    return decoded
-  } catch (error) {
-    return null
-  }
-}
-
-// Force dynamic rendering for this route
 export const dynamic = 'force-dynamic'
 
 // GET - Fetch admin settings
-export async function GET(request: Request) {
-  try {
-    console.log("[ADMIN_SETTINGS] Iniciando verificação de autenticação")
-    
-    const authHeader = request.headers.get("authorization")
-    if (!authHeader) {
-      console.log("[ADMIN_SETTINGS] Token não fornecido")
-      return NextResponse.json({ error: "Token não fornecido" }, { status: 401 })
-    }
+export async function GET(request: NextRequest) {
+  return withAdminAuth(request, async (req, user) => {
+    try {
+      console.log("[ADMIN_SETTINGS] Iniciando busca de configurações")
+      console.log(`[ADMIN_SETTINGS] Acesso autorizado para admin: ${user.email}`)
 
-    // Extrair token do header "Bearer <token>"
-    const token = authHeader.split(" ")[1]
-    if (!token) {
-      console.log("[ADMIN_SETTINGS] Formato de token inválido")
-      return NextResponse.json({ error: "Formato de token inválido" }, { status: 401 })
-    }
-
-    console.log("[ADMIN_SETTINGS] Verificando token...")
-    const decoded = await verifyToken(token) as CustomJwtPayload
-    if (!decoded || typeof decoded === 'string' || decoded.role !== "admin") {
-      console.log("[ADMIN_SETTINGS] Token inválido ou usuário não é admin")
-      return NextResponse.json({ error: "Não autorizado - acesso apenas para administradores" }, { status: 401 })
-    }
-
-    console.log(`[ADMIN_SETTINGS] Acesso autorizado para admin: ${decoded.email}`)
-
-    // Buscar configurações usando PostgreSQL
-    const settings = await getAdminSettings()
-
-    // Tentar parsear valores JSON
-    const parsedSettings: Record<string, any> = {}
-    Object.entries(settings).forEach(([key, value]) => {
-      try {
-        parsedSettings[key] = JSON.parse(value)
-      } catch {
-        parsedSettings[key] = value
+      const supabase = getSupabaseServerClient()
+      console.log("[ADMIN_SETTINGS] Buscando configurações no Supabase...")
+      
+      const { data: settings, error } = await supabase
+        .from('admin_settings')
+        .select('*')
+        .order('setting_key')
+      
+      if (error) {
+        console.error("[ADMIN_SETTINGS] Erro ao buscar configurações:", error)
+        throw error
       }
-    })
 
-    console.log(`[ADMIN_SETTINGS] Retornando ${Object.keys(parsedSettings).length} configurações`)
-    return NextResponse.json({ settings: parsedSettings })
-  } catch (error) {
-    console.error("[ADMIN_SETTINGS] Erro interno:", error)
-    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
-  }
+      console.log(`[ADMIN_SETTINGS] ${settings?.length || 0} configurações encontradas`)
+
+      // Converter array para objeto para facilitar o uso no frontend
+      const settingsObject = settings?.reduce((acc, setting) => {
+        acc[setting.setting_key] = setting.setting_value
+        return acc
+      }, {} as Record<string, any>) || {}
+
+      console.log("[ADMIN_SETTINGS] Configurações processadas com sucesso")
+
+      return NextResponse.json({
+        success: true,
+        settings: settingsObject,
+        count: settings?.length || 0
+      })
+
+    } catch (error: any) {
+      console.error("[ADMIN_SETTINGS] Erro interno:", error)
+      frontendLogger.error('admin', 'Erro ao buscar configurações', {
+        error: error.message,
+        stack: error.stack,
+        adminEmail: user.email
+      })
+      return NextResponse.json({ 
+        error: "Erro interno do servidor",
+        details: error.message 
+      }, { status: 500 })
+    }
+  })
 }
 
 // POST - Update admin settings
-export async function POST(request: Request) {
-  try {
-    console.log("[ADMIN_SETTINGS] Iniciando atualização de configurações")
-    
-    const authHeader = request.headers.get("authorization")
-    if (!authHeader) {
-      console.log("[ADMIN_SETTINGS] Token não fornecido para atualização")
-      return NextResponse.json({ error: "Token não fornecido" }, { status: 401 })
-    }
+export async function POST(request: NextRequest) {
+  return withAdminAuth(request, async (req, user) => {
+    try {
+      console.log("[ADMIN_SETTINGS] Iniciando atualização de configurações")
+      console.log(`[ADMIN_SETTINGS] Atualização autorizada para admin: ${user.email}`)
 
-    // Extrair token do header "Bearer <token>"
-    const token = authHeader.split(" ")[1]
-    if (!token) {
-      console.log("[ADMIN_SETTINGS] Formato de token inválido para atualização")
-      return NextResponse.json({ error: "Formato de token inválido" }, { status: 401 })
-    }
+      const settings = await request.json()
+      console.log(`[ADMIN_SETTINGS] Atualizando ${Object.keys(settings).length} configurações`)
+      console.log(`[ADMIN_SETTINGS] Dados recebidos:`, settings)
 
-    console.log("[ADMIN_SETTINGS] Verificando token para atualização...")
-    const decoded = await verifyToken(token) as CustomJwtPayload
-    if (!decoded || typeof decoded === 'string' || decoded.role !== "admin") {
-      console.log("[ADMIN_SETTINGS] Token inválido ou usuário não é admin para atualização")
-      return NextResponse.json({ error: "Não autorizado - acesso apenas para administradores" }, { status: 401 })
-    }
+      const supabase = getSupabaseServerClient()
+      const results = []
+      const errors = []
 
-    console.log(`[ADMIN_SETTINGS] Atualização autorizada para admin: ${decoded.email}`)
-
-    const settings = await request.json()
-    console.log(`[ADMIN_SETTINGS] Atualizando ${Object.keys(settings).length} configurações`)
-    console.log(`[ADMIN_SETTINGS] Dados recebidos:`, settings)
-
-    // Salvar configurações usando PostgreSQL
-    for (const [key, value] of Object.entries(settings)) {
-      let stringValue: string
-      
-      // Tratar diferentes tipos de dados
-      if (typeof value === 'boolean') {
-        stringValue = value ? 'true' : 'false'
-      } else if (typeof value === 'number') {
-        stringValue = value.toString()
-      } else if (typeof value === 'object') {
-        stringValue = JSON.stringify(value)
-      } else {
-        stringValue = String(value)
+      // Atualizar cada configuração individualmente
+      for (const [key, value] of Object.entries(settings)) {
+        try {
+          console.log(`[ADMIN_SETTINGS] Atualizando ${key}: ${value}`)
+          
+          const { data, error } = await supabase
+            .from('admin_settings')
+            .upsert({
+              setting_key: key,
+              setting_value: value,
+              updated_at: new Date().toISOString()
+            }, {
+              onConflict: 'setting_key'
+            })
+            .select()
+          
+          if (error) {
+            console.error(`[ADMIN_SETTINGS] Erro ao atualizar ${key}:`, error)
+            errors.push({ key, error: error.message })
+          } else {
+            console.log(`[ADMIN_SETTINGS] ${key} atualizado com sucesso`)
+            results.push({ key, success: true, data })
+          }
+        } catch (err: any) {
+          console.error(`[ADMIN_SETTINGS] Erro interno ao atualizar ${key}:`, err)
+          errors.push({ key, error: err.message })
+        }
       }
-      
-      console.log(`[ADMIN_SETTINGS] Salvando ${key}: ${stringValue}`)
-      
-      const success = await updateAdminSetting(key, stringValue)
-      if (!success) {
-        console.error(`[ADMIN_SETTINGS] Erro ao salvar configuração ${key}`)
-        return NextResponse.json({ error: `Erro ao salvar configuração ${key}` }, { status: 500 })
-      }
-    }
 
-    console.log("[ADMIN_SETTINGS] Configurações salvas com sucesso")
-    return NextResponse.json({ message: "Configurações salvas com sucesso" })
-  } catch (error) {
-    console.error("[ADMIN_SETTINGS] Erro ao salvar configurações:", error)
-    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
-  }
+      console.log(`[ADMIN_SETTINGS] Atualização concluída: ${results.length} sucessos, ${errors.length} erros`)
+
+      frontendLogger.info('admin', 'Configurações atualizadas', {
+        adminEmail: user.email,
+        successCount: results.length,
+        errorCount: errors.length,
+        updatedKeys: results.map(r => r.key)
+      })
+
+      if (errors.length > 0) {
+        console.error("[ADMIN_SETTINGS] Erros encontrados:", errors)
+        return NextResponse.json({
+          success: false,
+          message: "Algumas configurações não puderam ser atualizadas",
+          results,
+          errors
+        }, { status: 207 }) // 207 Multi-Status
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: "Todas as configurações foram atualizadas com sucesso",
+        results,
+        count: results.length
+      })
+
+    } catch (error: any) {
+      console.error("[ADMIN_SETTINGS] Erro interno na atualização:", error)
+      frontendLogger.error('admin', 'Erro ao atualizar configurações', {
+        error: error.message,
+        stack: error.stack,
+        adminEmail: user.email
+      })
+      return NextResponse.json({ 
+        error: "Erro interno do servidor",
+        details: error.message 
+      }, { status: 500 })
+    }
+  })
 }

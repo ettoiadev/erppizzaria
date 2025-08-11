@@ -1,23 +1,11 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getSupabaseServerClient } from '@/lib/supabase'
-import { verifyAdmin } from "@/lib/auth"
+import { withAdminAuth } from '@/lib/auth-middleware'
+import { frontendLogger } from '@/lib/logging'
 
 export const dynamic = 'force-dynamic'
 
-// Função auxiliar para extrair e verificar o admin
-async function handleAdminAuth(request: NextRequest) {
-  const authHeader = request.headers.get("authorization");
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    throw new Error("Token não fornecido");
-  }
-  const token = authHeader.split(" ")[1];
-  
-  const admin = await verifyAdmin(token);
-  if (!admin) {
-    throw new Error("Acesso não autorizado");
-  }
-  return admin;
-}
+
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -54,9 +42,10 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 }
 
 export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
-  try {
-    await handleAdminAuth(request);
-    console.log('PUT /api/categories/[id] - ID:', params.id)
+  return withAdminAuth(request, async (req, admin) => {
+    try {
+      console.log(`[CATEGORIES] PUT request iniciado para categoria ID: ${params.id}`)
+      console.log(`[CATEGORIES] PUT: Acesso autorizado para admin: ${admin.email}`)
     
     // Validar se o ID foi fornecido
     if (!params.id || params.id.trim() === '') {
@@ -148,30 +137,40 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     }
 
     console.log('Categoria atualizada com sucesso:', normalizedCategory)
+    frontendLogger.info('admin', 'Categoria atualizada', {
+      adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+      categoryId: params.id,
+      categoryName: normalizedCategory.name
+    })
     return NextResponse.json(normalizedCategory)
 
-  } catch (error: any) {
-    console.error("Erro completo ao atualizar categoria:", {
-      message: error.message,
-      stack: error.stack,
-      id: params?.id
-    })
-    
-    if (error.message.includes('Token não fornecido') || error.message.includes('Acesso não autorizado')) {
-        return NextResponse.json({ error: error.message }, { status: 401 });
+    } catch (error: any) {
+      console.error("Erro completo ao atualizar categoria:", {
+        message: error.message,
+        stack: error.stack,
+        id: params?.id
+      })
+      
+      frontendLogger.error('admin', 'Erro ao atualizar categoria', {
+        error: error.message,
+        adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+        categoryId: params.id,
+        stack: error.stack
+      })
+      
+      return NextResponse.json({ 
+        error: "Erro interno do servidor",
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      }, { status: 500 })
     }
-    
-    return NextResponse.json({ 
-      error: "Erro interno do servidor",
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
-    }, { status: 500 })
-  }
+  })
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
-  try {
-    await handleAdminAuth(request);
-    console.log('DELETE /api/categories/[id] - ID:', params.id)
+  return withAdminAuth(request, async (req, admin) => {
+    try {
+      console.log(`[CATEGORIES] DELETE request iniciado para categoria ID: ${params.id}`)
+      console.log(`[CATEGORIES] DELETE: Acesso autorizado para admin: ${admin.email}`)
     
     // Validar se o ID foi fornecido
     if (!params.id || params.id.trim() === '') {
@@ -228,25 +227,34 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     if (delErr) throw delErr
 
     console.log('Categoria deletada com sucesso:', params.id)
+    frontendLogger.info('admin', 'Categoria deletada', {
+      adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+      categoryId: params.id,
+      categoryName: existingCategory.name
+    })
     return NextResponse.json({ 
       message: "Categoria deletada com sucesso",
       id: params.id 
     })
 
-  } catch (error: any) {
-    console.error("Erro completo ao deletar categoria:", {
-      message: error.message,
-      stack: error.stack,
-      id: params?.id
-    })
+    } catch (error: any) {
+      console.error("Erro completo ao deletar categoria:", {
+        message: error.message,
+        stack: error.stack,
+        id: params?.id
+      })
 
-    if (error.message.includes('Token não fornecido') || error.message.includes('Acesso não autorizado')) {
-        return NextResponse.json({ error: error.message }, { status: 401 });
+      frontendLogger.error('admin', 'Erro ao deletar categoria', {
+        error: error.message,
+        adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+        categoryId: params.id,
+        stack: error.stack
+      })
+
+      return NextResponse.json({ 
+        error: "Erro interno do servidor",
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      }, { status: 500 })
     }
-
-    return NextResponse.json({ 
-      error: "Erro interno do servidor",
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
-    }, { status: 500 })
-  }
+  })
 }

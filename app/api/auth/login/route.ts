@@ -1,8 +1,9 @@
-import { NextRequest, NextResponse } from "next/server"
-import { getSupabaseServerClient } from '@/lib/supabase'
+import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
-import jwt from 'jsonwebtoken'
-import { authRateLimiter } from '@/lib/rate-limiter'
+import { getUserByEmail } from '@/lib/db-supabase'
+import { createAuthResponse } from '@/lib/auth-middleware'
+import { generateTokenPair } from '@/lib/refresh-token'
+import { frontendLogger } from '@/lib/logging'
 
 export const dynamic = 'force-dynamic'
 
@@ -82,30 +83,30 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Gerar token JWT
-    console.log("🔑 Gerando JWT token...")
-    console.log("🔑 JWT_SECRET exists:", !!process.env.JWT_SECRET)
-    
-    if (!process.env.JWT_SECRET) {
-      console.error("❌ JWT_SECRET não encontrado nas variáveis de ambiente")
-      throw new Error("JWT_SECRET não configurado")
-    }
-    
-    const token = jwt.sign(
-      { 
-        id: user.id, 
+    // Gerar par de tokens (access + refresh)
+    const tokenPair = generateTokenPair({
+      id: user.id,
+      email: user.email,
+      role: user.role || 'customer'
+    })
+
+    frontendLogger.info('auth', 'Login realizado com sucesso', {
+      email: email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+      role: user.role || 'customer',
+      accessTokenExpiry: '15min',
+      refreshTokenExpiry: '7d'
+    })
+
+    return createAuthResponse(tokenPair.accessToken, tokenPair.refreshToken, {
+      success: true,
+      user: {
+        id: user.id,
         email: user.email,
+        full_name: user.full_name,
         role: user.role || 'customer'
       },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    )
-    
-    console.log("✅ JWT token gerado com sucesso")
-
-    console.log("✅ Login bem-sucedido:", { email, role: user.role })
-
-    return NextResponse.json({ message: "Login realizado com sucesso", user: { id: user.id, email: user.email, full_name: user.full_name, role: user.role || 'customer' }, token })
+      expiresIn: tokenPair.expiresIn
+    })
 
   } catch (error: any) {
     console.error("❌ Erro no login:", error)
