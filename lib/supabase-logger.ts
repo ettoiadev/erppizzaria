@@ -38,18 +38,17 @@ class SupabaseLogger {
     this.lastConnectionTime = new Date()
 
     if (success) {
-      appLogger.supabase.info('Conexão com Supabase estabelecida', {
+      appLogger.supabase.query('Conexão com Supabase estabelecida', {
         url: url ? this.maskUrl(url) : undefined,
         attempt: this.connectionAttempts,
         timestamp: this.lastConnectionTime.toISOString()
       })
     } else {
-      appLogger.supabase.error('Falha na conexão com Supabase', {
+      appLogger.supabase.error('Falha na conexão com Supabase', error || new Error('Connection failed'), {
         url: url ? this.maskUrl(url) : undefined,
         attempt: this.connectionAttempts,
-        error: error?.message,
         timestamp: this.lastConnectionTime.toISOString()
-      }, error)
+      })
     }
   }
 
@@ -63,7 +62,7 @@ class SupabaseLogger {
     const isSlowQuery = duration && duration > this.config.contexts.supabase.slowQueryThreshold
     
     if (isSlowQuery && isContextEnabled('supabase', 'slowQueries')) {
-      appLogger.supabase.warn('Query lenta detectada', {
+      appLogger.warn('supabase', 'Query lenta detectada', {
         operation,
         table,
         duration: `${duration}ms`,
@@ -84,7 +83,7 @@ class SupabaseLogger {
     }
 
     if (error) {
-      appLogger.supabase.error('Erro na query Supabase', {
+      appLogger.supabase.error('Erro na query Supabase', error, {
         operation,
         table,
         query: this.sanitizeQuery(query),
@@ -92,9 +91,9 @@ class SupabaseLogger {
         userId,
         errorCode: (error as any)?.code,
         errorDetails: (error as any)?.details
-      }, error)
+      })
     } else {
-      appLogger.supabase.debug('Query Supabase executada', {
+      appLogger.debug('supabase', 'Query Supabase executada', {
         operation,
         table,
         duration: duration ? `${duration}ms` : undefined,
@@ -115,20 +114,19 @@ class SupabaseLogger {
     }
 
     if (success) {
-      appLogger.auth.info(`Autenticação bem-sucedida: ${operation}`, logData)
+      appLogger.info('auth', `Autenticação bem-sucedida: ${operation}`, logData)
     } else {
-      appLogger.auth.warn(`Falha na autenticação: ${operation}`, {
+      appLogger.warn('auth', `Falha na autenticação: ${operation}`, {
         ...logData,
-        errorCode: (error as any)?.code,
-        errorMessage: error?.message
-      }, error)
+        error: error?.message
+      })
     }
   }
 
   // Log de RLS (Row Level Security)
   logRLS(table: string, operation: string, userId?: string, denied: boolean = false, policy?: string): void {
     if (denied) {
-      appLogger.supabase.warn('Acesso negado por RLS', {
+      appLogger.warn('supabase', 'Acesso negado por RLS', {
         table,
         operation,
         userId,
@@ -136,7 +134,7 @@ class SupabaseLogger {
         timestamp: new Date().toISOString()
       })
     } else {
-      appLogger.supabase.debug('RLS aplicado com sucesso', {
+      appLogger.debug('supabase', 'RLS aplicado com sucesso', {
         table,
         operation,
         userId,
@@ -155,9 +153,9 @@ class SupabaseLogger {
     }
 
     if (error) {
-      appLogger.supabase.error('Erro no Realtime', logData, error)
+      appLogger.supabase.error('Erro no Realtime', error, logData)
     } else {
-      appLogger.supabase.debug('Evento Realtime', logData)
+      appLogger.debug('supabase', 'Evento Realtime', logData)
     }
   }
 
@@ -172,9 +170,9 @@ class SupabaseLogger {
     }
 
     if (error) {
-      appLogger.supabase.error('Erro no Storage', logData, error)
+      appLogger.supabase.error('Erro no Storage', error, logData)
     } else {
-      appLogger.supabase.info('Operação de Storage', logData)
+      appLogger.supabase.query('Operação de Storage', logData)
     }
   }
 

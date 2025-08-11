@@ -26,6 +26,7 @@ export interface RefreshTokenPayload {
   email: string
   role: string
   tokenId: string
+  type: string
   iat: number
   exp: number
 }

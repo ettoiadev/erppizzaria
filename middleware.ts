@@ -19,7 +19,7 @@ export function middleware(request: NextRequest) {
   const { pathname, protocol, host } = request.nextUrl
   
   // Log da requisição para auditoria
-  appLogger.info('middleware', 'Requisição interceptada', {
+  appLogger.info('api', 'Requisição interceptada', {
     pathname,
     method: request.method,
     userAgent: request.headers.get('user-agent'),
@@ -29,7 +29,7 @@ export function middleware(request: NextRequest) {
 
   // 1. Enforçar HTTPS em produção
   if (process.env.NODE_ENV === 'production' && protocol !== 'https:') {
-    appLogger.warn('middleware', 'Tentativa de acesso HTTP em produção', {
+    appLogger.warn('api', 'Tentativa de acesso HTTP em produção', {
       pathname,
       protocol,
       host
@@ -48,7 +48,7 @@ export function middleware(request: NextRequest) {
   // 3. Aplicar rate limiting adicional para rotas sensíveis
   if (isAuthRoute || pathname.includes('/api/payments')) {
     const ip = request.ip || request.headers.get('x-forwarded-for') || 'unknown'
-    appLogger.info('middleware', 'Acesso a rota sensível', {
+    appLogger.info('api', 'Acesso a rota sensível', {
       pathname,
       ip,
       timestamp: new Date().toISOString()

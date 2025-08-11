@@ -109,9 +109,8 @@ export async function getOrderById(orderId: string): Promise<Order | null> {
       items: order.items || order.order_items || []
     };
   } catch (error) {
-    appLogger.error('orders', 'Erro ao buscar pedido por ID', { 
-      order_id: orderId,
-      error: error instanceof Error ? error.message : String(error)
+    appLogger.error('api', 'Erro ao buscar pedido por ID', error instanceof Error ? error : new Error(String(error)), {
+      order_id: orderId
     });
     throw error;
   }
@@ -169,9 +168,8 @@ export async function getOrders(filters: {
       items: order.items || order.order_items || []
     }));
   } catch (error) {
-    appLogger.error('orders', 'Erro ao listar pedidos', { 
-      filters,
-      error: error instanceof Error ? error.message : String(error)
+    appLogger.error('api', 'Erro ao listar pedidos', error instanceof Error ? error : new Error(String(error)), {
+      filters
     });
     throw error;
   }
@@ -186,11 +184,9 @@ export async function updateOrderStatus(orderId: string, status: string, notes?:
     const order = await updateOrderStatus(orderId, status, notes);
     return order as Order;
   } catch (error) {
-    appLogger.error('orders', 'Erro ao atualizar status do pedido', { 
+    appLogger.error('api', 'Erro ao atualizar status do pedido', error instanceof Error ? error : new Error(String(error)), {
       order_id: orderId,
-      status,
-      notes,
-      error: error instanceof Error ? error.message : String(error)
+      new_status: status
     });
     throw error;
   }
@@ -204,10 +200,9 @@ export async function updatePaymentStatus(orderId: string, paymentStatus: string
     const order = await updatePaymentStatus(orderId, paymentStatus);
     return order as Order;
   } catch (error) {
-    appLogger.error('orders', 'Erro ao atualizar status de pagamento', { 
+    appLogger.error('api', 'Erro ao atualizar status de pagamento', error instanceof Error ? error : new Error(String(error)), {
       order_id: orderId,
-      payment_status: paymentStatus,
-      error: error instanceof Error ? error.message : String(error)
+      payment_status: paymentStatus
     });
     throw error;
   }
@@ -216,7 +211,7 @@ export async function updatePaymentStatus(orderId: string, paymentStatus: string
 // Obter estatísticas de pedidos
 export async function getOrderStats(startDate?: Date, endDate?: Date) {
   try {
-    appLogger.info('orders', 'Obtendo estatísticas de pedidos', { 
+    appLogger.info('api', 'Obtendo estatísticas de pedidos', {
       start_date: startDate?.toISOString(),
       end_date: endDate?.toISOString()
     });
@@ -236,10 +231,9 @@ export async function getOrderStats(startDate?: Date, endDate?: Date) {
     const { data, error, count } = await queryBuilder;
     
     if (error) {
-      appLogger.error('orders', 'Erro ao obter estatísticas de pedidos', { 
+      appLogger.error('api', 'Erro ao obter estatísticas de pedidos', error, {
         start_date: startDate?.toISOString(),
-        end_date: endDate?.toISOString(),
-        error: error.message
+        end_date: endDate?.toISOString()
       });
       throw error;
     }
@@ -259,10 +253,9 @@ export async function getOrderStats(startDate?: Date, endDate?: Date) {
     
     return stats;
   } catch (error) {
-    appLogger.error('orders', 'Erro ao obter estatísticas de pedidos', { 
-      start_date: startDate?.toISOString(),
-      end_date: endDate?.toISOString(),
-      error: error instanceof Error ? error.message : String(error)
+    appLogger.error('api', 'Erro ao obter estatísticas de pedidos', error instanceof Error ? error : new Error(String(error)), {
+      start_date: startDate,
+      end_date: endDate
     });
     throw error;
   }

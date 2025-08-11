@@ -1,4 +1,4 @@
-import { Clock, Bike, CheckCircle, Package } from "lucide-react"
+import { Clock, Bike, CheckCircle, Package, type LucideIcon } from "lucide-react"
 import { statusIcons, paymentMethodMapping } from "./constants"
 import type { NextAction } from "./types"
 
@@ -16,7 +16,7 @@ export const formatDateTime = (dateString: string) => {
 }
 
 // Função para obter ícone do status
-export const getStatusIcon = (status: string) => {
+export const getStatusIcon = (status: string): LucideIcon => {
   return statusIcons[status as keyof typeof statusIcons] || Package
 }
 
