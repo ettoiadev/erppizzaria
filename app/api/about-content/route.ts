@@ -13,34 +13,15 @@ interface CustomJwtPayload extends JwtPayload {
 // GET - Buscar conteúdo da página Sobre
 export async function GET() {
   try {
-    // First check if table exists and get structure
     const supabase = getSupabaseServerClient()
-    const { data: sample, error: tblErr } = await supabase
-      .from('about_content')
-      .select('id')
-      .limit(1)
-    if (tblErr) throw tblErr
-
-    let whereClause = ''
-    let queryParams: any[] = []
-
-    if (Array.isArray(sample)) {
-      if (sample.length > 0) {
-        whereClause = 'WHERE id = $1'
-        queryParams = [sample[0].id]
-      } else {
-        whereClause = 'WHERE 1=0'
-      }
-    } else {
-      // Table doesn't exist or column doesn't exist, handle gracefully
-      return NextResponse.json({ error: "Tabela about_content não encontrada" }, { status: 500 })
-    }
-
     const { data: rows, error } = await supabase
       .from('about_content')
       .select('*')
       .limit(1)
-    if (error) throw error
+    
+    if (error) {
+      console.error('Error fetching about_content:', error)
+    }
 
     if (!rows || rows.length === 0) {
       const defaultContent = {
@@ -85,24 +66,14 @@ export async function GET() {
         ]
       }
 
-      try {
-        const { data: inserted, error: insErr } = await supabase
-          .from('about_content')
-          .insert({ hero: defaultContent.hero, story: defaultContent.story, values: defaultContent.values, team: defaultContent.team })
-          .select('*')
-          .single()
-        if (insErr) throw insErr
-        return NextResponse.json({ content: inserted })
-      } catch (insertError) {
-        // If insert fails, return default content without saving
-        return NextResponse.json({ content: { 
-          id: 'default',
-          hero: defaultContent.hero,
-          story: defaultContent.story,
-          values: defaultContent.values,
-          team: defaultContent.team
-        }})
-      }
+      // Return default content without trying to insert during build
+      return NextResponse.json({ content: { 
+        id: 'default',
+        hero: defaultContent.hero,
+        story: defaultContent.story,
+        values: defaultContent.values,
+        team: defaultContent.team
+      }})
     }
 
     return NextResponse.json({ content: rows[0] })
@@ -155,27 +126,40 @@ export async function PUT(request: Request) {
       )
     }
 
-    // Check if any record exists first
     const supabase = getSupabaseServerClient()
-    const { data: existing } = await supabase.from('about_content').select('id').limit(1)
     
-    if ((existing || []).length > 0) {
-      const { data: updated, error: updErr } = await supabase
+    try {
+      // Try to get existing record
+      const { data: existing } = await supabase
         .from('about_content')
-        .update({ hero, story, values, team, updated_at: new Date().toISOString() })
-        .eq('id', (existing || [])[0].id)
-        .select('*')
-        .single()
-      if (updErr) throw updErr
-      return NextResponse.json({ content: updated })
-    } else {
-      const { data: created, error: insErr } = await supabase
-        .from('about_content')
-        .insert({ hero, story, values, team })
-        .select('*')
-        .single()
-      if (insErr) throw insErr
-      return NextResponse.json({ content: created })
+        .select('id')
+        .limit(1)
+      
+      if (existing && existing.length > 0) {
+        // Update existing record
+        const { data: updated, error: updErr } = await supabase
+          .from('about_content')
+          .update({ hero, story, values, team, updated_at: new Date().toISOString() })
+          .eq('id', existing[0].id)
+          .select('*')
+          .single()
+        
+        if (updErr) throw updErr
+        return NextResponse.json({ content: updated })
+      } else {
+        // Create new record
+        const { data: created, error: insErr } = await supabase
+          .from('about_content')
+          .insert({ hero, story, values, team })
+          .select('*')
+          .single()
+        
+        if (insErr) throw insErr
+        return NextResponse.json({ content: created })
+      }
+    } catch (dbError) {
+      console.error('Database error:', dbError)
+      throw dbError
     }
   } catch (error) {
     return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
