@@ -19,9 +19,9 @@ export async function POST(request: NextRequest) {
     // Aplicar rate limiting (temporariamente desabilitado)
     console.log("🔓 Rate limiting desabilitado para debug")
     /*
-    const rateLimitResult = authRateLimiter(request)
+    // Implementar rate limiting
+    const rateLimitResult = await authRateLimiter(request)
     if (rateLimitResult instanceof NextResponse) {
-      console.log("⚠️ Rate limit aplicado")
       return rateLimitResult
     }
     */
