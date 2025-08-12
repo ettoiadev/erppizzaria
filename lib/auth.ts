@@ -146,7 +146,9 @@ export async function emailExists(email: string): Promise<boolean> {
 // Função para login completo
 export async function authenticateUser(email: string, password: string): Promise<{
   user: UserProfile;
-  token: string;
+  accessToken: string;
+  refreshToken: string;
+  expiresIn: number;
 } | null> {
   try {
     appLogger.info('auth', 'Autenticando usuário', { 
@@ -178,8 +180,28 @@ export async function authenticateUser(email: string, password: string): Promise
       return null;
     }
 
-    // Gerar token
-    const token = generateToken(user);
+    // Gerar tokens
+    const accessToken = sign(
+      {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        type: 'access'
+      },
+      JWT_SECRET,
+      { expiresIn: '15m' }
+    );
+
+    const refreshToken = sign(
+      {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        type: 'refresh'
+      },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
 
     appLogger.info('auth', 'Usuário autenticado com sucesso', { 
       email: email.replace(/(.{2}).*(@.*)/, '$1***$2'),
@@ -193,7 +215,9 @@ export async function authenticateUser(email: string, password: string): Promise
         full_name: user.full_name,
         role: user.role
       },
-      token
+      accessToken,
+      refreshToken,
+      expiresIn: 15 * 60 // 15 minutos em segundos
     };
   } catch (error: any) {
     appLogger.error('auth', 'Erro na autenticação', error, { 

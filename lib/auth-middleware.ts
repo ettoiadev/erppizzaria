@@ -204,18 +204,20 @@ export function createAuthResponse(accessToken: string, refreshToken: string, da
   response.cookies.set('auth-token', accessToken, {
     httpOnly: true,
     secure: true, // Sempre HTTPS
-    sameSite: 'strict', // Proteção CSRF mais rigorosa
+    sameSite: 'lax', // Permitir cookies em requisições cross-origin
     maxAge: 15 * 60, // 15 minutos
-    path: '/'
+    path: '/',
+    domain: '.vercel.app' // Domínio principal
   })
 
   // Cookie para refresh token (longa duração)
   response.cookies.set('refresh-token', refreshToken, {
     httpOnly: true,
     secure: true, // Sempre HTTPS
-    sameSite: 'strict', // Proteção CSRF mais rigorosa
+    sameSite: 'lax', // Permitir cookies em requisições cross-origin
     maxAge: 7 * 24 * 60 * 60, // 7 dias
-    path: '/api/auth' // Restrito às rotas de auth
+    path: '/api/auth', // Restrito às rotas de auth
+    domain: '.vercel.app' // Domínio principal
   })
 
   return response
@@ -229,18 +231,20 @@ export function clearAuthResponse(data: any, status = 200): NextResponse {
   response.cookies.set('auth-token', '', {
     httpOnly: true,
     secure: true,
-    sameSite: 'strict',
+    sameSite: 'lax',
     maxAge: 0,
-    path: '/'
+    path: '/',
+    domain: '.vercel.app'
   })
 
   // Limpar refresh token
   response.cookies.set('refresh-token', '', {
     httpOnly: true,
     secure: true,
-    sameSite: 'strict',
+    sameSite: 'lax',
     maxAge: 0,
-    path: '/api/auth'
+    path: '/api/auth',
+    domain: '.vercel.app'
   })
 
   return response

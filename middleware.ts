@@ -63,6 +63,15 @@ export function middleware(request: NextRequest) {
     response.headers.set(key, value)
   })
 
+  // Configurar CORS para permitir credenciais
+  const origin = request.headers.get('origin')
+  if (origin === 'https://erppizzaria-tau.vercel.app') {
+    response.headers.set('Access-Control-Allow-Origin', origin)
+    response.headers.set('Access-Control-Allow-Credentials', 'true')
+    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+  }
+
   // 5. Headers específicos para rotas de API
   if (isApiRoute) {
     response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate')
