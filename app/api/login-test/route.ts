@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { user, token } = authResult
+    const { user, accessToken, refreshToken, expiresIn } = authResult
 
     console.log('✅ Teste: Usuário autenticado:', user.email)
 
@@ -38,7 +38,9 @@ export async function POST(request: NextRequest) {
         full_name: user.full_name,
         role: user.role
       },
-      token,
+      accessToken,
+      refreshToken,
+      expiresIn,
       test_route: true
     })
 
@@ -49,4 +51,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-} 
+}
