@@ -122,6 +122,13 @@ O projeto está configurado para deploy automático via GitHub Actions quando h�
 2. Ou usar o token do GitHub no workflow (já configurado)
 3. Verificar se `VERCEL_TOKEN`, `VERCEL_ORG_ID` e `VERCEL_PROJECT_ID` estão corretos nos secrets
 
+### Erro: Failed to collect page data for /api/about-content
+**Causa:** Lógica complexa na API route causando falhas durante o build.
+**Solução:**
+1. Simplificada a função GET para evitar verificações desnecessárias
+2. Removida lógica de inserção automática durante o build
+3. Melhorado tratamento de erros com try/catch
+
 ### Build falha com erro de validação
 - Verifique se todas as variáveis obrigatórias estão configuradas
 - Remova variáveis legadas como `NEXT_PUBLIC_SUPABASE_*`
