@@ -28,6 +28,22 @@ O arquivo `.npmrc` foi otimizado para evitar problemas no GitHub Actions:
 
 ### 2. Configure as seguintes variáveis:
 
+#### Configuração via Secrets do Projeto
+1. No painel do Vercel, vá em **Settings** > **Environment Variables**
+2. Para cada variável abaixo, clique em **Add New**
+3. Selecione **Create a Secret**
+4. Use os nomes sugeridos abaixo (sem @) e configure os valores apropriados
+
+| Nome do Secret | Variável no Projeto | Descrição |
+|----------------|---------------------|------------|
+| supabase_url | SUPABASE_URL | URL do projeto Supabase |
+| supabase_key | SUPABASE_KEY | Service Role Key do Supabase |
+| jwt_secret | JWT_SECRET | Chave para assinatura de tokens |
+| mercadopago_access_token | MERCADOPAGO_ACCESS_TOKEN | Token de acesso do Mercado Pago |
+| mercadopago_webhook_secret | MERCADOPAGO_WEBHOOK_SECRET | Secret para webhooks do MP |
+| site_url | NEXT_PUBLIC_SITE_URL | URL do seu site |
+
+
 #### Supabase (Obrigatórias)
 ```
 SUPABASE_URL=https://seu-projeto.supabase.co
