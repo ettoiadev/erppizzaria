@@ -1,19 +1,5 @@
 {
-  "buildCommand": "npm run build",
-  "outputDirectory": ".next",
   "framework": "nextjs",
-  "installCommand": "npm install",
-  "devCommand": "npm run dev",
-  
-  "env": {
-    "SUPABASE_URL": "@supabase_url",
-    "SUPABASE_KEY": "@supabase_key",
-    "JWT_SECRET": "@jwt_secret",
-    "MERCADOPAGO_ACCESS_TOKEN": "@mercadopago_access_token",
-    "MERCADOPAGO_WEBHOOK_SECRET": "@mercadopago_webhook_secret",
-    "NEXT_PUBLIC_SITE_URL": "@site_url"
-  },
-
   "functions": {
     "app/api/**/*.js": {
       "maxDuration": 30
@@ -36,12 +22,6 @@
           "value": "Content-Type, Authorization"
         }
       ]
-    }
-  ],
-  "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "destination": "/api/$1"
     }
   ]
 }
