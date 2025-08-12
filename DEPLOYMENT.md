@@ -71,6 +71,25 @@ NEXT_PUBLIC_SITE_URL=https://seu-dominio.vercel.app
 2. Verifique se todas as variáveis estão sendo carregadas corretamente
 3. Teste as funcionalidades principais
 
+## 🚀 Deploy no Vercel via GitHub Actions
+
+O projeto está configurado para deploy automático via GitHub Actions quando há push na branch `main`.
+
+### Configuração dos Secrets no GitHub:
+
+1. Vá em **Settings** > **Secrets and variables** > **Actions**
+2. Adicione os seguintes secrets:
+
+#### Secrets do Vercel (obrigatórios):
+- `VERCEL_TOKEN`: Token de acesso do Vercel (Settings > Tokens)
+- `VERCEL_ORG_ID`: ID da organização/usuário no Vercel
+- `VERCEL_PROJECT_ID`: ID do projeto no Vercel
+
+#### Como obter os IDs do Vercel:
+1. Instale a CLI do Vercel: `npm i -g vercel`
+2. Execute `vercel link` no projeto
+3. Os IDs serão salvos em `.vercel/project.json`
+
 ## 🔧 Troubleshooting
 
 ### Erro: "SUPABASE_URL não configurada"
@@ -95,6 +114,13 @@ NEXT_PUBLIC_SITE_URL=https://seu-dominio.vercel.app
 1. Arquivo `.npmrc` foi corrigido
 2. Removidas configurações conflitantes
 3. Adicionada variável `ALLOW_TEST_TOKENS=true` no workflow
+
+### Erro: Git author must have access to the project on Vercel
+**Causa:** O usuário do Git não tem permissões adequadas no projeto Vercel.
+**Solução:**
+1. Adicionar o usuário como colaborador no projeto Vercel
+2. Ou usar o token do GitHub no workflow (já configurado)
+3. Verificar se `VERCEL_TOKEN`, `VERCEL_ORG_ID` e `VERCEL_PROJECT_ID` estão corretos nos secrets
 
 ### Build falha com erro de validação
 - Verifique se todas as variáveis obrigatórias estão configuradas
