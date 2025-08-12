@@ -124,6 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Origin': 'https://erppizzaria-tau.vercel.app'
         },
         body: JSON.stringify({ email, password }),
         credentials: 'include'

@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
       refreshTokenExpiry: '7d'
     })
 
-    return createAuthResponse(tokenPair.accessToken, tokenPair.refreshToken, {
+    const response = createAuthResponse(tokenPair.accessToken, tokenPair.refreshToken, {
       success: true,
       user: {
         id: user.id,
@@ -108,6 +108,14 @@ export async function POST(request: NextRequest) {
       },
       expiresIn: tokenPair.expiresIn
     })
+
+    // Adicionar headers CORS na resposta
+    response.headers.set('Access-Control-Allow-Origin', 'https://erppizzaria-tau.vercel.app')
+    response.headers.set('Access-Control-Allow-Credentials', 'true')
+    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+
+    return response
 
   } catch (error: any) {
     console.error("❌ Erro no login:", error)
