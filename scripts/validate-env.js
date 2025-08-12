@@ -267,9 +267,11 @@ function validateEnvironment() {
   // Verificar se está usando chaves de teste em produção
   if (isProduction) {
     const mpToken = process.env.MERCADOPAGO_ACCESS_TOKEN
-    if (mpToken && mpToken.startsWith('TEST-')) {
-      console.log(colorize('❌ Usando token de teste do MP em produção', 'red'))
-      hasErrors = true
+    const allowTestTokens = process.env.ALLOW_TEST_TOKENS === 'true'
+    
+    if (mpToken && mpToken.startsWith('TEST-') && !allowTestTokens) {
+      console.log(colorize('⚠️  Usando token de teste do MP em produção (use ALLOW_TEST_TOKENS=true para permitir)', 'yellow'))
+      hasWarnings = true
     }
     
     const jwtSecret = process.env.JWT_SECRET

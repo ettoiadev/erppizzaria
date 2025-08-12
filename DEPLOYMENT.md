@@ -26,6 +26,7 @@ JWT_SECRET=sua_chave_secreta_super_segura_aqui_min_32_chars
 ```
 MERCADOPAGO_ACCESS_TOKEN=APP_USR-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 MERCADOPAGO_WEBHOOK_SECRET=sua_webhook_secret_aqui
+ALLOW_TEST_TOKENS=false
 ```
 
 #### URL Pública (Obrigatória)
