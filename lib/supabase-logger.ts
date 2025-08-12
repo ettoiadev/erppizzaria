@@ -255,54 +255,59 @@ export function instrumentSupabaseClient(client: SupabaseClient, userId?: string
     return client
   }
 
-  // Interceptar métodos do cliente para adicionar logging
+  // Criar um proxy para interceptar chamadas sem quebrar a cadeia de métodos
   const originalFrom = client.from.bind(client)
   
   client.from = function(table: string) {
     const queryBuilder = originalFrom(table)
     
-    // Interceptar métodos de query
-    const methods = ['select', 'insert', 'update', 'delete', 'upsert']
-    
-    methods.forEach(method => {
-      const originalMethod = (queryBuilder as any)[method]
-      if (typeof originalMethod === 'function') {
-        (queryBuilder as any)[method] = function(...args: any[]) {
-          const startTime = Date.now()
-          const result = originalMethod.apply(this, args)
+    // Criar proxy para interceptar apenas métodos finais que executam a query
+    return new Proxy(queryBuilder, {
+      get(target: any, prop: string | symbol) {
+        const originalMethod = target[prop]
+        
+        // Interceptar apenas métodos que executam a query final
+        if (typeof originalMethod === 'function' && 
+            typeof prop === 'string' && 
+            ['then', 'catch', 'finally'].includes(prop)) {
           
-          // Se for uma Promise, interceptar o resultado
-          if (result && typeof result.then === 'function') {
+          return function(...args: any[]) {
+            const startTime = Date.now()
+            const result = originalMethod.apply(target, args)
+            
+            // Interceptar o resultado da Promise
+            if (result && typeof result.then === 'function') {
+              return result
+                .then((data: any) => {
+                  const duration = Date.now() - startTime
+                  supabaseLogger.logQuery({
+                    operation: 'query',
+                    table,
+                    duration,
+                    userId
+                  })
+                  return data
+                })
+                .catch((error: Error) => {
+                  const duration = Date.now() - startTime
+                  supabaseLogger.logQuery({
+                    operation: 'query',
+                    table,
+                    duration,
+                    userId,
+                    error
+                  })
+                  throw error
+                })
+            }
+            
             return result
-              .then((data: any) => {
-                const duration = Date.now() - startTime
-                supabaseLogger.logQuery({
-                  operation: method,
-                  table,
-                  duration,
-                  userId
-                })
-                return data
-              })
-              .catch((error: Error) => {
-                const duration = Date.now() - startTime
-                supabaseLogger.logQuery({
-                  operation: method,
-                  table,
-                  duration,
-                  userId,
-                  error
-                })
-                throw error
-              })
           }
-          
-          return result
         }
+        
+        return originalMethod
       }
     })
-    
-    return queryBuilder
   }
   
   return client

@@ -9,6 +9,12 @@ Para fazer o deployment da aplicação no Vercel, você precisa configurar as se
 - Acesse seu projeto
 - Vá em **Settings** > **Environment Variables**
 
+### ⚠️ Importante: Remover Variáveis Legadas
+
+Se você tiver as seguintes variáveis configuradas no Vercel, **REMOVA-AS** pois são legadas e podem causar conflitos:
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+
 ### 2. Configure as seguintes variáveis:
 
 #### Supabase (Obrigatórias)
@@ -56,14 +62,29 @@ NEXT_PUBLIC_SITE_URL=https://seu-dominio.vercel.app
 
 ## Troubleshooting
 
-### Erro: "Environment Variable references Secret which does not exist"
-- Este erro foi corrigido removendo as referências a secrets no `vercel.json`
-- Configure as variáveis diretamente no painel do Vercel
+### Erro: "SUPABASE_URL não configurada"
+- Verifique se a variável `SUPABASE_URL` está configurada no Vercel
+- Certifique-se de que não há espaços em branco no valor
 
-### Erro: "SUPABASE_URL is not defined"
-- Verifique se a variável está configurada no ambiente correto
-- Certifique-se de que o deployment está usando o ambiente correto
+### Erro: "Token de teste em produção"
+- Configure `ALLOW_TEST_TOKENS=true` se quiser usar tokens de teste temporariamente
+- Para produção, use um token que comece com `APP_USR-`
 
-### Erro de autenticação Supabase
-- Verifique se está usando a service role key correta
-- Confirme se a URL do Supabase está correta
+### Erro: "TypeError: e.from(...).select(...).eq is not a function"
+- Este erro indica problema na instrumentação do cliente Supabase
+- Verifique se o build local funciona com `npm run build`
+- Se persistir, pode ser um problema de cache do Vercel - tente um novo deploy
+
+### Avisos sobre variáveis legadas
+- Remova `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY` do Vercel
+- Use apenas `SUPABASE_URL` e `SUPABASE_KEY`
+
+### Build falha com erro de validação
+- Verifique se todas as variáveis obrigatórias estão configuradas
+- Remova variáveis legadas como `NEXT_PUBLIC_SUPABASE_*`
+- Certifique-se de que os valores não contêm caracteres especiais não escapados
+
+### Deploy bem-sucedido mas APIs falhando
+- Verifique se as variáveis de ambiente estão corretas no Vercel
+- Teste a conexão com Supabase usando a rota `/api/test-db-connection`
+- Verifique os logs do Vercel para erros específicos
