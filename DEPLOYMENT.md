@@ -9,11 +9,22 @@ Para fazer o deployment da aplicação no Vercel, você precisa configurar as se
 - Acesse seu projeto
 - Vá em **Settings** > **Environment Variables**
 
-### ⚠️ Importante: Remover Variáveis Legadas
+### ⚠️ AVISOS IMPORTANTES
 
+#### Variáveis Legadas do Supabase
 Se você tiver as seguintes variáveis configuradas no Vercel, **REMOVA-AS** pois são legadas e podem causar conflitos:
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+
+Estas são variáveis legadas que podem causar conflitos. Use apenas:
+- `SUPABASE_URL`
+- `SUPABASE_KEY`
+
+#### Configurações do NPM
+O arquivo `.npmrc` foi otimizado para evitar problemas no GitHub Actions:
+- Removidas configurações problemáticas de CI
+- Ajustadas configurações de cache
+- Mantidas apenas configurações essenciais
 
 ### 2. Configure as seguintes variáveis:
 
@@ -60,7 +71,7 @@ NEXT_PUBLIC_SITE_URL=https://seu-dominio.vercel.app
 2. Verifique se todas as variáveis estão sendo carregadas corretamente
 3. Teste as funcionalidades principais
 
-## Troubleshooting
+## 🔧 Troubleshooting
 
 ### Erro: "SUPABASE_URL não configurada"
 - Verifique se a variável `SUPABASE_URL` está configurada no Vercel
@@ -70,21 +81,29 @@ NEXT_PUBLIC_SITE_URL=https://seu-dominio.vercel.app
 - Configure `ALLOW_TEST_TOKENS=true` se quiser usar tokens de teste temporariamente
 - Para produção, use um token que comece com `APP_USR-`
 
-### Erro: "TypeError: e.from(...).select(...).eq is not a function"
-- Este erro indica problema na instrumentação do cliente Supabase
-- Verifique se o build local funciona com `npm run build`
-- Se persistir, pode ser um problema de cache do Vercel - tente um novo deploy
+### Erro: `TypeError: e.from(...).select(...).eq is not a function`
+**Causa:** Problema com a instrumentação do Supabase que quebra a cadeia de métodos.
+**Solução:** Verificar se o arquivo `lib/supabase-logger.ts` está usando Proxy corretamente.
 
-### Avisos sobre variáveis legadas
-- Remova `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY` do Vercel
-- Use apenas `SUPABASE_URL` e `SUPABASE_KEY`
+### Aviso sobre variáveis legadas do Supabase
+**Causa:** Presença de `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY` no ambiente.
+**Solução:** Remover essas variáveis do Vercel e manter apenas `SUPABASE_URL` e `SUPABASE_KEY`.
+
+### Falha no GitHub Actions - Install dependencies
+**Causa:** Configurações problemáticas no `.npmrc` (ci=true, cache-max, optional=false).
+**Solução:** 
+1. Arquivo `.npmrc` foi corrigido
+2. Removidas configurações conflitantes
+3. Adicionada variável `ALLOW_TEST_TOKENS=true` no workflow
 
 ### Build falha com erro de validação
 - Verifique se todas as variáveis obrigatórias estão configuradas
 - Remova variáveis legadas como `NEXT_PUBLIC_SUPABASE_*`
 - Certifique-se de que os valores não contêm caracteres especiais não escapados
 
-### Deploy bem-sucedido mas APIs falhando
-- Verifique se as variáveis de ambiente estão corretas no Vercel
-- Teste a conexão com Supabase usando a rota `/api/test-db-connection`
-- Verifique os logs do Vercel para erros específicos
+### APIs falhando após deploy bem-sucedido
+**Causa:** Conflitos de configuração ou problemas de instrumentação.
+**Solução:** 
+1. Verificar logs do Vercel
+2. Confirmar variáveis de ambiente
+3. Testar endpoints individualmente
