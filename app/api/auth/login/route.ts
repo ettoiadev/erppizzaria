@@ -113,7 +113,7 @@ export async function POST(request: NextRequest) {
     response.headers.set('Access-Control-Allow-Origin', 'https://erppizzaria-tau.vercel.app')
     response.headers.set('Access-Control-Allow-Credentials', 'true')
     response.headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, Origin')
 
     return response
 
@@ -136,7 +136,7 @@ export async function OPTIONS(request: NextRequest) {
       headers: {
         'Access-Control-Allow-Origin': origin,
         'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization, Origin',
         'Access-Control-Allow-Credentials': 'true'
       },
     })
