@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyAdmin } from '@/lib/auth'
 import { getSupabaseServerClient } from '@/lib/supabase'
+import { appLogger } from '@/lib/logging'
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
@@ -60,9 +61,9 @@ export async function GET(request: NextRequest) {
     for (const ord of orders || []) {
       const { data: items } = await supabase
         .from('order_items')
-        .select('price:unit_price, quantity')
+        .select('unit_price, quantity')
         .eq('order_id', ord.id)
-      const products_value = (items || []).reduce((sum: number, it: any) => sum + (Number(it.price || 0) * Number(it.quantity || 0)), 0) || Number(ord.subtotal || 0)
+      const products_value = (items || []).reduce((sum: number, it: any) => sum + (Number(it.unit_price || 0) * Number(it.quantity || 0)), 0) || Number(ord.subtotal || 0)
       const drv = driverMap.get(String(ord.driver_id))
       deliveries.push({
         id: ord.id,
@@ -79,15 +80,17 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    console.log(`[DELIVERY_REPORT] Encontrados ${drivers?.length || 0} entregadores`)
-    console.log(`[DELIVERY_REPORT] Encontradas ${deliveries.length} entregas entregues`)
-    console.log(`[DELIVERY_REPORT] Filtros aplicados: startDate=${startDate}, endDate=${endDate}, driverId=${driverId}`)
+    appLogger.info('api', 'Relatório de entregas processado', {
+      driversCount: drivers?.length || 0,
+      deliveriesCount: deliveries.length,
+      filters: { startDate, endDate, driverId }
+    })
 
     // Agrupar entregas por entregador
     const deliveriesByDriver = deliveries.reduce((acc: any, delivery: any) => {
       const driverId = delivery.driver_id
       if (!driverId) {
-        console.log(`[DELIVERY_REPORT] Entrega ${delivery.id} sem driver_id - ignorando`)
+        appLogger.warn('api', 'Entrega sem driver_id encontrada', { deliveryId: delivery.id })
         return acc
       }
 
@@ -139,7 +142,18 @@ export async function GET(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('Erro ao buscar relatório de entregas:', error)
+    if (error instanceof Error) {
+      appLogger.error('api', 'Erro ao buscar relatório de entregas', error, {
+        errorType: error.constructor.name,
+        errorMessage: error.message,
+        stack: error.stack?.substring(0, 200) + '...'
+      })
+    } else {
+      appLogger.error('api', 'Erro desconhecido ao buscar relatório de entregas', new Error(String(error)), {
+        errorType: typeof error,
+        errorValue: String(error)
+      })
+    }
     
     return NextResponse.json(
       { 

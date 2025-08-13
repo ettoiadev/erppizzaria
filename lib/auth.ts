@@ -3,7 +3,18 @@ import { sign, verify } from 'jsonwebtoken';
 import { getUserByEmail, createUserProfile, UserProfile } from './db-supabase';
 import { appLogger } from './logging';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'william-disk-pizza-jwt-secret-2024-production';
+// JWT_SECRET é obrigatório em produção
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('JWT_SECRET é obrigatório em produção. Configure a variável de ambiente JWT_SECRET.');
+  }
+  // Apenas em desenvolvimento, usar chave temporária
+  appLogger.warn('auth', 'JWT_SECRET não configurado - usando chave temporária para desenvolvimento');
+}
+
+// Chave temporária para desenvolvimento (nunca usar em produção)
+const TEMP_JWT_SECRET = 'william-disk-pizza-dev-temp-key-2024';
 
 export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 10);
@@ -65,9 +76,17 @@ export async function createUser({
 
 export function generateToken(user: UserProfile): string {
   try {
+    // Usar JWT_SECRET real ou chave temporária de desenvolvimento
+    const secret = JWT_SECRET || TEMP_JWT_SECRET;
+    
+    if (!JWT_SECRET && process.env.NODE_ENV === 'production') {
+      throw new Error('JWT_SECRET não configurado em produção');
+    }
+    
     appLogger.info('auth', 'Gerando token', { 
       email: user.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
-      role: user.role 
+      role: user.role,
+      usingTempSecret: !JWT_SECRET
     });
     
     const token = sign(
@@ -76,12 +95,13 @@ export function generateToken(user: UserProfile): string {
         email: user.email,
         role: user.role
       },
-      JWT_SECRET,
+      secret,
       { expiresIn: '7d' }
     );
 
     appLogger.info('auth', 'Token gerado com sucesso', { 
-      email: user.email.replace(/(.{2}).*(@.*)/, '$1***$2') 
+      email: user.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+      usingTempSecret: !JWT_SECRET
     });
     return token;
   } catch (error: any) {
@@ -94,7 +114,13 @@ export function generateToken(user: UserProfile): string {
 
 export async function verifyToken(token: string): Promise<any> {
   try {
-    const decoded = verify(token, JWT_SECRET);
+    const secret = JWT_SECRET || TEMP_JWT_SECRET;
+    
+    if (!JWT_SECRET && process.env.NODE_ENV === 'production') {
+      throw new Error('JWT_SECRET não configurado em produção');
+    }
+    
+    const decoded = verify(token, secret);
     appLogger.debug('auth', 'Token verificado com sucesso');
     return decoded;
   } catch (error: any) {
@@ -188,7 +214,7 @@ export async function authenticateUser(email: string, password: string): Promise
         role: user.role,
         type: 'access'
       },
-      JWT_SECRET,
+      JWT_SECRET || TEMP_JWT_SECRET,
       { expiresIn: '15m' }
     );
 
@@ -199,7 +225,7 @@ export async function authenticateUser(email: string, password: string): Promise
         role: user.role,
         type: 'refresh'
       },
-      JWT_SECRET,
+      JWT_SECRET || TEMP_JWT_SECRET,
       { expiresIn: '7d' }
     );
 

@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server'
-import bcrypt from 'bcryptjs'
-import { getUserByEmail } from '@/lib/db-supabase'
-import { createAuthResponse } from '@/lib/auth-middleware'
-import { generateTokenPair } from '@/lib/refresh-token'
+import { NextRequest, NextResponse } from "next/server"
+import bcrypt from "bcryptjs"
+import { generateTokenPair, createAuthResponse } from "@/lib/refresh-token"
 import { frontendLogger } from '@/lib/frontend-logger'
 import { getSupabaseServerClient } from '@/lib/supabase'
+import { authRateLimiter } from '@/lib/rate-limiter'
+import { appLogger } from '@/lib/logging'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,36 +14,41 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    console.log("🚀 Iniciando processo de login...")
+    appLogger.info('auth', 'Iniciando processo de login')
     
-    // Aplicar rate limiting (temporariamente desabilitado)
-    console.log("🔓 Rate limiting desabilitado para debug")
-    /*
-    // Implementar rate limiting
+    // Aplicar rate limiting para segurança
     const rateLimitResult = await authRateLimiter(request)
     if (rateLimitResult instanceof NextResponse) {
+      appLogger.warn('auth', 'Rate limit atingido para tentativa de login')
       return rateLimitResult
     }
-    */
 
     const body = await request.json()
     const { email, password } = body
 
-    console.log("📝 Dados recebidos:", { email, password: password ? "***" : "undefined" })
+    appLogger.debug('auth', 'Dados de login recebidos', { 
+      email: email ? email.replace(/(.{2}).*(@.*)/, '$1***$2') : 'undefined',
+      hasPassword: !!password 
+    })
 
     // Validar dados
     if (!email || !password) {
-      console.log("❌ Dados inválidos:", { email: !!email, password: !!password })
+      appLogger.warn('auth', 'Tentativa de login com dados inválidos', { 
+        hasEmail: !!email, 
+        hasPassword: !!password 
+      })
       return NextResponse.json(
         { error: "Email e senha são obrigatórios" },
         { status: 400 }
       )
     }
 
-    console.log("🔐 Tentativa de login:", { email })
+    appLogger.info('auth', 'Tentativa de login', { 
+      email: email.replace(/(.{2}).*(@.*)/, '$1***$2') 
+    })
 
     // Buscar usuário
-    console.log("🔍 Buscando usuário no banco (Supabase)...")
+    appLogger.debug('auth', 'Buscando usuário no banco (Supabase)')
     const supabase = getSupabaseServerClient()
     const { data: user, error } = await supabase
       .from('profiles')
@@ -53,31 +58,36 @@ export async function POST(request: NextRequest) {
     if (error) throw error
 
     if (!user) {
-      console.log("❌ Usuário não encontrado:", email)
+      appLogger.warn('auth', 'Tentativa de login com usuário inexistente', { 
+        email: email.replace(/(.{2}).*(@.*)/, '$1***$2') 
+      })
       return NextResponse.json(
         { error: "Email ou senha inválidos" },
         { status: 401 }
       )
     }
-    console.log("✅ Usuário encontrado:", { 
+    
+    appLogger.debug('auth', 'Usuário encontrado', { 
       id: user.id, 
-      email: user.email, 
+      email: user.email.replace(/(.{2}).*(@.*)/, '$1***$2'), 
       role: user.role,
       hasPasswordHash: !!user.password_hash 
     })
 
     // Verificar senha
-    console.log("🔐 Verificando senha...")
+    appLogger.debug('auth', 'Verificando senha')
     const isValidPassword = await bcrypt.compare(password, user.password_hash)
     
-    console.log("🔑 Resultado da verificação:", { 
+    appLogger.debug('auth', 'Resultado da verificação de senha', { 
       isValid: isValidPassword,
       passwordProvided: !!password,
       hashExists: !!user.password_hash 
     })
     
     if (!isValidPassword) {
-      console.log("❌ Senha inválida para usuário:", email)
+      appLogger.warn('auth', 'Tentativa de login com senha inválida', { 
+        email: email.replace(/(.{2}).*(@.*)/, '$1***$2') 
+      })
       return NextResponse.json(
         { error: "Email ou senha inválidos" },
         { status: 401 }

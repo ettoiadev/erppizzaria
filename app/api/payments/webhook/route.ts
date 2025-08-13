@@ -3,26 +3,52 @@ import { webhookRateLimiter } from '@/lib/rate-limiter'
 import { getSupabaseServerClient } from '@/lib/supabase'
 import { emitRealtimeEvent, EVENT_PAYMENT_APPROVED } from '@/lib/realtime'
 import crypto from 'crypto'
+import { appLogger } from '@/lib/logging'
 
 // Verificar assinatura do webhook do Mercado Pago
 function verifyWebhookSignature(body: any, signature: string | null): boolean {
-  if (!signature) return false
+  if (!signature) {
+    if (process.env.NODE_ENV === 'production') {
+      appLogger.warn('payment', 'Webhook sem assinatura rejeitado em produção')
+      return false
+    }
+    appLogger.warn('payment', 'Webhook sem assinatura aceito apenas em desenvolvimento')
+    return true
+  }
   
   const secret = process.env.MERCADOPAGO_WEBHOOK_SECRET
   if (!secret) {
-    console.warn('MERCADOPAGO_WEBHOOK_SECRET não configurado')
-    return true // Em desenvolvimento, aceitar sem verificação
+    if (process.env.NODE_ENV === 'production') {
+      appLogger.error('payment', 'MERCADOPAGO_WEBHOOK_SECRET não configurado em produção')
+      throw new Error('MERCADOPAGO_WEBHOOK_SECRET é obrigatório em produção')
+    }
+    appLogger.warn('payment', 'MERCADOPAGO_WEBHOOK_SECRET não configurado - aceitando sem verificação em desenvolvimento')
+    return true
   }
   
-  const expectedSignature = crypto
-    .createHmac('sha256', secret)
-    .update(JSON.stringify(body))
-    .digest('hex')
-  
-  return crypto.timingSafeEqual(
-    Buffer.from(signature),
-    Buffer.from(expectedSignature)
-  )
+  try {
+    const expectedSignature = crypto
+      .createHmac('sha256', secret)
+      .update(JSON.stringify(body))
+      .digest('hex')
+    
+    const isValid = crypto.timingSafeEqual(
+      Buffer.from(signature),
+      Buffer.from(expectedSignature)
+    )
+    
+    if (!isValid) {
+      appLogger.warn('payment', 'Assinatura de webhook inválida', {
+        receivedSignature: signature.substring(0, 10) + '...',
+        expectedSignature: expectedSignature.substring(0, 10) + '...'
+      })
+    }
+    
+    return isValid
+  } catch (error) {
+    appLogger.error('payment', 'Erro ao verificar assinatura do webhook', error instanceof Error ? error : new Error(String(error)))
+    return false
+  }
 }
 
 // Processar diferentes tipos de eventos
