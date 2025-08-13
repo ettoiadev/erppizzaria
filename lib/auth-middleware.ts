@@ -204,7 +204,7 @@ export function createAuthResponse(accessToken: string, refreshToken: string, da
   response.cookies.set('auth-token', accessToken, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production', // HTTPS apenas em produção
-    sameSite: 'lax', // Permitir cookies em requisições cross-origin
+    sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
     maxAge: 15 * 60, // 15 minutos
     path: '/'
   })
@@ -213,8 +213,8 @@ export function createAuthResponse(accessToken: string, refreshToken: string, da
   response.cookies.set('refresh-token', refreshToken, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production', // HTTPS apenas em produção
-    sameSite: 'lax', // Permitir cookies em requisições cross-origin
-    maxAge: 7 * 24 * 60 * 60, // 7 dias
+    sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+    maxAge: 30 * 24 * 60 * 60, // 30 dias
     path: '/' // Permitir acesso em todas as rotas
   })
 

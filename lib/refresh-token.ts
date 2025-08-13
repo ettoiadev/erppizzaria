@@ -38,8 +38,8 @@ export function generateTokenPair(user: { id: string; email: string; role: strin
   try {
     const tokenId = crypto.randomUUID()
     const now = new Date()
-    const accessTokenExpiry = 15 * 60 // 15 minutos
-    const refreshTokenExpiry = 7 * 24 * 60 * 60 // 7 dias
+    const accessTokenExpiry = 60 * 60 // 1 hora
+    const refreshTokenExpiry = 30 * 24 * 60 * 60 // 30 dias
     
     // Access token de curta duração
     const accessToken = sign(
@@ -226,7 +226,7 @@ export function cleanupExpiredTokens(): void {
 /**
  * Verifica se um access token está próximo do vencimento
  */
-export function isTokenNearExpiry(token: string, thresholdMinutes: number = 5): boolean {
+export function isTokenNearExpiry(token: string, thresholdMinutes: number = 15): boolean {
   try {
     const payload = verify(token, JWT_SECRET) as any
     if (!payload.exp) return true
