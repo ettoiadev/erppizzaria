@@ -79,9 +79,8 @@ export default function GeolocationPage() {
 
   const loadSettings = async () => {
     try {
-      const token = localStorage.getItem('token')
       const response = await fetch('/api/admin/geolocation/settings', {
-        headers: { 'Authorization': `Bearer ${token}` }
+        credentials: 'include'
       })
       
       if (response.ok) {
@@ -98,9 +97,8 @@ export default function GeolocationPage() {
 
   const loadZones = async () => {
     try {
-      const token = localStorage.getItem('token')
       const response = await fetch('/api/admin/delivery-zones', {
-        headers: { 'Authorization': `Bearer ${token}` }
+        credentials: 'include'
       })
       
       if (response.ok) {
@@ -118,13 +116,12 @@ export default function GeolocationPage() {
   const saveSettings = async () => {
     setSaving(true)
     try {
-      const token = localStorage.getItem('token')
       const response = await fetch('/api/admin/geolocation/settings', {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
+        credentials: 'include',
         body: JSON.stringify(settings)
       })
 
@@ -192,7 +189,6 @@ export default function GeolocationPage() {
 
   const saveZone = async (zoneData: Partial<DeliveryZone>) => {
     try {
-      const token = localStorage.getItem('token')
       const isEditing = editingZone?.id
 
       const response = await fetch(
@@ -200,9 +196,9 @@ export default function GeolocationPage() {
         {
           method: isEditing ? 'PUT' : 'POST',
           headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
+            'Content-Type': 'application/json'
           },
+          credentials: 'include',
           body: JSON.stringify(zoneData)
         }
       )
@@ -236,10 +232,9 @@ export default function GeolocationPage() {
     if (!confirm(`Tem certeza que deseja deletar a zona "${zoneName}"?`)) return
 
     try {
-      const token = localStorage.getItem('token')
       const response = await fetch(`/api/admin/delivery-zones/${zoneId}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
+        credentials: 'include'
       })
 
       if (response.ok) {

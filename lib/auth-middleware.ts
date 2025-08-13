@@ -199,12 +199,13 @@ export async function getUserFromRequest(request: NextRequest): Promise<Authenti
 // Helper para criar response com cookies de autenticação seguros
 export function createAuthResponse(accessToken: string, refreshToken: string, data: any, status = 200): NextResponse {
   const response = NextResponse.json(data, { status })
+  const isProduction = process.env.NODE_ENV === 'production'
   
   // Cookie para access token (curta duração)
   response.cookies.set('auth-token', accessToken, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production', // HTTPS apenas em produção
-    sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+    secure: isProduction, // HTTPS apenas em produção
+    sameSite: isProduction ? 'none' : 'lax', // 'none' para produção cross-origin
     maxAge: 15 * 60, // 15 minutos
     path: '/'
   })
@@ -212,8 +213,8 @@ export function createAuthResponse(accessToken: string, refreshToken: string, da
   // Cookie para refresh token (longa duração)
   response.cookies.set('refresh-token', refreshToken, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production', // HTTPS apenas em produção
-    sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+    secure: isProduction, // HTTPS apenas em produção
+    sameSite: isProduction ? 'none' : 'lax', // 'none' para produção cross-origin
     maxAge: 30 * 24 * 60 * 60, // 30 dias
     path: '/' // Permitir acesso em todas as rotas
   })
@@ -224,12 +225,13 @@ export function createAuthResponse(accessToken: string, refreshToken: string, da
 // Helper para remover cookies de autenticação
 export function clearAuthResponse(data: any, status = 200): NextResponse {
   const response = NextResponse.json(data, { status })
+  const isProduction = process.env.NODE_ENV === 'production'
   
   // Limpar access token
   response.cookies.set('auth-token', '', {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    secure: isProduction,
+    sameSite: isProduction ? 'none' : 'lax',
     maxAge: 0,
     path: '/'
   })
@@ -237,8 +239,8 @@ export function clearAuthResponse(data: any, status = 200): NextResponse {
   // Limpar refresh token
   response.cookies.set('refresh-token', '', {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    secure: isProduction,
+    sameSite: isProduction ? 'none' : 'lax',
     maxAge: 0,
     path: '/'
   })

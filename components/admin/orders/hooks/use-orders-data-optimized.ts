@@ -48,9 +48,9 @@ const archiveOrders = async (status: string) => {
   const response = await fetch('/api/orders/archive', {
     method: 'PATCH',
     headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${localStorage.getItem('auth-token')}`,
+      'Content-Type': 'application/json'
     },
+    credentials: 'include',
     body: JSON.stringify({ status })
   })
 

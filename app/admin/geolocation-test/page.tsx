@@ -17,15 +17,8 @@ export default function GeolocationTestPage() {
     try {
       console.log('Carregando dados de geolocalização...')
       
-      const token = localStorage.getItem('token')
-      if (!token) {
-        setError('Token não encontrado')
-        setLoading(false)
-        return
-      }
-
       const response = await fetch('/api/admin/geolocation/settings', {
-        headers: { 'Authorization': `Bearer ${token}` }
+        credentials: 'include'
       })
       
       if (!response.ok) {

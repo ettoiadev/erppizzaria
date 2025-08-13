@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Gerar par de tokens (access + refresh)
-    const tokenPair = generateTokenPair({
+    const tokenPair = await generateTokenPair({
       id: user.id,
       email: user.email,
       role: user.role || 'customer'

@@ -1,19 +1,23 @@
 import { sign, verify } from 'jsonwebtoken'
 import { getUserByEmail } from './db-supabase'
 import { appLogger } from './logging'
+import supabase from './supabase'
 import crypto from 'crypto'
 
 const JWT_SECRET = process.env.JWT_SECRET || 'william-disk-pizza-jwt-secret-2024-production'
 const REFRESH_SECRET = process.env.REFRESH_TOKEN_SECRET || 'william-disk-pizza-refresh-secret-2024-production'
 
-// Armazenamento em memória para refresh tokens (em produção, usar Redis)
-const refreshTokenStore = new Map<string, {
-  userId: string
+// Interface para refresh tokens no banco
+interface RefreshTokenRecord {
+  id: string
+  user_id: string
   email: string
   role: string
-  expiresAt: Date
-  isRevoked: boolean
-}>()
+  expires_at: string
+  is_revoked: boolean
+  created_at: string
+  updated_at: string
+}
 
 export interface TokenPair {
   accessToken: string
@@ -34,7 +38,7 @@ export interface RefreshTokenPayload {
 /**
  * Gera um par de tokens (access + refresh)
  */
-export function generateTokenPair(user: { id: string; email: string; role: string }): TokenPair {
+export async function generateTokenPair(user: { id: string; email: string; role: string }): Promise<TokenPair> {
   try {
     const tokenId = crypto.randomUUID()
     const now = new Date()
@@ -66,14 +70,26 @@ export function generateTokenPair(user: { id: string; email: string; role: strin
       { expiresIn: refreshTokenExpiry }
     )
 
-    // Armazenar refresh token
-    refreshTokenStore.set(tokenId, {
-      userId: user.id,
-      email: user.email,
-      role: user.role,
-      expiresAt: new Date(now.getTime() + refreshTokenExpiry * 1000),
-      isRevoked: false
-    })
+    // Armazenar refresh token no Supabase
+    const expiresAt = new Date(now.getTime() + refreshTokenExpiry * 1000)
+    const { error: insertError } = await supabase
+      .from('refresh_tokens')
+      .insert({
+        id: tokenId,
+        user_id: user.id,
+        email: user.email,
+        role: user.role,
+        expires_at: expiresAt.toISOString(),
+        is_revoked: false
+      })
+
+    if (insertError) {
+      appLogger.error('auth', 'Erro ao armazenar refresh token no banco', insertError, {
+        email: user.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+        tokenId
+      })
+      throw new Error('Erro ao armazenar token de autenticação')
+    }
 
     appLogger.info('auth', 'Par de tokens gerado', {
       email: user.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
@@ -109,17 +125,23 @@ export async function refreshAccessToken(refreshToken: string): Promise<TokenPai
       return null
     }
 
-    // Verificar se o token existe no store
-    const storedToken = refreshTokenStore.get(payload.tokenId)
-    if (!storedToken) {
-      appLogger.warn('auth', 'Refresh token não encontrado no store', {
-        tokenId: payload.tokenId
+    // Verificar se o token existe no banco
+    const { data: storedToken, error: fetchError } = await supabase
+      .from('refresh_tokens')
+      .select('*')
+      .eq('id', payload.tokenId)
+      .single()
+
+    if (fetchError || !storedToken) {
+      appLogger.warn('auth', 'Refresh token não encontrado no banco', {
+        tokenId: payload.tokenId,
+        error: fetchError?.message
       })
       return null
     }
 
     // Verificar se o token foi revogado
-    if (storedToken.isRevoked) {
+    if (storedToken.is_revoked) {
       appLogger.warn('auth', 'Refresh token revogado', {
         tokenId: payload.tokenId,
         email: payload.email.replace(/(.{2}).*(@.*)/, '$1***$2')
@@ -128,12 +150,14 @@ export async function refreshAccessToken(refreshToken: string): Promise<TokenPai
     }
 
     // Verificar se o token expirou
-    if (new Date() > storedToken.expiresAt) {
+    const expiresAt = new Date(storedToken.expires_at)
+    if (new Date() > expiresAt) {
       appLogger.warn('auth', 'Refresh token expirado', {
         tokenId: payload.tokenId,
         email: payload.email.replace(/(.{2}).*(@.*)/, '$1***$2')
       })
-      refreshTokenStore.delete(payload.tokenId)
+      // Remover token expirado do banco
+      await supabase.from('refresh_tokens').delete().eq('id', payload.tokenId)
       return null
     }
 
@@ -143,19 +167,19 @@ export async function refreshAccessToken(refreshToken: string): Promise<TokenPai
       appLogger.warn('auth', 'Usuário não encontrado durante refresh', {
         email: payload.email.replace(/(.{2}).*(@.*)/, '$1***$2')
       })
-      revokeRefreshToken(payload.tokenId)
+      await revokeRefreshToken(payload.tokenId)
       return null
     }
 
     // Gerar novo par de tokens
-    const newTokenPair = generateTokenPair({
+    const newTokenPair = await generateTokenPair({
       id: user.id,
       email: user.email,
       role: user.role
     })
 
     // Revogar o refresh token antigo
-    revokeRefreshToken(payload.tokenId)
+    await revokeRefreshToken(payload.tokenId)
 
     appLogger.info('auth', 'Access token renovado com sucesso', {
       email: user.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
@@ -172,13 +196,41 @@ export async function refreshAccessToken(refreshToken: string): Promise<TokenPai
 /**
  * Revoga um refresh token
  */
-export function revokeRefreshToken(tokenId: string): void {
-  const storedToken = refreshTokenStore.get(tokenId)
-  if (storedToken) {
-    storedToken.isRevoked = true
+export async function revokeRefreshToken(tokenId: string): Promise<void> {
+  try {
+    const { data: storedToken, error: fetchError } = await supabase
+      .from('refresh_tokens')
+      .select('email')
+      .eq('id', tokenId)
+      .single()
+
+    if (fetchError || !storedToken) {
+      appLogger.warn('auth', 'Token não encontrado para revogação', {
+        tokenId,
+        error: fetchError?.message
+      })
+      return
+    }
+
+    const { error: updateError } = await supabase
+      .from('refresh_tokens')
+      .update({ is_revoked: true, updated_at: new Date().toISOString() })
+      .eq('id', tokenId)
+
+    if (updateError) {
+      appLogger.error('auth', 'Erro ao revogar refresh token', updateError, {
+        tokenId
+      })
+      return
+    }
+
     appLogger.info('auth', 'Refresh token revogado', {
       tokenId,
       email: storedToken.email.replace(/(.{2}).*(@.*)/, '$1***$2')
+    })
+  } catch (error: any) {
+    appLogger.error('auth', 'Erro ao revogar refresh token', error, {
+      tokenId
     })
   }
 }
@@ -186,40 +238,79 @@ export function revokeRefreshToken(tokenId: string): void {
 /**
  * Revoga todos os refresh tokens de um usuário
  */
-export function revokeAllUserTokens(userId: string): void {
-  let revokedCount = 0
-  for (const [tokenId, tokenData] of refreshTokenStore.entries()) {
-    if (tokenData.userId === userId && !tokenData.isRevoked) {
-      tokenData.isRevoked = true
-      revokedCount++
+export async function revokeAllUserTokens(userId: string): Promise<void> {
+  try {
+    const { data: updatedTokens, error: updateError } = await supabase
+      .from('refresh_tokens')
+      .update({ 
+        is_revoked: true, 
+        updated_at: new Date().toISOString() 
+      })
+      .eq('user_id', userId)
+      .eq('is_revoked', false)
+      .select('id')
+
+    if (updateError) {
+      appLogger.error('auth', 'Erro ao revogar tokens do usuário', updateError, {
+        userId
+      })
+      return
     }
+
+    const revokedCount = updatedTokens?.length || 0
+    appLogger.info('auth', 'Todos os refresh tokens do usuário revogados', {
+      userId,
+      revokedCount
+    })
+  } catch (error: any) {
+    appLogger.error('auth', 'Erro ao revogar tokens do usuário', error, {
+      userId
+    })
   }
-  
-  appLogger.info('auth', 'Todos os refresh tokens do usuário revogados', {
-    userId,
-    revokedCount
-  })
 }
 
 /**
- * Limpa tokens expirados do store (executar periodicamente)
+ * Limpa tokens expirados do banco (executar periodicamente)
  */
-export function cleanupExpiredTokens(): void {
-  const now = new Date()
-  let cleanedCount = 0
-  
-  for (const [tokenId, tokenData] of refreshTokenStore.entries()) {
-    if (now > tokenData.expiresAt) {
-      refreshTokenStore.delete(tokenId)
-      cleanedCount++
+export async function cleanupExpiredTokens(): Promise<void> {
+  try {
+    const now = new Date().toISOString()
+    
+    // Primeiro, contar quantos tokens serão removidos
+    const { count: expiredCount, error: countError } = await supabase
+      .from('refresh_tokens')
+      .select('*', { count: 'exact', head: true })
+      .lt('expires_at', now)
+
+    if (countError) {
+      appLogger.error('auth', 'Erro ao contar tokens expirados', countError)
+      return
     }
-  }
-  
-  if (cleanedCount > 0) {
-    appLogger.info('auth', 'Tokens expirados limpos', {
-      cleanedCount,
-      remainingTokens: refreshTokenStore.size
-    })
+
+    if (expiredCount && expiredCount > 0) {
+      // Remover tokens expirados
+      const { error: deleteError } = await supabase
+        .from('refresh_tokens')
+        .delete()
+        .lt('expires_at', now)
+
+      if (deleteError) {
+        appLogger.error('auth', 'Erro ao limpar tokens expirados', deleteError)
+        return
+      }
+
+      // Contar tokens restantes
+      const { count: remainingCount, error: remainingError } = await supabase
+        .from('refresh_tokens')
+        .select('*', { count: 'exact', head: true })
+
+      appLogger.info('auth', 'Tokens expirados limpos', {
+        cleanedCount: expiredCount,
+        remainingTokens: remainingCount || 0
+      })
+    }
+  } catch (error: any) {
+    appLogger.error('auth', 'Erro na limpeza de tokens expirados', error)
   }
 }
 

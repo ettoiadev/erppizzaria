@@ -42,9 +42,8 @@ export default function GeolocationPageSimple() {
 
   const loadSettings = async () => {
     try {
-      const token = localStorage.getItem('token')
       const response = await fetch('/api/admin/geolocation/settings', {
-        headers: { 'Authorization': `Bearer ${token}` }
+        credentials: 'include'
       })
       
       if (response.ok) {
@@ -68,13 +67,12 @@ export default function GeolocationPageSimple() {
   const saveSettings = async () => {
     setSaving(true)
     try {
-      const token = localStorage.getItem('token')
       const response = await fetch('/api/admin/geolocation/settings', {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
+        credentials: 'include',
         body: JSON.stringify(settings)
       })
 

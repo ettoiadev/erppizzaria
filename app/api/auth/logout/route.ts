@@ -25,14 +25,14 @@ export async function POST(request: NextRequest) {
         
         if (revokeAll && userId) {
           // Revogar todos os tokens do usuário
-          revokeAllUserTokens(userId)
+          await revokeAllUserTokens(userId)
           frontendLogger.info('Logout com revogação de todos os tokens', 'auth', {
             email: email?.replace(/(.{2}).*(@.*)/, '$1***$2'),
             userId
           })
         } else {
           // Revogar apenas o token atual
-          revokeRefreshToken(payload.tokenId)
+          await revokeRefreshToken(payload.tokenId)
           frontendLogger.info('Logout com revogação do token atual', 'auth', {
             email: email?.replace(/(.{2}).*(@.*)/, '$1***$2'),
             userId

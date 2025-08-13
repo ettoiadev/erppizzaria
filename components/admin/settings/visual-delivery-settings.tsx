@@ -110,11 +110,9 @@ export function VisualDeliverySettings({
 
   const loadGeolocationData = async () => {
     try {
-      const token = localStorage.getItem('auth-token')
-      
       // Carregar configurações de geolocalização
       const settingsResponse = await fetch('/api/admin/geolocation/settings', {
-        headers: { 'Authorization': `Bearer ${token}` }
+        credentials: 'include'
       })
       
       if (settingsResponse.ok) {
@@ -124,7 +122,7 @@ export function VisualDeliverySettings({
 
       // Carregar zonas de entrega
       const zonesResponse = await fetch('/api/admin/delivery-zones', {
-        headers: { 'Authorization': `Bearer ${token}` }
+        credentials: 'include'
       })
       
       if (zonesResponse.ok) {
@@ -148,13 +146,12 @@ export function VisualDeliverySettings({
 
     // Salvar automaticamente a mudança de modo
     try {
-      const token = localStorage.getItem('auth-token')
       await fetch('/api/admin/geolocation/settings', {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
+        credentials: 'include',
         body: JSON.stringify(newGeoSettings)
       })
 
@@ -197,13 +194,12 @@ export function VisualDeliverySettings({
   const handleGeoSave = async () => {
     setIsLoading(true)
     try {
-      const token = localStorage.getItem('auth-token')
       const response = await fetch('/api/admin/geolocation/settings', {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
+        credentials: 'include',
         body: JSON.stringify(geoSettings)
       })
 
@@ -266,7 +262,6 @@ export function VisualDeliverySettings({
 
   const saveZone = async (zoneData: Partial<DeliveryZone>) => {
     try {
-      const token = localStorage.getItem('auth-token')
       const isEditing = editingZone?.id
 
       const response = await fetch(
@@ -274,9 +269,9 @@ export function VisualDeliverySettings({
         {
           method: isEditing ? 'PUT' : 'POST',
           headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
+            'Content-Type': 'application/json'
           },
+          credentials: 'include',
           body: JSON.stringify(zoneData)
         }
       )
@@ -310,10 +305,9 @@ export function VisualDeliverySettings({
     if (!confirm(`Tem certeza que deseja deletar a zona "${zoneName}"?`)) return
 
     try {
-      const token = localStorage.getItem('auth-token')
       const response = await fetch(`/api/admin/delivery-zones/${zoneId}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
+        credentials: 'include'
       })
 
       if (response.ok) {

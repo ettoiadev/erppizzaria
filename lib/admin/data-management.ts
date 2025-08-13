@@ -85,13 +85,12 @@ export async function deleteAllClients(): Promise<number> {
   try {
     console.log('[DATA_MANAGEMENT] Iniciando exclusão de todos os clientes...')
 
-    const token = localStorage.getItem('auth-token')
     const response = await fetch('/api/admin/data-management/delete-clients', {
       method: 'DELETE',
       headers: {
-        'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
-      }
+      },
+      credentials: 'include'
     })
 
     const result = await response.json()
@@ -113,13 +112,12 @@ export async function deleteAllProducts(): Promise<number> {
   try {
     console.log('[DATA_MANAGEMENT] Iniciando exclusão de todos os produtos...')
 
-    const token = localStorage.getItem('auth-token')
     const response = await fetch('/api/admin/data-management/delete-products', {
       method: 'DELETE',
       headers: {
-        'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
-      }
+      },
+      credentials: 'include'
     })
 
     const result = await response.json()
@@ -141,13 +139,12 @@ export async function deleteAllSales(): Promise<{ deletedOrders: number; deleted
   try {
     console.log('[DATA_MANAGEMENT] Iniciando exclusão de todos os dados de vendas...')
 
-    const token = localStorage.getItem('auth-token')
     const response = await fetch('/api/admin/data-management/delete-sales', {
       method: 'DELETE',
       headers: {
-        'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
-      }
+      },
+      credentials: 'include'
     })
 
     const result = await response.json()

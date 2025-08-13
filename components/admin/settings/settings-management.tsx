@@ -212,7 +212,7 @@ export function SettingsManagement() {
                     <h4 className="font-medium mb-2">Diagnóstico:</h4>
                     <ul className="text-sm space-y-1 text-muted-foreground">
                       <li>• Usuário logado: {user ? `${user.email} (${user.role})` : "Nenhum"}</li>
-                      <li>• Token no localStorage: {localStorage.getItem("auth-token") ? "Presente" : "Ausente"}</li>
+                      <li>• Autenticação: {user ? "Via cookies HTTP-only" : "Não autenticado"}</li>
                       <li>• URL atual: {window.location.href}</li>
                     </ul>
                     <Button onClick={runDiagnostic} size="sm" className="mt-2">

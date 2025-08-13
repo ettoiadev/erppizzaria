@@ -28,9 +28,7 @@ export default function EmergencyAdminPage() {
       const data = await response.json()
 
       if (response.ok) {
-        setStatus("✅ Login OK! Salvando token...")
-        localStorage.setItem("auth-token", data.token)
-        localStorage.setItem("user-data", JSON.stringify(data.user))
+        setStatus("✅ Login OK! Redirecionando...")
         
         setTimeout(() => {
           window.location.href = "/admin/configuracoes"

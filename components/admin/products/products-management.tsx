@@ -19,13 +19,8 @@ import { useToast } from "@/hooks/use-toast"
 import type { Product, Category } from "@/types"
 // Função auxiliar para obter headers de autenticação
 const getAuthHeaders = async (): Promise<HeadersInit> => {
-  const token = localStorage.getItem("auth-token")
-  
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
-  }
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`
   }
   return headers
 }
@@ -161,7 +156,7 @@ export function ProductsManagement() {
       const url = editingCategory ? `/api/categories/${editingCategory.id}` : "/api/categories"
       const method = editingCategory ? "PUT" : "POST"
       const headers = await getAuthHeaders()
-      const response = await fetch(url, { method, headers, body: JSON.stringify(categoryData) })
+      const response = await fetch(url, { method, headers, credentials: 'include', body: JSON.stringify(categoryData) })
       if (response.ok) {
         await loadCategories()
         await queryClient.invalidateQueries({ queryKey: ["categories", "products"] })
@@ -186,7 +181,8 @@ export function ProductsManagement() {
       const headers = await getAuthHeaders()
       const response = await fetch(`/api/${endpoint}/${id}`, { 
         method: "DELETE",
-        headers
+        headers,
+        credentials: 'include'
       })
       if (response.ok) {
         if (type === "product") {

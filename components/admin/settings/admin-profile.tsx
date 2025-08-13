@@ -59,10 +59,8 @@ export function AdminProfile() {
   }, [])
 
   const getAuthHeaders = () => {
-    const token = localStorage.getItem("auth-token")
     return {
-      "Content-Type": "application/json",
-      ...(token && { Authorization: `Bearer ${token}` })
+      "Content-Type": "application/json"
     }
   }
 
@@ -70,7 +68,8 @@ export function AdminProfile() {
     try {
       setIsLoading(true)
       const response = await fetch("/api/admin/profile", {
-        headers: getAuthHeaders()
+        headers: getAuthHeaders(),
+        credentials: 'include'
       })
 
       if (response.ok) {
@@ -151,6 +150,7 @@ export function AdminProfile() {
       const response = await fetch("/api/admin/profile", {
         method: "PUT", // Corrigido para usar PUT conforme definido na API
         headers: getAuthHeaders(),
+        credentials: 'include',
         body: JSON.stringify({
           full_name: profileForm.full_name.trim(),
           phone: cleanPhone
