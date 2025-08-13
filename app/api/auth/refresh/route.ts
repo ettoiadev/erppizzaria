@@ -11,6 +11,14 @@ export async function POST(request: NextRequest) {
     const refreshToken = request.cookies.get('refresh-token')?.value
     
     if (!refreshToken) {
+      // Verificar se a requisição veio da página de login
+      const referer = request.headers.get('referer') || ''
+      if (referer.includes('/login')) {
+        // Para páginas de login, retornar um status específico para evitar erros no console
+        frontendLogger.info('Refresh token não fornecido na página de login', 'auth-api')
+        return NextResponse.json({ authenticated: false }, { status: 200 })
+      }
+      
       frontendLogger.warn('Tentativa de refresh sem token', 'auth', {
         ip: request.ip || 'unknown',
         userAgent: request.headers.get('user-agent') || 'unknown'

@@ -30,7 +30,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Verificar autenticação ao carregar
   useEffect(() => {
-    checkAuth()
+    // Não verificar autenticação em páginas de login
+    const isLoginPage = window.location.pathname.includes('/login')
+    if (!isLoginPage) {
+      checkAuth()
+    } else {
+      setLoading(false) // Não mostrar loading em páginas de login
+    }
   }, [])
 
   const checkAuth = async () => {

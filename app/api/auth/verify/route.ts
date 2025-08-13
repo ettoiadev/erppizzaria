@@ -14,6 +14,14 @@ export async function POST(request: NextRequest) {
     const token = request.cookies.get('auth-token')?.value
     
     if (!token) {
+      // Verificar se a requisição veio da página de login
+      const referer = request.headers.get('referer') || ''
+      if (referer.includes('/login')) {
+        // Para páginas de login, retornar um status específico para evitar erros no console
+        frontendLogger.info('Token não fornecido na página de login', 'auth-api')
+        return NextResponse.json({ authenticated: false }, { status: 200 })
+      }
+      
       frontendLogger.warn('Token não fornecido na verificação', 'auth', {
       ip: request.headers.get('x-forwarded-for') || 'unknown',
       userAgent: request.headers.get('user-agent') || 'unknown'
