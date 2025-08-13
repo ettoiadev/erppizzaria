@@ -2,12 +2,26 @@
 
 ## Configuração do Deploy no Vercel
 
-### 1. Conecte seu repositório
-- Acesse [vercel.com](https://vercel.com)
-- Importe seu repositório do GitHub
-- Selecione o framework Next.js
+### 1. Prepare o Projeto
+- Crie o arquivo `vercel.json` na raiz do projeto com a seguinte configuração:
+```json
+{
+  "version": 2,
+  "buildCommand": "npm run build",
+  "devCommand": "npm run dev",
+  "installCommand": "npm install",
+  "framework": "nextjs",
+  "git": {
+    "deploymentEnabled": false
+  }
+}
+```
 
-### 2. Configure as variáveis de ambiente
+### 2. Instale e Configure a CLI
+- Instale a CLI da Vercel globalmente: `npm i -g vercel`
+- Faça login na sua conta: `vercel login`
+
+### 3. Configure as variáveis de ambiente
 
 No painel do Vercel, vá em **Settings** > **Environment Variables** e adicione:
 
@@ -33,9 +47,10 @@ MERCADOPAGO_WEBHOOK_SECRET=sua_webhook_secret_aqui
 NEXT_PUBLIC_SITE_URL=https://seu-dominio.vercel.app
 ```
 
-### 3. Deploy
-- O Vercel fará o deploy automático a cada push na branch principal
-- Você também pode fazer deploy manual pelo painel do Vercel
+### 4. Deploy
+- Para fazer deploy em ambiente de desenvolvimento: `vercel`
+- Para fazer deploy em produção: `vercel --prod`
+- Para atualizar variáveis de ambiente: `vercel env add`
 
 ## Troubleshooting
 

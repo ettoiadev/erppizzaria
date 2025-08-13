@@ -24,13 +24,38 @@ A Vercel é uma plataforma de hospedagem e implantação para aplicações web, 
 
 ## Implantação (Deployment)
 
-### Implantação Automática
+### Implantação Direta
 
-A Vercel se integra com repositórios Git (GitHub, GitLab, Bitbucket) para implantação automática:
+A Vercel permite implantar diretamente sem necessidade de integração com repositórios Git:
 
-1. Conecte seu repositório na interface da Vercel
-2. Configure as opções de build
-3. A cada push para a branch principal, a Vercel implanta automaticamente
+1. Configure o arquivo `vercel.json` na raiz do projeto:
+```json
+{
+  "version": 2,
+  "buildCommand": "npm run build",
+  "devCommand": "npm run dev",
+  "installCommand": "npm install",
+  "framework": "nextjs",
+  "git": {
+    "deploymentEnabled": false
+  }
+}
+```
+
+2. Use a CLI da Vercel para fazer o deploy:
+```bash
+# Instalar a CLI globalmente
+npm i -g vercel
+
+# Login na sua conta Vercel
+vercel login
+
+# Implantar o projeto
+vercel
+
+# Implantar para produção
+vercel --prod
+```
 
 ### Implantação via CLI
 
