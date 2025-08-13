@@ -203,7 +203,7 @@ export function createAuthResponse(accessToken: string, refreshToken: string, da
   // Cookie para access token (curta duração)
   response.cookies.set('auth-token', accessToken, {
     httpOnly: true,
-    secure: true, // Sempre HTTPS
+    secure: process.env.NODE_ENV === 'production', // HTTPS apenas em produção
     sameSite: 'lax', // Permitir cookies em requisições cross-origin
     maxAge: 15 * 60, // 15 minutos
     path: '/'
@@ -212,10 +212,10 @@ export function createAuthResponse(accessToken: string, refreshToken: string, da
   // Cookie para refresh token (longa duração)
   response.cookies.set('refresh-token', refreshToken, {
     httpOnly: true,
-    secure: true, // Sempre HTTPS
+    secure: process.env.NODE_ENV === 'production', // HTTPS apenas em produção
     sameSite: 'lax', // Permitir cookies em requisições cross-origin
     maxAge: 7 * 24 * 60 * 60, // 7 dias
-    path: '/api/auth' // Restrito às rotas de auth
+    path: '/' // Permitir acesso em todas as rotas
   })
 
   return response
@@ -228,7 +228,7 @@ export function clearAuthResponse(data: any, status = 200): NextResponse {
   // Limpar access token
   response.cookies.set('auth-token', '', {
     httpOnly: true,
-    secure: true,
+    secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
     maxAge: 0,
     path: '/'
@@ -237,10 +237,10 @@ export function clearAuthResponse(data: any, status = 200): NextResponse {
   // Limpar refresh token
   response.cookies.set('refresh-token', '', {
     httpOnly: true,
-    secure: true,
+    secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
     maxAge: 0,
-    path: '/api/auth'
+    path: '/'
   })
 
   return response

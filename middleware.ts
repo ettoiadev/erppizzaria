@@ -65,7 +65,11 @@ export function middleware(request: NextRequest) {
 
   // Configurar CORS para permitir credenciais
   const origin = request.headers.get('origin')
-  if (origin === 'https://erppizzaria-tau.vercel.app') {
+  const allowedOrigin = process.env.NODE_ENV === 'production' 
+    ? 'https://erppizzaria-tau.vercel.app'
+    : 'http://localhost:3000'
+
+  if (origin === allowedOrigin) {
     response.headers.set('Access-Control-Allow-Origin', origin)
     response.headers.set('Access-Control-Allow-Credentials', 'true')
     response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
