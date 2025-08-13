@@ -6,6 +6,11 @@
   "installCommand": "npm install",
   "framework": "nextjs",
   "git": {
-    "deploymentEnabled": false
+    "deploymentEnabled": true
+  },
+  "github": {
+    "enabled": true,
+    "silent": true,
+    "autoAlias": true
   }
 }

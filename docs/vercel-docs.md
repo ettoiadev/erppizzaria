@@ -4,7 +4,7 @@
 
 - [Introdução](#introdução)
 - [Implantação (Deployment)](#implantação-deployment)
-  - [Implantação Automática](#implantação-automática)
+  - [Implantação Automática via GitHub](#implantação-automática-via-github)
   - [Implantação via CLI](#implantação-via-cli)
   - [Previews](#previews)
 - [Configuração](#configuração)
@@ -24,9 +24,9 @@ A Vercel é uma plataforma de hospedagem e implantação para aplicações web, 
 
 ## Implantação (Deployment)
 
-### Implantação Direta
+### Implantação Automática via GitHub
 
-A Vercel permite implantar diretamente sem necessidade de integração com repositórios Git:
+A Vercel oferece integração automática com GitHub para deploy contínuo:
 
 1. Configure o arquivo `vercel.json` na raiz do projeto:
 ```json
@@ -37,25 +37,26 @@ A Vercel permite implantar diretamente sem necessidade de integração com repos
   "installCommand": "npm install",
   "framework": "nextjs",
   "git": {
-    "deploymentEnabled": false
+    "deploymentEnabled": true
+  },
+  "github": {
+    "enabled": true,
+    "silent": true,
+    "autoAlias": true
   }
 }
 ```
 
-2. Use a CLI da Vercel para fazer o deploy:
-```bash
-# Instalar a CLI globalmente
-npm i -g vercel
+2. Conecte seu repositório GitHub ao projeto Vercel:
+   - Acesse o dashboard da Vercel
+   - Crie um novo projeto ou selecione um existente
+   - Escolha o repositório GitHub
+   - A Vercel configurará automaticamente os webhooks e deploy
 
-# Login na sua conta Vercel
-vercel login
-
-# Implantar o projeto
-vercel
-
-# Implantar para produção
-vercel --prod
-```
+3. O deploy será feito automaticamente:
+   - A cada push na branch principal
+   - Para cada pull request (ambiente de preview)
+   - Sem necessidade de autorização manual
 
 ### Implantação via CLI
 
@@ -113,7 +114,6 @@ O arquivo `vercel.json` permite configurar diversos aspectos da sua implantaçã
 ```
 
 > **IMPORTANTE**: Na configuração da Vercel, não é possível usar `routes` junto com `headers`, `rewrites`, `redirects`, `cleanUrls` ou `trailingSlash`. Se você precisar usar cabeçalhos personalizados, deve usar `rewrites` em vez de `routes`.
-```
 
 ### Variáveis de Ambiente
 
