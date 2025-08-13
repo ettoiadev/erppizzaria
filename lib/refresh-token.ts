@@ -13,6 +13,7 @@ interface RefreshTokenRecord {
   user_id: string
   email: string
   role: string
+  token: string
   expires_at: string
   is_revoked: boolean
   created_at: string
@@ -79,6 +80,7 @@ export async function generateTokenPair(user: { id: string; email: string; role:
         user_id: user.id,
         email: user.email,
         role: user.role,
+        token: refreshToken,
         expires_at: expiresAt.toISOString(),
         is_revoked: false
       })
@@ -136,6 +138,14 @@ export async function refreshAccessToken(refreshToken: string): Promise<TokenPai
       appLogger.warn('auth', 'Refresh token não encontrado no banco', {
         tokenId: payload.tokenId,
         error: fetchError?.message
+      })
+      return null
+    }
+    
+    // Verificar se o token armazenado corresponde ao token fornecido
+    if (storedToken.token && storedToken.token !== refreshToken) {
+      appLogger.warn('auth', 'Token fornecido não corresponde ao token armazenado', {
+        tokenId: payload.tokenId
       })
       return null
     }
@@ -270,13 +280,13 @@ export async function revokeAllUserTokens(userId: string): Promise<void> {
 }
 
 /**
- * Limpa tokens expirados do banco (executar periodicamente)
+ * Limpa tokens expirados e revogados do banco (executar periodicamente)
  */
 export async function cleanupExpiredTokens(): Promise<void> {
   try {
     const now = new Date().toISOString()
     
-    // Primeiro, contar quantos tokens serão removidos
+    // Primeiro, contar quantos tokens expirados serão removidos
     const { count: expiredCount, error: countError } = await supabase
       .from('refresh_tokens')
       .select('*', { count: 'exact', head: true })
@@ -286,9 +296,23 @@ export async function cleanupExpiredTokens(): Promise<void> {
       appLogger.error('auth', 'Erro ao contar tokens expirados', countError)
       return
     }
+    
+    // Contar tokens revogados há mais de 7 dias
+    const sevenDaysAgo = new Date()
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+    
+    const { count: revokedCount, error: revokedCountError } = await supabase
+      .from('refresh_tokens')
+      .select('*', { count: 'exact', head: true })
+      .eq('is_revoked', true)
+      .lt('updated_at', sevenDaysAgo.toISOString())
+      
+    if (revokedCountError) {
+      appLogger.error('auth', 'Erro ao contar tokens revogados', revokedCountError)
+    }
 
+    // Remover tokens expirados
     if (expiredCount && expiredCount > 0) {
-      // Remover tokens expirados
       const { error: deleteError } = await supabase
         .from('refresh_tokens')
         .delete()
@@ -298,15 +322,43 @@ export async function cleanupExpiredTokens(): Promise<void> {
         appLogger.error('auth', 'Erro ao limpar tokens expirados', deleteError)
         return
       }
+    }
+    
+    // Remover tokens revogados antigos
+    if (revokedCount && revokedCount > 0) {
+      const { error: deleteRevokedError } = await supabase
+        .from('refresh_tokens')
+        .delete()
+        .eq('is_revoked', true)
+        .lt('updated_at', sevenDaysAgo.toISOString())
+        
+      if (deleteRevokedError) {
+        appLogger.error('auth', 'Erro ao limpar tokens revogados antigos', deleteRevokedError)
+      }
 
-      // Contar tokens restantes
-      const { count: remainingCount, error: remainingError } = await supabase
+      // Contar tokens restantes e estatísticas
+      const { count: totalCount, error: totalError } = await supabase
         .from('refresh_tokens')
         .select('*', { count: 'exact', head: true })
+        
+      // Contar tokens ativos
+      const { count: activeCount, error: activeError } = await supabase
+        .from('refresh_tokens')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_revoked', false)
+        
+      // Contar tokens revogados
+      const { count: currentRevokedCount, error: currentRevokedError } = await supabase
+        .from('refresh_tokens')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_revoked', true)
 
-      appLogger.info('auth', 'Tokens expirados limpos', {
-        cleanedCount: expiredCount,
-        remainingTokens: remainingCount || 0
+      appLogger.info('auth', 'Limpeza de tokens concluída', {
+        cleanedExpiredCount: expiredCount || 0,
+        cleanedRevokedCount: revokedCount || 0,
+        remainingTotal: totalCount || 0,
+        remainingActive: activeCount || 0,
+        remainingRevoked: currentRevokedCount || 0
       })
     }
   } catch (error: any) {

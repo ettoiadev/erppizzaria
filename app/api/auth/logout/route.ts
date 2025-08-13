@@ -35,7 +35,8 @@ export async function POST(request: NextRequest) {
           await revokeRefreshToken(payload.tokenId)
           frontendLogger.info('Logout com revogação do token atual', 'auth', {
             email: email?.replace(/(.{2}).*(@.*)/, '$1***$2'),
-            userId
+            userId,
+            tokenId: payload.tokenId
           })
         }
       } catch (error: any) {
