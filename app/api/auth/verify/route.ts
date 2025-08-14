@@ -4,7 +4,18 @@ import { getUserByEmail } from '@/lib/db-supabase'
 import { isTokenNearExpiry } from '@/lib/refresh-token'
 import { frontendLogger } from '@/lib/frontend-logger'
 
-const JWT_SECRET = process.env.JWT_SECRET || 'william-disk-pizza-jwt-secret-2024-production'
+// JWT_SECRET é obrigatório em produção
+const JWT_SECRET = process.env.JWT_SECRET
+if (!JWT_SECRET) {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('JWT_SECRET é obrigatório em produção. Configure a variável de ambiente JWT_SECRET.')
+  }
+  // Apenas em desenvolvimento, usar chave temporária
+  frontendLogger.warn('JWT_SECRET não configurado - usando chave temporária para desenvolvimento', 'auth')
+}
+
+// Chave temporária para desenvolvimento (nunca usar em produção)
+const TEMP_JWT_SECRET = 'william-disk-pizza-dev-temp-key-2024'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,7 +44,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Verificar e decodificar o token
-    const decoded = jwt.verify(token, JWT_SECRET) as any
+    const secret = JWT_SECRET || TEMP_JWT_SECRET
+    
+    if (!JWT_SECRET && process.env.NODE_ENV === 'production') {
+      throw new Error('JWT_SECRET não configurado em produção')
+    }
+    
+    const decoded = jwt.verify(token, secret) as any
     
     if (!decoded || !decoded.email || decoded.type !== 'access') {
       frontendLogger.warn('Token inválido na verificação', 'auth', {
