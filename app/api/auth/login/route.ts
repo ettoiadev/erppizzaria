@@ -96,11 +96,29 @@ export async function POST(request: NextRequest) {
     }
 
     // Gerar par de tokens (access + refresh)
-    const tokenPair = await generateTokenPair({
-      id: user.id,
-      email: user.email,
-      role: user.role || 'customer'
-    })
+    appLogger.info('auth', 'Iniciando geração de tokens')
+    
+    let tokenPair: any
+    try {
+      tokenPair = await generateTokenPair({
+        id: user.id,
+        email: user.email,
+        role: user.role || 'customer'
+      })
+      
+      appLogger.info('auth', 'Tokens gerados com sucesso', {
+        hasAccessToken: !!tokenPair.accessToken,
+        hasRefreshToken: !!tokenPair.refreshToken,
+        expiresIn: tokenPair.expiresIn
+      })
+    } catch (tokenError: any) {
+      appLogger.error('auth', 'Erro ao gerar tokens', tokenError, {
+        errorType: typeof tokenError,
+        errorMessage: tokenError.message,
+        errorStack: tokenError.stack
+      })
+      throw new Error(`Falha na geração de tokens: ${tokenError.message}`)
+    }
 
     frontendLogger.info('Login realizado com sucesso', 'auth', {
       email: email.replace(/(.{2}).*(@.*)/, '$1***$2'),
