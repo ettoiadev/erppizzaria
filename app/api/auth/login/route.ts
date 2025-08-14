@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import bcrypt from "bcryptjs"
-import { generateTokenPair, createAuthResponse } from "@/lib/refresh-token"
+import { generateTokenPair } from "@/lib/refresh-token"
+import { createAuthResponse } from "@/lib/auth-middleware"
 import { frontendLogger } from '@/lib/frontend-logger'
 import { getSupabaseServerClient } from '@/lib/supabase'
 import { authRateLimiter } from '@/lib/rate-limiter'
@@ -128,7 +129,10 @@ export async function POST(request: NextRequest) {
     return response
 
   } catch (error: any) {
-    console.error("❌ Erro no login:", error)
+    appLogger.error('auth', 'Erro interno no login', error instanceof Error ? error : new Error(String(error)), {
+      errorType: typeof error,
+      errorValue: String(error)
+    })
     return NextResponse.json(
       { error: "Erro interno do servidor" },
       { status: 500 }
@@ -137,7 +141,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function OPTIONS(request: NextRequest) {
-  console.log('🔄 OPTIONS request received')
+  appLogger.debug('auth', 'OPTIONS request received')
   const origin = request.headers.get('origin')
   
   if (origin === 'https://erppizzaria-tau.vercel.app') {

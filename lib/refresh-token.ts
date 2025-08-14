@@ -4,8 +4,31 @@ import { appLogger } from './logging'
 import supabase from './supabase'
 import crypto from 'crypto'
 
-const JWT_SECRET = process.env.JWT_SECRET || 'william-disk-pizza-jwt-secret-2024-production'
-const REFRESH_SECRET = process.env.REFRESH_TOKEN_SECRET || 'william-disk-pizza-refresh-secret-2024-production'
+// JWT_SECRET é obrigatório em produção
+const JWT_SECRET = process.env.JWT_SECRET
+if (!JWT_SECRET) {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('JWT_SECRET é obrigatório em produção. Configure a variável de ambiente JWT_SECRET.')
+  }
+  // Apenas em desenvolvimento, usar chave temporária
+  appLogger.warn('auth', 'JWT_SECRET não configurado - usando chave temporária para desenvolvimento')
+}
+
+// Chave temporária para desenvolvimento (nunca usar em produção)
+const TEMP_JWT_SECRET = 'william-disk-pizza-dev-temp-key-2024'
+
+// REFRESH_SECRET é obrigatório em produção
+const REFRESH_SECRET = process.env.REFRESH_TOKEN_SECRET
+if (!REFRESH_SECRET) {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('REFRESH_TOKEN_SECRET é obrigatório em produção. Configure a variável de ambiente REFRESH_TOKEN_SECRET.')
+  }
+  // Apenas em desenvolvimento, usar chave temporária
+  appLogger.warn('auth', 'REFRESH_TOKEN_SECRET não configurado - usando chave temporária para desenvolvimento')
+}
+
+// Chave temporária para refresh token em desenvolvimento
+const TEMP_REFRESH_SECRET = 'william-disk-pizza-refresh-dev-temp-key-2024'
 
 // Interface para refresh tokens no banco
 interface RefreshTokenRecord {
@@ -41,6 +64,18 @@ export interface RefreshTokenPayload {
  */
 export async function generateTokenPair(user: { id: string; email: string; role: string }): Promise<TokenPair> {
   try {
+    // Usar JWT_SECRET real ou chave temporária de desenvolvimento
+    const secret = JWT_SECRET || TEMP_JWT_SECRET
+    const refreshSecret = REFRESH_SECRET || TEMP_REFRESH_SECRET
+    
+    if (!JWT_SECRET && process.env.NODE_ENV === 'production') {
+      throw new Error('JWT_SECRET não configurado em produção')
+    }
+    
+    if (!REFRESH_SECRET && process.env.NODE_ENV === 'production') {
+      throw new Error('REFRESH_TOKEN_SECRET não configurado em produção')
+    }
+    
     const tokenId = crypto.randomUUID()
     const now = new Date()
     const accessTokenExpiry = 60 * 60 // 1 hora
@@ -54,7 +89,7 @@ export async function generateTokenPair(user: { id: string; email: string; role:
         role: user.role,
         type: 'access'
       },
-      JWT_SECRET,
+      secret,
       { expiresIn: accessTokenExpiry }
     )
 
@@ -67,7 +102,7 @@ export async function generateTokenPair(user: { id: string; email: string; role:
         tokenId,
         type: 'refresh'
       },
-      REFRESH_SECRET,
+      refreshSecret,
       { expiresIn: refreshTokenExpiry }
     )
 
@@ -119,8 +154,15 @@ export async function generateTokenPair(user: { id: string; email: string; role:
  */
 export async function refreshAccessToken(refreshToken: string): Promise<TokenPair | null> {
   try {
+    // Usar REFRESH_SECRET real ou chave temporária de desenvolvimento
+    const refreshSecret = REFRESH_SECRET || TEMP_REFRESH_SECRET
+    
+    if (!REFRESH_SECRET && process.env.NODE_ENV === 'production') {
+      throw new Error('REFRESH_TOKEN_SECRET não configurado em produção')
+    }
+    
     // Verificar refresh token
-    const payload = verify(refreshToken, REFRESH_SECRET) as RefreshTokenPayload
+    const payload = verify(refreshToken, refreshSecret) as RefreshTokenPayload
     
     if (!payload || payload.type !== 'refresh') {
       appLogger.warn('auth', 'Refresh token inválido - tipo incorreto')
@@ -371,7 +413,14 @@ export async function cleanupExpiredTokens(): Promise<void> {
  */
 export function isTokenNearExpiry(token: string, thresholdMinutes: number = 15): boolean {
   try {
-    const payload = verify(token, JWT_SECRET) as any
+    // Usar JWT_SECRET real ou chave temporária de desenvolvimento
+    const secret = JWT_SECRET || TEMP_JWT_SECRET
+    
+    if (!JWT_SECRET && process.env.NODE_ENV === 'production') {
+      throw new Error('JWT_SECRET não configurado em produção')
+    }
+    
+    const payload = verify(token, secret) as any
     if (!payload.exp) return true
     
     const expiryTime = payload.exp * 1000 // Convert to milliseconds

@@ -3,8 +3,20 @@ import { verify } from 'jsonwebtoken'
 import { revokeRefreshToken, revokeAllUserTokens } from '@/lib/refresh-token'
 import { clearAuthResponse } from '@/lib/auth-middleware'
 import { frontendLogger } from '@/lib/frontend-logger'
+import { appLogger } from '@/lib/logging'
 
-const REFRESH_SECRET = process.env.REFRESH_TOKEN_SECRET || 'william-disk-pizza-refresh-secret-2024-production'
+// REFRESH_SECRET é obrigatório em produção
+const REFRESH_SECRET = process.env.REFRESH_TOKEN_SECRET
+if (!REFRESH_SECRET) {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('REFRESH_TOKEN_SECRET é obrigatório em produção. Configure a variável de ambiente REFRESH_TOKEN_SECRET.')
+  }
+  // Apenas em desenvolvimento, usar chave temporária
+  appLogger.warn('auth', 'REFRESH_TOKEN_SECRET não configurado - usando chave temporária para desenvolvimento')
+}
+
+// Chave temporária para desenvolvimento (nunca usar em produção)
+const TEMP_REFRESH_SECRET = 'william-disk-pizza-refresh-dev-temp-key-2024'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,7 +31,14 @@ export async function POST(request: NextRequest) {
     // Se temos um refresh token, extrair informações e revogar
     if (refreshToken) {
       try {
-        const payload = verify(refreshToken, REFRESH_SECRET) as any
+        // Usar REFRESH_SECRET real ou chave temporária de desenvolvimento
+        const secret = REFRESH_SECRET || TEMP_REFRESH_SECRET
+        
+        if (!REFRESH_SECRET && process.env.NODE_ENV === 'production') {
+          throw new Error('REFRESH_TOKEN_SECRET não configurado em produção')
+        }
+        
+        const payload = verify(refreshToken, secret) as any
         userId = payload.userId
         email = payload.email
         

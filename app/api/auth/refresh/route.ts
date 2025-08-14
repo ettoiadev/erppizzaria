@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
       const referer = request.headers.get('referer') || ''
       if (referer.includes('/login')) {
         // Para páginas de login, retornar um status específico para evitar erros no console
-        frontendLogger.info('Refresh token não fornecido na página de login', 'auth-api')
+        frontendLogger.info('Refresh token não fornecido na página de login', 'auth')
         return NextResponse.json({ authenticated: false }, { status: 200 })
       }
       

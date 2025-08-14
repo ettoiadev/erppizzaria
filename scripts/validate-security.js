@@ -57,6 +57,7 @@ console.log('🔐 Variáveis Críticas:')
 checkCritical('JWT_SECRET', 'Chave secreta para JWT (obrigatória)')
 checkCritical('SUPABASE_URL', 'URL do projeto Supabase (obrigatória)')
 checkCritical('SUPABASE_KEY', 'Chave de serviço do Supabase (obrigatória)')
+checkCritical('REFRESH_TOKEN_SECRET', 'Chave secreta para refresh tokens (obrigatória)')
 
 // Verificações de aviso
 console.log('\n💰 Variáveis de Pagamento:')
