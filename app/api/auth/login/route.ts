@@ -17,6 +17,35 @@ export async function POST(request: NextRequest) {
   try {
     appLogger.info('auth', 'Iniciando processo de login')
     
+    // Validar variáveis de ambiente críticas
+    const requiredEnvVars = {
+      JWT_SECRET: process.env.JWT_SECRET,
+      REFRESH_TOKEN_SECRET: process.env.REFRESH_TOKEN_SECRET,
+      SUPABASE_URL: process.env.SUPABASE_URL,
+      SUPABASE_KEY: process.env.SUPABASE_KEY,
+      NODE_ENV: process.env.NODE_ENV
+    }
+    
+    const missingVars = Object.entries(requiredEnvVars)
+      .filter(([key, value]) => !value)
+      .map(([key]) => key)
+    
+    if (missingVars.length > 0 && process.env.NODE_ENV === 'production') {
+      appLogger.critical('auth', 'Variáveis de ambiente críticas não configuradas', undefined, { missingVars })
+      return NextResponse.json(
+        { error: "Configuração do servidor incompleta" },
+        { status: 500 }
+      )
+    }
+    
+    appLogger.info('auth', 'Variáveis de ambiente validadas', { 
+      hasJwtSecret: !!requiredEnvVars.JWT_SECRET,
+      hasRefreshSecret: !!requiredEnvVars.REFRESH_TOKEN_SECRET,
+      hasSupabaseUrl: !!requiredEnvVars.SUPABASE_URL,
+      hasSupabaseKey: !!requiredEnvVars.SUPABASE_KEY,
+      nodeEnv: requiredEnvVars.NODE_ENV
+    })
+    
     // Aplicar rate limiting para segurança
     const rateLimitResult = await authRateLimiter(request)
     if (rateLimitResult instanceof NextResponse) {
@@ -147,10 +176,33 @@ export async function POST(request: NextRequest) {
     return response
 
   } catch (error: any) {
-    appLogger.error('auth', 'Erro interno no login', error instanceof Error ? error : new Error(String(error)), {
+    // Log detalhado do erro
+    const errorDetails = {
       errorType: typeof error,
-      errorValue: String(error)
-    })
+      errorMessage: error.message,
+      errorStack: error.stack,
+      errorCode: error.code,
+      errorHint: error.hint,
+      errorDetails: error.details,
+      timestamp: new Date().toISOString(),
+      endpoint: '/api/auth/login',
+      method: 'POST'
+    }
+    
+    appLogger.error('auth', 'Erro interno no login', error instanceof Error ? error : new Error(String(error)), errorDetails)
+    
+    // Em desenvolvimento, retornar mais detalhes
+    if (process.env.NODE_ENV === 'development') {
+      return NextResponse.json(
+        { 
+          error: "Erro interno do servidor", 
+          details: errorDetails 
+        },
+        { status: 500 }
+      )
+    }
+    
+    // Em produção, retornar erro genérico
     return NextResponse.json(
       { error: "Erro interno do servidor" },
       { status: 500 }
