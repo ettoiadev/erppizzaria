@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { appLogger } from '@/lib/logging'
 import { getSupabaseServerClient } from '@/lib/supabase'
 import { generateTokenPair } from '@/lib/refresh-token'
+import crypto from 'crypto'
 
 export const dynamic = 'force-dynamic'
 
@@ -49,7 +50,31 @@ export async function POST(request: NextRequest) {
     
     // 3. Testar inserção na tabela refresh_tokens
     appLogger.info('api', 'Testando inserção na tabela refresh_tokens')
-    const testTokenId = 'test-' + Date.now()
+    
+    // Primeiro, verificar se a tabela existe e sua estrutura
+    const { data: tableInfo, error: tableError } = await supabase
+      .from('refresh_tokens')
+      .select('*')
+      .limit(1)
+    
+    if (tableError) {
+      appLogger.error('api', 'Erro ao acessar tabela refresh_tokens', tableError)
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Erro ao acessar tabela refresh_tokens',
+        details: tableError.message,
+        code: tableError.code,
+        hint: tableError.hint
+      }, { status: 500 })
+    }
+    
+    appLogger.info('api', 'Tabela refresh_tokens acessível', { 
+      hasData: !!tableInfo,
+      dataLength: tableInfo?.length || 0
+    })
+    
+    // Agora testar inserção
+    const testTokenId = crypto.randomUUID()
     const { error: insertError } = await supabase
       .from('refresh_tokens')
       .insert({
