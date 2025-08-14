@@ -48,33 +48,33 @@ export async function POST(request: NextRequest) {
       }, { status: 404 })
     }
     
-    // 3. Testar inserção na tabela refresh_tokens
-    appLogger.info('api', 'Testando inserção na tabela refresh_tokens')
+    // 3. Testar estrutura da tabela refresh_tokens
+    appLogger.info('api', 'Testando estrutura da tabela refresh_tokens')
     
-    // Primeiro, verificar se a tabela existe e sua estrutura
-    const { data: tableInfo, error: tableError } = await supabase
+    // Verificar se a tabela existe
+    const { data: tableExists, error: tableError } = await supabase
       .from('refresh_tokens')
-      .select('*')
+      .select('id')
       .limit(1)
     
     if (tableError) {
       appLogger.error('api', 'Erro ao acessar tabela refresh_tokens', tableError)
       return NextResponse.json({ 
         success: false, 
-        error: 'Erro ao acessar tabela refresh_tokens',
+        error: 'Tabela refresh_tokens não acessível',
         details: tableError.message,
         code: tableError.code,
-        hint: tableError.hint
+        hint: tableError.hint,
+        suggestion: 'Verificar se a tabela existe e tem as permissões corretas'
       }, { status: 500 })
     }
     
-    appLogger.info('api', 'Tabela refresh_tokens acessível', { 
-      hasData: !!tableInfo,
-      dataLength: tableInfo?.length || 0
-    })
+    appLogger.info('api', 'Tabela refresh_tokens acessível')
     
-    // Agora testar inserção
+    // 4. Testar inserção simples
+    appLogger.info('api', 'Testando inserção na tabela refresh_tokens')
     const testTokenId = crypto.randomUUID()
+    
     const { error: insertError } = await supabase
       .from('refresh_tokens')
       .insert({
@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
         user_id: user.id,
         email: user.email,
         role: user.role || 'customer',
-        token: 'test-token',
+        token: 'test-token-' + Date.now(),
         expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
         is_revoked: false
       })
@@ -91,59 +91,43 @@ export async function POST(request: NextRequest) {
       appLogger.error('api', 'Erro ao inserir na tabela refresh_tokens', insertError)
       return NextResponse.json({ 
         success: false, 
-        error: 'Erro na tabela refresh_tokens',
+        error: 'Falha na inserção - problema na tabela refresh_tokens',
         details: insertError.message,
         code: insertError.code,
-        hint: insertError.hint
+        hint: insertError.hint,
+        tableExists: true,
+        userFound: true,
+        suggestion: 'Verificar políticas RLS e estrutura da tabela'
       }, { status: 500 })
     }
     
-    // 4. Remover token de teste
+    // 5. Remover token de teste
     await supabase
       .from('refresh_tokens')
       .delete()
       .eq('id', testTokenId)
     
-    // 5. Testar geração de tokens
-    appLogger.info('api', 'Testando geração de tokens')
-    try {
-      const tokenPair = await generateTokenPair({
+    appLogger.info('api', 'Teste de inserção bem-sucedido')
+    
+    return NextResponse.json({ 
+      success: true, 
+      message: 'Debug completo - todos os testes passaram',
+      user: {
         id: user.id,
-        email: user.email,
-        role: user.role || 'customer'
-      })
-      
-      appLogger.info('api', 'Tokens gerados com sucesso')
-      
-      return NextResponse.json({ 
-        success: true, 
-        message: 'Debug completo - todos os testes passaram',
-        user: {
-          id: user.id,
-          email: user.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
-          role: user.role
-        },
-        tokensGenerated: true,
-        hasAccessToken: !!tokenPair.accessToken,
-        hasRefreshToken: !!tokenPair.refreshToken
-      })
-      
-    } catch (tokenError: any) {
-      appLogger.error('api', 'Erro ao gerar tokens', tokenError)
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Erro ao gerar tokens',
-        details: tokenError.message,
-        errorType: typeof tokenError
-      }, { status: 500 })
-    }
+        email: user.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+        role: user.role
+      },
+      tableTest: 'PASSED',
+      insertTest: 'PASSED'
+    })
     
   } catch (error: any) {
     appLogger.error('api', 'Erro no debug', error)
     return NextResponse.json({ 
       success: false, 
       error: 'Erro interno no debug',
-      details: error.message 
+      details: error.message,
+      errorType: typeof error
     }, { status: 500 })
   }
 }

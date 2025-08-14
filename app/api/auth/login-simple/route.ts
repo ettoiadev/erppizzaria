@@ -1,0 +1,136 @@
+import { NextRequest, NextResponse } from "next/server"
+import bcrypt from "bcryptjs"
+import { sign } from "jsonwebtoken"
+import { frontendLogger } from '@/lib/frontend-logger'
+import { getSupabaseServerClient } from '@/lib/supabase'
+import { appLogger } from '@/lib/logging'
+
+export const dynamic = 'force-dynamic'
+
+export async function POST(request: NextRequest) {
+  try {
+    appLogger.info('auth', 'Iniciando processo de login SIMPLIFICADO')
+    
+    // Validar variáveis de ambiente críticas
+    const JWT_SECRET = process.env.JWT_SECRET
+    if (!JWT_SECRET && process.env.NODE_ENV === 'production') {
+      appLogger.critical('auth', 'JWT_SECRET não configurado em produção')
+      return NextResponse.json(
+        { error: "Configuração do servidor incompleta" },
+        { status: 500 }
+      )
+    }
+    
+    const body = await request.json()
+    const { email, password } = body
+
+    // Validar dados
+    if (!email || !password) {
+      return NextResponse.json(
+        { error: "Email e senha são obrigatórios" },
+        { status: 400 }
+      )
+    }
+
+    appLogger.info('auth', 'Tentativa de login simplificado', { 
+      email: email.replace(/(.{2}).*(@.*)/, '$1***$2') 
+    })
+
+    // Buscar usuário
+    const supabase = getSupabaseServerClient()
+    const { data: user, error } = await supabase
+      .from('profiles')
+      .select('id, email, password_hash, full_name, role')
+      .eq('email', email)
+      .maybeSingle()
+    
+    if (error) {
+      appLogger.error('auth', 'Erro ao buscar usuário', error)
+      return NextResponse.json(
+        { error: "Erro interno do servidor" },
+        { status: 500 }
+      )
+    }
+
+    if (!user) {
+      return NextResponse.json(
+        { error: "Email ou senha inválidos" },
+        { status: 401 }
+      )
+    }
+    
+    // Verificar senha
+    const isValidPassword = await bcrypt.compare(password, user.password_hash)
+    
+    if (!isValidPassword) {
+      return NextResponse.json(
+        { error: "Email ou senha inválidos" },
+        { status: 401 }
+      )
+    }
+
+    // Gerar apenas access token (sem refresh token)
+    const accessToken = sign(
+      {
+        id: user.id,
+        email: user.email,
+        role: user.role || 'customer',
+        type: 'access'
+      },
+      JWT_SECRET || 'fallback-secret',
+      { expiresIn: '24h' } // Token válido por 24 horas
+    )
+
+    appLogger.info('auth', 'Login simplificado realizado com sucesso', {
+      email: email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+      role: user.role || 'customer'
+    })
+
+    // Retornar resposta simples
+    const response = NextResponse.json({
+      success: true,
+      user: {
+        id: user.id,
+        email: user.email,
+        full_name: user.full_name,
+        role: user.role || 'customer'
+      },
+      accessToken,
+      expiresIn: 24 * 60 * 60, // 24 horas em segundos
+      message: 'Login realizado com sucesso (modo simplificado)'
+    })
+
+    // Adicionar headers CORS
+    response.headers.set('Access-Control-Allow-Origin', 'https://erppizzaria-tau.vercel.app')
+    response.headers.set('Access-Control-Allow-Credentials', 'true')
+    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, Origin')
+
+    return response
+
+  } catch (error: any) {
+    appLogger.error('auth', 'Erro no login simplificado', error)
+    return NextResponse.json(
+      { error: "Erro interno do servidor" },
+      { status: 500 }
+    )
+  }
+}
+
+export async function OPTIONS(request: NextRequest) {
+  const origin = request.headers.get('origin')
+  
+  if (origin === 'https://erppizzaria-tau.vercel.app') {
+    return new NextResponse(null, {
+      status: 200,
+      headers: {
+        'Access-Control-Allow-Origin': origin,
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization, Origin',
+        'Access-Control-Allow-Credentials': 'true'
+      },
+    })
+  }
+  
+  return new NextResponse(null, { status: 204 })
+}
