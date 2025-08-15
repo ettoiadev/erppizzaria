@@ -81,7 +81,7 @@
     "babel-plugin-istanbul": "^7.0.0",
     "concurrently": "^9.2.0",
     "eslint": "^8",
-    "eslint-config-next": "14.0.0",
+    "eslint-config-next": "14.2.31",
     "jest": "^30.0.5",
     "jest-environment-jsdom": "^30.0.5",
     "node-mocks-http": "^1.17.2",
