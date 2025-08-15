@@ -37,11 +37,14 @@ const customJestConfig = {
     '**/__tests__/**/*.(js|jsx|ts|tsx)',
     '**/*.(test|spec).(js|jsx|ts|tsx)'
   ],
-  // Configurações para resolver problemas de worker
+  // Configurações para resolver problemas de worker e promise rejections
   maxWorkers: 1,
   testTimeout: 30000,
   forceExit: true,
-  detectOpenHandles: true
+  detectOpenHandles: true,
+  // Configurações para melhor tratamento de erros
+  verbose: true,
+  errorOnDeprecated: true
 };
 
 // createJestConfig is exported this way to ensure that next/jest can load the Next.js config which is async

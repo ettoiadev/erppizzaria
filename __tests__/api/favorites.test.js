@@ -26,21 +26,22 @@ describe('/api/favorites', () => {
 
   describe('GET /api/favorites', () => {
     it('deve retornar lista de favoritos do usuário', async () => {
-      const mockFavorites = [
-        {
-          id: 1,
-          user_id: 'user-123',
-          product_id: 1,
-          product: {
+      try {
+        const mockFavorites = [
+          {
             id: 1,
-            name: 'Pizza Margherita',
-            price: 25.90,
-            active: true,
-            category: {
-              name: 'Pizzas'
+            user_id: 'user-123',
+            product_id: 1,
+            product: {
+              id: 1,
+              name: 'Pizza Margherita',
+              price: 25.90,
+              active: true,
+              category: {
+                name: 'Pizzas'
+              }
             }
-          }
-        },
+          },
         {
           id: 2,
           user_id: 'user-123',
@@ -69,30 +70,40 @@ describe('/api/favorites', () => {
         }
       })
 
-      const response = await GET(req)
-      const data = await response.json()
+        const response = await GET(req)
+        const data = await response.json()
 
-      expect(response.status).toBe(200)
-      expect(data.success).toBe(true)
-      expect(data.data).toHaveLength(2)
-      expect(data.data[0].product.name).toBe('Pizza Margherita')
-      expect(data.data[1].product.name).toBe('Pizza Pepperoni')
+        expect(response.status).toBe(200)
+        expect(data.success).toBe(true)
+        expect(data.data).toHaveLength(2)
+        expect(data.data[0].product.name).toBe('Pizza Margherita')
+        expect(data.data[1].product.name).toBe('Pizza Pepperoni')
+      } catch (error) {
+        console.error('Error in test "deve retornar lista de favoritos do usuário":', error)
+        throw error
+      }
     })
 
     it('deve filtrar produtos inativos dos favoritos', async () => {
-      const mockFavorites = [
-        {
-          id: 1,
-          user_id: 'user-123',
-          product_id: 1,
-          product: {
+      try {
+        const mockFavorites = [
+          {
             id: 1,
-            name: 'Pizza Margherita',
-            price: 25.90,
-            active: true,
-            category: {
-              name: 'Pizzas'
-            }
+            user_id: 'user-123',
+            product_id: 1,
+            product: {
+              id: 1,
+              name: 'Pizza Margherita',
+              price: 25.90,
+              active: true,
+              category: {
+                name: 'Pizzas'
+
+      } catch (error) {
+        console.error('Error in test "deve filtrar produtos inativos dos favoritos":', error)
+        throw error
+      }
+                }
           }
         },
         {
@@ -133,26 +144,32 @@ describe('/api/favorites', () => {
     })
 
     it('deve retornar erro quando userId não é fornecido', async () => {
-      const { req } = createMocks({
-        method: 'GET',
-        query: {}
+      try {
+        const { req } = createMocks({
+          method: 'GET',
+          query: {}
+        })
+
+        const response = await GET(req)
+        const data = await response.json()
+
+        expect(response.status).toBe(400)
+        expect(data.success).toBe(false)
+        expect(data.error).toContain('userId é obrigatório')
       })
-
-      const response = await GET(req)
-      const data = await response.json()
-
-      expect(response.status).toBe(400)
-      expect(data.success).toBe(false)
-      expect(data.error).toContain('userId é obrigatório')
     })
-  })
 
-  describe('POST /api/favorites', () => {
-    it('deve adicionar produto aos favoritos', async () => {
-      const favoriteData = {
-        userId: 'user-123',
-        productId: 1
+    describe('POST /api/favorites', () => {
+      it('deve adicionar produto aos favoritos', async () => {
+        const favoriteData = {
+          userId: 'user-123',
+          productId: 1
+
+      } catch (error) {
+        console.error('Error in test "deve retornar erro quando userId não é fornecido":', error)
+        throw error
       }
+          }
 
       // Mock para verificar se o produto existe e está ativo
       mockSupabaseClient.from().select().eq().single.mockResolvedValueOnce({
@@ -198,10 +215,16 @@ describe('/api/favorites', () => {
     })
 
     it('deve retornar erro quando produto não existe', async () => {
-      const favoriteData = {
-        userId: 'user-123',
-        productId: 999
+      try {
+        const favoriteData = {
+          userId: 'user-123',
+          productId: 999
+
+      } catch (error) {
+        console.error('Error in test "deve retornar erro quando produto não existe":', error)
+        throw error
       }
+          }
 
       mockSupabaseClient.from().select().eq().single.mockResolvedValueOnce({
         data: null,
@@ -222,10 +245,16 @@ describe('/api/favorites', () => {
     })
 
     it('deve retornar erro quando produto está inativo', async () => {
-      const favoriteData = {
-        userId: 'user-123',
-        productId: 1
+      try {
+        const favoriteData = {
+          userId: 'user-123',
+          productId: 1
+
+      } catch (error) {
+        console.error('Error in test "deve retornar erro quando produto está inativo":', error)
+        throw error
       }
+          }
 
       mockSupabaseClient.from().select().eq().single.mockResolvedValueOnce({
         data: {
@@ -250,10 +279,16 @@ describe('/api/favorites', () => {
     })
 
     it('deve retornar erro quando produto já está nos favoritos', async () => {
-      const favoriteData = {
-        userId: 'user-123',
-        productId: 1
+      try {
+        const favoriteData = {
+          userId: 'user-123',
+          productId: 1
+
+      } catch (error) {
+        console.error('Error in test "deve retornar erro quando produto já está nos favoritos":', error)
+        throw error
       }
+          }
 
       // Mock para verificar se o produto existe e está ativo
       mockSupabaseClient.from().select().eq().single.mockResolvedValueOnce({
@@ -291,17 +326,23 @@ describe('/api/favorites', () => {
 
   describe('DELETE /api/favorites', () => {
     it('deve remover produto dos favoritos', async () => {
-      mockSupabaseClient.from().delete().eq().and.mockResolvedValue({
-        data: null,
-        error: null
-      })
+      try {
+        mockSupabaseClient.from().delete().eq().and.mockResolvedValue({
+          data: null,
+          error: null
+        })
 
-      const { req } = createMocks({
-        method: 'DELETE',
-        query: {
-          userId: 'user-123',
-          productId: '1'
-        }
+        const { req } = createMocks({
+          method: 'DELETE',
+          query: {
+            userId: 'user-123',
+            productId: '1'
+
+      } catch (error) {
+        console.error('Error in test "deve remover produto dos favoritos":', error)
+        throw error
+      }
+            }
       })
 
       const response = await DELETE(req)
@@ -313,12 +354,18 @@ describe('/api/favorites', () => {
     })
 
     it('deve retornar erro quando parâmetros não são fornecidos', async () => {
-      const { req } = createMocks({
-        method: 'DELETE',
-        query: {
-          userId: 'user-123'
-          // productId ausente
-        }
+      try {
+        const { req } = createMocks({
+          method: 'DELETE',
+          query: {
+            userId: 'user-123'
+            // productId ausente
+
+      } catch (error) {
+        console.error('Error in test "deve retornar erro quando parâmetros não são fornecidos":', error)
+        throw error
+      }
+            }
       })
 
       const response = await DELETE(req)
@@ -330,17 +377,23 @@ describe('/api/favorites', () => {
     })
 
     it('deve retornar erro quando falha na remoção', async () => {
-      mockSupabaseClient.from().delete().eq().and.mockResolvedValue({
-        data: null,
-        error: { message: 'Delete failed' }
-      })
+      try {
+        mockSupabaseClient.from().delete().eq().and.mockResolvedValue({
+          data: null,
+          error: { message: 'Delete failed' }
+        })
 
-      const { req } = createMocks({
-        method: 'DELETE',
-        query: {
-          userId: 'user-123',
-          productId: '1'
-        }
+        const { req } = createMocks({
+          method: 'DELETE',
+          query: {
+            userId: 'user-123',
+            productId: '1'
+
+      } catch (error) {
+        console.error('Error in test "deve retornar erro quando falha na remoção":', error)
+        throw error
+      }
+            }
       })
 
       const response = await DELETE(req)

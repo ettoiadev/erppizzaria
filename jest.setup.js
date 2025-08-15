@@ -174,6 +174,22 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key'
 // Configuração global para testes
 global.fetch = jest.fn()
 
+// Configuração para capturar promise rejections não tratadas
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason)
+  // Falhar o teste quando há promise rejection não tratada
+  throw new Error(`Unhandled Promise Rejection: ${reason}`)
+})
+
+// Configuração para capturar exceções não tratadas
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error)
+  throw error
+})
+
+// Configuração global para timeouts de promises
+jest.setTimeout(30000)
+
 // Limpar mocks após cada teste
 afterEach(() => {
   jest.clearAllMocks()

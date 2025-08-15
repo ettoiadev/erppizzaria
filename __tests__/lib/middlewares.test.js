@@ -38,11 +38,17 @@ describe('Middlewares', () => {
     })
 
     it('deve validar dados corretos e chamar o handler', async () => {
-      const validData = {
-        name: 'João Silva',
-        email: 'joao@email.com',
-        age: 25
+      try {
+        const validData = {
+          name: 'João Silva',
+          email: 'joao@email.com',
+          age: 25
+
+      } catch (error) {
+        console.error('Error in test "deve validar dados corretos e chamar o handler":', error)
+        throw error
       }
+          }
 
       const { req } = createMocks({
         method: 'POST',
@@ -59,11 +65,17 @@ describe('Middlewares', () => {
     })
 
     it('deve retornar erro 400 para dados inválidos', async () => {
-      const invalidData = {
-        name: '', // Nome vazio
-        email: 'email-inválido', // Email inválido
-        age: 15 // Idade menor que 18
+      try {
+        const invalidData = {
+          name: '', // Nome vazio
+          email: 'email-inválido', // Email inválido
+          age: 15 // Idade menor que 18
+
+      } catch (error) {
+        console.error('Error in test "deve retornar erro 400 para dados inválidos":', error)
+        throw error
       }
+          }
 
       const { req } = createMocks({
         method: 'POST',
@@ -82,89 +94,101 @@ describe('Middlewares', () => {
     })
 
     it('deve retornar erro 400 quando body está ausente', async () => {
-      const { req } = createMocks({
-        method: 'POST'
-        // body ausente
+      try {
+        const { req } = createMocks({
+          method: 'POST'
+          // body ausente
+        })
+
+        const wrappedHandler = withValidation(testSchema)(mockHandler)
+        const response = await wrappedHandler(req)
+        const data = await response.json()
+
+        expect(response.status).toBe(400)
+        expect(data.success).toBe(false)
+        expect(data.error).toContain('Dados inválidos')
+        expect(mockHandler).not.toHaveBeenCalled()
       })
-
-      const wrappedHandler = withValidation(testSchema)(mockHandler)
-      const response = await wrappedHandler(req)
-      const data = await response.json()
-
-      expect(response.status).toBe(400)
-      expect(data.success).toBe(false)
-      expect(data.error).toContain('Dados inválidos')
-      expect(mockHandler).not.toHaveBeenCalled()
     })
-  })
 
-  describe('withDatabaseErrorHandling', () => {
-    const mockHandler = jest.fn()
-    const customMessages = {
-      create: 'Erro ao criar registro',
-      read: 'Erro ao buscar dados',
-      update: 'Erro ao atualizar registro',
-      delete: 'Erro ao deletar registro'
-    }
+    describe('withDatabaseErrorHandling', () => {
+      const mockHandler = jest.fn()
+      const customMessages = {
+        create: 'Erro ao criar registro',
+        read: 'Erro ao buscar dados',
+        update: 'Erro ao atualizar registro',
+        delete: 'Erro ao deletar registro'
+
+      } catch (error) {
+        console.error('Error in test "deve retornar erro 400 quando body está ausente":', error)
+        throw error
+      }
+        }
 
     it('deve retornar resposta normal quando não há erro', async () => {
-      const successResponse = new Response(JSON.stringify({ success: true }), {
-        status: 200
+      try {
+        const successResponse = new Response(JSON.stringify({ success: true }), {
+          status: 200
+        })
+        mockHandler.mockResolvedValue(successResponse)
+
+        const { req } = createMocks({ method: 'GET' })
+        const wrappedHandler = withDatabaseErrorHandling(customMessages)(mockHandler)
+        const response = await wrappedHandler(req)
+        const data = await response.json()
+
+        expect(response.status).toBe(200)
+        expect(data.success).toBe(true)
       })
-      mockHandler.mockResolvedValue(successResponse)
 
-      const { req } = createMocks({ method: 'GET' })
-      const wrappedHandler = withDatabaseErrorHandling(customMessages)(mockHandler)
-      const response = await wrappedHandler(req)
-      const data = await response.json()
+      it('deve capturar e tratar erros do handler', async () => {
+        const error = new Error('Database connection failed')
+        mockHandler.mockRejectedValue(error)
 
-      expect(response.status).toBe(200)
-      expect(data.success).toBe(true)
-    })
+        const { req } = createMocks({ method: 'POST' })
+        const wrappedHandler = withDatabaseErrorHandling(customMessages)(mockHandler)
+        const response = await wrappedHandler(req)
+        const data = await response.json()
 
-    it('deve capturar e tratar erros do handler', async () => {
-      const error = new Error('Database connection failed')
-      mockHandler.mockRejectedValue(error)
+        expect(response.status).toBe(500)
+        expect(data.success).toBe(false)
+        expect(data.error).toBe(customMessages.create)
+        expect(mockConsole.error).toHaveBeenCalledWith('Database error:', error)
+      })
 
-      const { req } = createMocks({ method: 'POST' })
-      const wrappedHandler = withDatabaseErrorHandling(customMessages)(mockHandler)
-      const response = await wrappedHandler(req)
-      const data = await response.json()
+      it('deve usar mensagem padrão quando método não tem mensagem customizada', async () => {
+        const error = new Error('Database error')
+        mockHandler.mockRejectedValue(error)
 
-      expect(response.status).toBe(500)
-      expect(data.success).toBe(false)
-      expect(data.error).toBe(customMessages.create)
-      expect(mockConsole.error).toHaveBeenCalledWith('Database error:', error)
-    })
+        const { req } = createMocks({ method: 'PATCH' })
+        const wrappedHandler = withDatabaseErrorHandling(customMessages)(mockHandler)
+        const response = await wrappedHandler(req)
+        const data = await response.json()
 
-    it('deve usar mensagem padrão quando método não tem mensagem customizada', async () => {
-      const error = new Error('Database error')
-      mockHandler.mockRejectedValue(error)
-
-      const { req } = createMocks({ method: 'PATCH' })
-      const wrappedHandler = withDatabaseErrorHandling(customMessages)(mockHandler)
-      const response = await wrappedHandler(req)
-      const data = await response.json()
-
-      expect(response.status).toBe(500)
-      expect(data.success).toBe(false)
-      expect(data.error).toBe('Erro interno do servidor')
-    })
-  })
-
-  describe('withPresetSanitization', () => {
-    const mockHandler = jest.fn(async (req) => {
-      const body = await req.json()
-      return new Response(JSON.stringify({ success: true, data: body }), {
-        status: 200
+        expect(response.status).toBe(500)
+        expect(data.success).toBe(false)
+        expect(data.error).toBe('Erro interno do servidor')
       })
     })
 
-    it('deve sanitizar strings removendo scripts maliciosos', async () => {
-      const maliciousData = {
-        name: '<script>alert("xss")</script>João',
-        description: 'Produto <img src=x onerror=alert(1)> especial'
+    describe('withPresetSanitization', () => {
+      const mockHandler = jest.fn(async (req) => {
+        const body = await req.json()
+        return new Response(JSON.stringify({ success: true, data: body }), {
+          status: 200
+        })
+      })
+
+      it('deve sanitizar strings removendo scripts maliciosos', async () => {
+        const maliciousData = {
+          name: '<script>alert("xss")</script>João',
+          description: 'Produto <img src=x onerror=alert(1)> especial'
+
+      } catch (error) {
+        console.error('Error in test "deve retornar resposta normal quando não há erro":', error)
+        throw error
       }
+          }
 
       const { req } = createMocks({
         method: 'POST',
@@ -181,14 +205,20 @@ describe('Middlewares', () => {
     })
 
     it('deve preservar dados não-string', async () => {
-      const mixedData = {
-        name: 'João Silva',
-        age: 25,
-        active: true,
-        tags: ['pizza', 'italiana'],
-        metadata: {
-          created: new Date().toISOString()
-        }
+      try {
+        const mixedData = {
+          name: 'João Silva',
+          age: 25,
+          active: true,
+          tags: ['pizza', 'italiana'],
+          metadata: {
+            created: new Date().toISOString()
+
+      } catch (error) {
+        console.error('Error in test "deve preservar dados não-string":', error)
+        throw error
+      }
+            }
       }
 
       const { req } = createMocks({
@@ -212,47 +242,53 @@ describe('Middlewares', () => {
     const mockHandler = jest.fn()
 
     it('deve registrar erros e re-lançá-los', async () => {
-      const error = new Error('Test error')
-      mockHandler.mockRejectedValue(error)
+      try {
+        const error = new Error('Test error')
+        mockHandler.mockRejectedValue(error)
 
-      const { req } = createMocks({ method: 'GET' })
-      const wrappedHandler = withErrorMonitoring()(mockHandler)
+        const { req } = createMocks({ method: 'GET' })
+        const wrappedHandler = withErrorMonitoring()(mockHandler)
 
-      await expect(wrappedHandler(req)).rejects.toThrow('Test error')
-      expect(mockConsole.error).toHaveBeenCalledWith('Error in API handler:', error)
-    })
-
-    it('deve passar resposta normal sem interferir', async () => {
-      const successResponse = new Response(JSON.stringify({ success: true }), {
-        status: 200
+        await expect(wrappedHandler(req)).rejects.toThrow('Test error')
+        expect(mockConsole.error).toHaveBeenCalledWith('Error in API handler:', error)
       })
-      mockHandler.mockResolvedValue(successResponse)
 
-      const { req } = createMocks({ method: 'GET' })
-      const wrappedHandler = withErrorMonitoring()(mockHandler)
-      const response = await wrappedHandler(req)
-      const data = await response.json()
+      it('deve passar resposta normal sem interferir', async () => {
+        const successResponse = new Response(JSON.stringify({ success: true }), {
+          status: 200
+        })
+        mockHandler.mockResolvedValue(successResponse)
 
-      expect(response.status).toBe(200)
-      expect(data.success).toBe(true)
-      expect(mockConsole.error).not.toHaveBeenCalled()
-    })
-  })
+        const { req } = createMocks({ method: 'GET' })
+        const wrappedHandler = withErrorMonitoring()(mockHandler)
+        const response = await wrappedHandler(req)
+        const data = await response.json()
 
-  describe('withApiLogging', () => {
-    const mockHandler = jest.fn(async () => {
-      return new Response(JSON.stringify({ success: true }), {
-        status: 200
+        expect(response.status).toBe(200)
+        expect(data.success).toBe(true)
+        expect(mockConsole.error).not.toHaveBeenCalled()
       })
     })
 
-    it('deve registrar informações da requisição e resposta', async () => {
-      const { req } = createMocks({
-        method: 'POST',
-        url: '/api/test',
-        headers: {
-          'user-agent': 'test-agent'
-        }
+    describe('withApiLogging', () => {
+      const mockHandler = jest.fn(async () => {
+        return new Response(JSON.stringify({ success: true }), {
+          status: 200
+        })
+      })
+
+      it('deve registrar informações da requisição e resposta', async () => {
+        const { req } = createMocks({
+          method: 'POST',
+          url: '/api/test',
+          headers: {
+            'user-agent': 'test-agent'
+
+      } catch (error) {
+        console.error('Error in test "deve registrar erros e re-lançá-los":', error)
+        throw error
+      }
+            }
       })
 
       const wrappedHandler = withApiLogging()(mockHandler)
@@ -270,19 +306,37 @@ describe('Middlewares', () => {
     it('deve registrar tempo de execução', async () => {
       // Simular delay no handler
       mockHandler.mockImplementation(async () => {
-        await new Promise(resolve => setTimeout(resolve, 100))
-        return new Response(JSON.stringify({ success: true }), {
-          status: 200
-        })
+        try {
+          await new Promise((resolve, reject) => {
+            setTimeout(() => {
+              try {
+                resolve()
+              } catch (error) {
+                reject(error)
+              }
+            }, 100)
+          })
+          return new Response(JSON.stringify({ success: true }), {
+            status: 200
+          })
+        } catch (error) {
+          console.error('Error in mock handler:', error)
+          throw error
+        }
       })
 
       const { req } = createMocks({ method: 'GET' })
       const wrappedHandler = withApiLogging()(mockHandler)
-      await wrappedHandler(req)
-
-      expect(mockConsole.log).toHaveBeenCalledWith(
-        expect.stringContaining('ms')
-      )
+      
+      try {
+        await wrappedHandler(req)
+        expect(mockConsole.log).toHaveBeenCalledWith(
+          expect.stringContaining('ms')
+        )
+      } catch (error) {
+        console.error('Error in test:', error)
+        throw error
+      }
     })
   })
 

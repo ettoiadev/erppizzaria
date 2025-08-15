@@ -27,20 +27,26 @@ describe('/api/orders', () => {
 
   describe('GET /api/orders', () => {
     it('deve retornar lista de pedidos', async () => {
-      const mockOrders = [
-        {
-          id: 1,
-          user_id: 'user-123',
-          status: 'pending',
-          total: 45.80,
-          created_at: '2024-01-15T10:00:00Z',
-          order_items: [
-            {
-              id: 1,
-              quantity: 2,
-              price: 25.90,
-              product: { name: 'Pizza Margherita' }
-            }
+      try {
+        const mockOrders = [
+          {
+            id: 1,
+            user_id: 'user-123',
+            status: 'pending',
+            total: 45.80,
+            created_at: '2024-01-15T10:00:00Z',
+            order_items: [
+              {
+                id: 1,
+                quantity: 2,
+                price: 25.90,
+                product: { name: 'Pizza Margherita' }
+
+      } catch (error) {
+        console.error('Error in test "deve retornar lista de pedidos":', error)
+        throw error
+      }
+                }
           ]
         },
         {
@@ -84,14 +90,20 @@ describe('/api/orders', () => {
     })
 
     it('deve filtrar pedidos por status', async () => {
-      const mockOrders = [
-        {
-          id: 1,
-          user_id: 'user-123',
-          status: 'pending',
-          total: 45.80,
-          created_at: '2024-01-15T10:00:00Z'
-        }
+      try {
+        const mockOrders = [
+          {
+            id: 1,
+            user_id: 'user-123',
+            status: 'pending',
+            total: 45.80,
+            created_at: '2024-01-15T10:00:00Z'
+
+      } catch (error) {
+        console.error('Error in test "deve filtrar pedidos por status":', error)
+        throw error
+      }
+            }
       ]
 
       mockSupabaseClient.from().select().eq().order().limit().range.mockResolvedValue({
@@ -118,14 +130,20 @@ describe('/api/orders', () => {
     })
 
     it('deve filtrar pedidos por usuário', async () => {
-      const mockOrders = [
-        {
-          id: 1,
-          user_id: 'user-123',
-          status: 'pending',
-          total: 45.80,
-          created_at: '2024-01-15T10:00:00Z'
-        }
+      try {
+        const mockOrders = [
+          {
+            id: 1,
+            user_id: 'user-123',
+            status: 'pending',
+            total: 45.80,
+            created_at: '2024-01-15T10:00:00Z'
+
+      } catch (error) {
+        console.error('Error in test "deve filtrar pedidos por usuário":', error)
+        throw error
+      }
+            }
       ]
 
       mockSupabaseClient.from().select().eq().order().limit().range.mockResolvedValue({
@@ -154,19 +172,25 @@ describe('/api/orders', () => {
 
   describe('POST /api/orders', () => {
     it('deve criar um novo pedido com dados válidos', async () => {
-      const newOrder = {
-        userId: 'user-123',
-        items: [
-          {
-            productId: 1,
-            quantity: 2,
-            price: 25.90
-          },
-          {
-            productId: 2,
-            quantity: 1,
-            price: 29.90
-          }
+      try {
+        const newOrder = {
+          userId: 'user-123',
+          items: [
+            {
+              productId: 1,
+              quantity: 2,
+              price: 25.90
+            },
+            {
+              productId: 2,
+              quantity: 1,
+              price: 29.90
+
+      } catch (error) {
+        console.error('Error in test "deve criar um novo pedido com dados válidos":', error)
+        throw error
+      }
+              }
         ],
         total: 81.70,
         deliveryAddress: {
@@ -208,11 +232,17 @@ describe('/api/orders', () => {
     })
 
     it('deve retornar erro com dados inválidos', async () => {
-      const invalidOrder = {
-        userId: '', // User ID vazio
-        items: [], // Array de itens vazio
-        total: -10 // Total negativo
+      try {
+        const invalidOrder = {
+          userId: '', // User ID vazio
+          items: [], // Array de itens vazio
+          total: -10 // Total negativo
+
+      } catch (error) {
+        console.error('Error in test "deve retornar erro com dados inválidos":', error)
+        throw error
       }
+          }
 
       const { req } = createMocks({
         method: 'POST',
@@ -228,14 +258,20 @@ describe('/api/orders', () => {
     })
 
     it('deve retornar erro quando total não confere', async () => {
-      const orderWithWrongTotal = {
-        userId: 'user-123',
-        items: [
-          {
-            productId: 1,
-            quantity: 2,
-            price: 25.90
-          }
+      try {
+        const orderWithWrongTotal = {
+          userId: 'user-123',
+          items: [
+            {
+              productId: 1,
+              quantity: 2,
+              price: 25.90
+
+      } catch (error) {
+        console.error('Error in test "deve retornar erro quando total não confere":', error)
+        throw error
+      }
+              }
         ],
         total: 100.00 // Total incorreto
       }
@@ -254,14 +290,20 @@ describe('/api/orders', () => {
     })
 
     it('deve retornar erro quando falha na inserção', async () => {
-      const newOrder = {
-        userId: 'user-123',
-        items: [
-          {
-            productId: 1,
-            quantity: 2,
-            price: 25.90
-          }
+      try {
+        const newOrder = {
+          userId: 'user-123',
+          items: [
+            {
+              productId: 1,
+              quantity: 2,
+              price: 25.90
+
+      } catch (error) {
+        console.error('Error in test "deve retornar erro quando falha na inserção":', error)
+        throw error
+      }
+              }
         ],
         total: 51.80
       }
