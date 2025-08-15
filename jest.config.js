@@ -24,18 +24,24 @@ const customJestConfig = {
     'components/**/*.{js,jsx,ts,tsx}',
     'lib/**/*.{js,jsx,ts,tsx}',
     '!**/*.d.ts',
-    '!**/node_modules/**'
+    '!**/node_modules/**',
+    '!**/__tests__/**',
+    '!**/*.test.{js,jsx,ts,tsx}',
+    '!**/*.spec.{js,jsx,ts,tsx}'
   ],
-  globals: {
-    'ts-jest': {
-      useESM: true
-    }
-  },
+  coverageReporters: ['text', 'lcov', 'html'],
+  coverageDirectory: 'coverage',
+  coverageProvider: 'v8',
   moduleFileExtensions: ['js', 'jsx', 'ts', 'tsx'],
   testMatch: [
     '**/__tests__/**/*.(js|jsx|ts|tsx)',
     '**/*.(test|spec).(js|jsx|ts|tsx)'
-  ]
+  ],
+  // Configurações para resolver problemas de worker
+  maxWorkers: 1,
+  testTimeout: 30000,
+  forceExit: true,
+  detectOpenHandles: true
 };
 
 // createJestConfig is exported this way to ensure that next/jest can load the Next.js config which is async
