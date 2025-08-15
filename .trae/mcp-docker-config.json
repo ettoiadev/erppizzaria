@@ -1,0 +1,26 @@
+{
+  "mcp_servers": [
+    {
+      "server_name": "mcp.config.usrlocalmcp.supabase",
+      "description": "Supabase MCP Server para integração com banco de dados",
+      "docker": {
+        "image": "supabase/mcp-server:latest",
+        "container_name": "supabase-mcp-server",
+        "ports": ["3000:3000"],
+        "environment": [
+          "SUPABASE_URL=${SUPABASE_URL}",
+          "SUPABASE_KEY=${SUPABASE_KEY}"
+        ],
+        "volumes": [
+          "${PWD}/supabase:/app/supabase"
+        ]
+      }
+    }
+  ],
+  "mcp_gateway": {
+    "enabled": true,
+    "host": "localhost",
+    "port": 8080,
+    "log_level": "info"
+  }
+}

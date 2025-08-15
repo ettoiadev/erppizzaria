@@ -1,0 +1,51 @@
+{
+  "name": "print-server-contract-tests",
+  "version": "1.0.0",
+  "description": "Testes de contrato automatizados para a API do print-server",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest --config=jest.config.js",
+    "test:watch": "jest --config=jest.config.js --watch",
+    "test:coverage": "jest --config=jest.config.js --coverage",
+    "test:rest": "jest --config=jest.config.js rest-api.test.js",
+    "test:socket": "jest --config=jest.config.js socket-events.test.js",
+    "test:ci": "jest --config=jest.config.js --ci --coverage --watchAll=false",
+    "test:debug": "node --inspect-brk node_modules/.bin/jest --config=jest.config.js --runInBand",
+    "lint": "eslint *.js",
+    "validate": "npm run lint && npm run test"
+  },
+  "keywords": [
+    "contract-testing",
+    "api-testing",
+    "print-server",
+    "socket.io",
+    "rest-api"
+  ],
+  "author": "ERP Pizzaria Team",
+  "license": "MIT",
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "jest-junit": "^16.0.0",
+    "socket.io-client": "^4.7.5",
+    "axios": "^1.6.0",
+    "eslint": "^8.57.0"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testTimeout": 30000,
+    "setupFilesAfterEnv": ["<rootDir>/setup.js"],
+    "setupFiles": ["<rootDir>/env.js"]
+  },
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "file://../../"
+  },
+  "bugs": {
+    "url": "file://../../issues"
+  },
+  "homepage": "file://../../README.md"
+}

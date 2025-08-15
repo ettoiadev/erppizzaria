@@ -12,17 +12,24 @@ export interface Customer {
   city?: string
   state?: string
   zip_code?: string
-  createdAt: string
-  lastOrderAt?: string
-  totalOrders: number
-  totalSpent: number
+  created_at: string
+  last_order_at?: string
+  total_orders: number
+  total_spent: number
   status: "active" | "inactive" | "vip" | "regular" | "churned"
-  favoriteItems: string[]
+  favorite_items: string[]
+  
+  // Compatibilidade com versões antigas (será removido gradualmente)
+  createdAt?: string
+  lastOrderAt?: string
+  totalOrders?: number
+  totalSpent?: number
+  favoriteItems?: string[]
 }
 
 export interface CustomerOrder {
   id: string
-  customerId: string
+  customer_id: string
   date: string
   status: string
   total: number
@@ -31,7 +38,11 @@ export interface CustomerOrder {
     quantity: number
     price: number
   }>
-  paymentMethod: string
+  payment_method: string
+  
+  // Compatibilidade com versões antigas (será removido gradualmente)
+  customerId?: string
+  paymentMethod?: string
 }
 
 export interface DeliveryPerson {
@@ -39,14 +50,25 @@ export interface DeliveryPerson {
   name: string
   email: string
   phone: string
-  vehicleType: "motorcycle" | "bicycle" | "car"
-  vehiclePlate: string
+  vehicle_type: "motorcycle" | "bicycle" | "car"
+  vehicle_plate: string
   status: "available" | "busy" | "offline"
-  currentLocation: string
-  totalDeliveries: number
-  averageRating: number
-  averageDeliveryTime: number
-  createdAt: string
-  lastActiveAt: string
-  currentOrders: string[]
+  current_location: string
+  total_deliveries: number
+  average_rating: number
+  average_delivery_time: number
+  created_at: string
+  last_active_at: string
+  current_orders: string[]
+  
+  // Compatibilidade com versões antigas (será removido gradualmente)
+  vehicleType?: "motorcycle" | "bicycle" | "car"
+  vehiclePlate?: string
+  currentLocation?: string
+  totalDeliveries?: number
+  averageRating?: number
+  averageDeliveryTime?: number
+  createdAt?: string
+  lastActiveAt?: string
+  currentOrders?: string[]
 }

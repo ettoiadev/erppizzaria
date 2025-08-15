@@ -15,10 +15,14 @@ interface User {
 interface AuthContextType {
   user: User | null
   loading: boolean
+  is_loading?: boolean // Compatibilidade
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>
   logout: (revokeAll?: boolean) => Promise<void>
+  log_out?: (revokeAll?: boolean) => Promise<void> // Compatibilidade
   checkAuth: () => Promise<void>
+  check_auth?: () => Promise<void> // Compatibilidade
   refreshToken: () => Promise<boolean>
+  refresh_token?: () => Promise<boolean> // Compatibilidade
   register: (userData: any) => Promise<void>
 }
 
@@ -235,10 +239,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value: AuthContextType = {
     user,
     loading,
+    is_loading: loading, // Compatibilidade
     login,
     logout,
+    log_out: logout, // Compatibilidade
     checkAuth,
+    check_auth: checkAuth, // Compatibilidade
     refreshToken,
+    refresh_token: refreshToken, // Compatibilidade
     register
   }
 

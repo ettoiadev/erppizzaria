@@ -8,37 +8,79 @@ import { frontendLogger, useFrontendLogger } from '../lib/frontend-logger'
 // Interface para configuração do hook
 interface UseErrorHandlingOptions {
   context?: string
+  enable_global_error_capture?: boolean
+  on_error?: (error: AppError) => void
+  max_recent_errors?: number
+  
+  // Compatibilidade com versões antigas (deprecated)
+  /** @deprecated Use enable_global_error_capture */
   enableGlobalErrorCapture?: boolean
+  /** @deprecated Use on_error */
   onError?: (error: AppError) => void
+  /** @deprecated Use max_recent_errors */
   maxRecentErrors?: number
 }
 
 // Interface para o retorno do hook
 interface UseErrorHandlingReturn {
   // Funções para tratar erros
-  handleError: (error: any, context?: string) => AppError
-  handleAsyncError: <T>(promise: Promise<T>, context?: string) => Promise<T>
-  handleCriticalError: (error: any, context?: string, additionalData?: any) => AppError
+  handle_error: (error: any, context?: string) => AppError
+  handle_async_error: <T>(promise: Promise<T>, context?: string) => Promise<T>
+  handle_critical_error: (error: any, context?: string, additional_data?: any) => AppError
   
   // Estado dos erros
-  recentErrors: AppError[]
-  hasErrors: boolean
-  lastError?: AppError
+  recent_errors: AppError[]
+  has_errors: boolean
+  last_error?: AppError
   
   // Funções de controle
-  clearErrors: () => void
-  clearLastError: () => void
+  clear_errors: () => void
+  clear_last_error: () => void
   
   // Logging específico
-  logInfo: (message: string, data?: any) => void
-  logWarning: (message: string, data?: any) => void
-  logDebug: (message: string, data?: any) => void
+  log_info: (message: string, data?: any) => void
+  log_warning: (message: string, data?: any) => void
+  log_debug: (message: string, data?: any) => void
   
   // Métodos específicos do frontend logger
+  log_user_action: (action: string, data?: any) => void
+  log_performance: (operation: string, duration: number, data?: any) => void
+  set_user_id: (userId: string) => void
+  clear_user_id: () => void
+  get_error_message: (error: Error) => import('../lib/frontend-logger').UserFriendlyError
+  
+  // Compatibilidade com versões antigas (deprecated)
+  /** @deprecated Use handle_error */
+  handleError: (error: any, context?: string) => AppError
+  /** @deprecated Use handle_async_error */
+  handleAsyncError: <T>(promise: Promise<T>, context?: string) => Promise<T>
+  /** @deprecated Use handle_critical_error */
+  handleCriticalError: (error: any, context?: string, additionalData?: any) => AppError
+  /** @deprecated Use recent_errors */
+  recentErrors: AppError[]
+  /** @deprecated Use has_errors */
+  hasErrors: boolean
+  /** @deprecated Use last_error */
+  lastError?: AppError
+  /** @deprecated Use clear_errors */
+  clearErrors: () => void
+  /** @deprecated Use clear_last_error */
+  clearLastError: () => void
+  /** @deprecated Use log_info */
+  logInfo: (message: string, data?: any) => void
+  /** @deprecated Use log_warning */
+  logWarning: (message: string, data?: any) => void
+  /** @deprecated Use log_debug */
+  logDebug: (message: string, data?: any) => void
+  /** @deprecated Use log_user_action */
   logUserAction: (action: string, data?: any) => void
+  /** @deprecated Use log_performance */
   logPerformance: (operation: string, duration: number, data?: any) => void
+  /** @deprecated Use set_user_id */
   setUserId: (userId: string) => void
+  /** @deprecated Use clear_user_id */
   clearUserId: () => void
+  /** @deprecated Use get_error_message */
   getErrorMessage: (error: Error) => import('../lib/frontend-logger').UserFriendlyError
 }
 
@@ -46,9 +88,13 @@ interface UseErrorHandlingReturn {
 export function useErrorHandling(options: UseErrorHandlingOptions = {}): UseErrorHandlingReturn {
   const {
     context = 'React Component',
-    enableGlobalErrorCapture = false,
-    onError,
-    maxRecentErrors = 5
+    enable_global_error_capture = false,
+    on_error,
+    max_recent_errors = 5,
+    // Compatibilidade com versões antigas
+    enableGlobalErrorCapture = enable_global_error_capture,
+    onError = on_error,
+    maxRecentErrors = max_recent_errors
   } = options
   
   const [recentErrors, setRecentErrors] = useState<AppError[]>([])
@@ -183,6 +229,33 @@ export function useErrorHandling(options: UseErrorHandlingOptions = {}): UseErro
   }, [enableGlobalErrorCapture, handleError])
   
   return {
+    // Funções principais (snake_case)
+    handle_error: handleError,
+    handle_async_error: handleAsyncError,
+    handle_critical_error: handleCriticalError,
+    
+    // Estado (snake_case)
+    recent_errors: recentErrors,
+    has_errors: recentErrors.length > 0,
+    last_error: lastError,
+    
+    // Controle (snake_case)
+    clear_errors: clearErrors,
+    clear_last_error: clearLastError,
+    
+    // Logging (snake_case)
+    log_info: logger.logInfo,
+    log_warning: logger.logWarning,
+    log_debug: logger.logDebug,
+    
+    // Frontend logger específico (snake_case)
+    log_user_action: logger.logUserAction,
+    log_performance: logger.logPerformance,
+    set_user_id: logger.setUserId,
+    clear_user_id: logger.clearUserId,
+    get_error_message: logger.getErrorMessage,
+    
+    // Compatibilidade com versões antigas (camelCase - deprecated)
     handleError,
     handleAsyncError,
     handleCriticalError,
@@ -194,7 +267,6 @@ export function useErrorHandling(options: UseErrorHandlingOptions = {}): UseErro
     logInfo,
     logWarning,
     logDebug,
-    // Métodos específicos do frontend logger
     logUserAction: logger.logUserAction,
     logPerformance: logger.logPerformance,
     setUserId: logger.setUserId,

@@ -7,13 +7,29 @@ interface Coupon {
   title: string
   description: string
   discount: string
-  expiresAt: string
-  isUsed: boolean
-  isExpired: boolean
-  isMaxUsesReached: boolean
-  minValue: number
-  discountType: 'percentage' | 'fixed' | 'free_delivery'
-  discountValue: number
+  expires_at: string
+  is_used: boolean
+  is_expired: boolean
+  is_max_uses_reached: boolean
+  min_value: number
+  discount_type: 'percentage' | 'fixed' | 'free_delivery'
+  discount_value: number
+  
+  // Compatibilidade com versões antigas (deprecated)
+  /** @deprecated Use expires_at */
+  expiresAt?: string
+  /** @deprecated Use is_used */
+  isUsed?: boolean
+  /** @deprecated Use is_expired */
+  isExpired?: boolean
+  /** @deprecated Use is_max_uses_reached */
+  isMaxUsesReached?: boolean
+  /** @deprecated Use min_value */
+  minValue?: number
+  /** @deprecated Use discount_type */
+  discountType?: 'percentage' | 'fixed' | 'free_delivery'
+  /** @deprecated Use discount_value */
+  discountValue?: number
 }
 
 interface AppliedCoupon {
@@ -23,12 +39,26 @@ interface AppliedCoupon {
 }
 
 interface CouponContextType {
-  availableCoupons: Coupon[]
-  appliedCoupon: AppliedCoupon | null
-  isLoading: boolean
+  available_coupons: Coupon[]
+  applied_coupon: AppliedCoupon | null
+  is_loading: boolean
   error: string | null
+  fetch_coupons: (userId: string) => Promise<void>
+  apply_coupon: (userId: string, couponCode: string, orderId?: string) => Promise<boolean>
+  remove_coupon: () => void
+  
+  // Compatibilidade com versões antigas (deprecated)
+  /** @deprecated Use available_coupons */
+  availableCoupons: Coupon[]
+  /** @deprecated Use applied_coupon */
+  appliedCoupon: AppliedCoupon | null
+  /** @deprecated Use is_loading */
+  isLoading: boolean
+  /** @deprecated Use fetch_coupons */
   fetchCoupons: (userId: string) => Promise<void>
+  /** @deprecated Use apply_coupon */
   applyCoupon: (userId: string, couponCode: string, orderId?: string) => Promise<boolean>
+  /** @deprecated Use remove_coupon */
   removeCoupon: () => void
 }
 
@@ -115,10 +145,19 @@ export function CouponProvider({ children }: { children: ReactNode }) {
   return (
     <CouponContext.Provider
       value={{
+        // Nomenclaturas padronizadas (snake_case)
+        available_coupons: availableCoupons,
+        applied_coupon: appliedCoupon,
+        is_loading: isLoading,
+        error,
+        fetch_coupons: fetchCoupons,
+        apply_coupon: applyCoupon,
+        remove_coupon: removeCoupon,
+        
+        // Compatibilidade com versões antigas (camelCase - deprecated)
         availableCoupons,
         appliedCoupon,
         isLoading,
-        error,
         fetchCoupons,
         applyCoupon,
         removeCoupon,

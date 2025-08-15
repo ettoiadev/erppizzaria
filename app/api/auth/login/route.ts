@@ -5,6 +5,13 @@ import { frontendLogger } from '@/lib/frontend-logger'
 import { getSupabaseServerClient } from '@/lib/supabase'
 import { authRateLimiter } from '@/lib/rate-limiter'
 import { appLogger } from '@/lib/logging'
+import { withValidation } from '@/lib/validation-middleware'
+import { withDatabaseErrorHandling } from '@/lib/database-error-handler'
+import { withPresetRateLimit } from '@/lib/rate-limit-middleware'
+import { withPresetSanitization } from '@/lib/sanitization-middleware'
+import { withErrorMonitoring } from '@/lib/error-monitoring'
+import { withApiLogging } from '@/lib/api-logger-middleware'
+import { userLoginSchema } from '@/lib/validation-schemas'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,7 +19,11 @@ export async function GET() {
   return NextResponse.json({ message: "Login endpoint is working", timestamp: new Date().toISOString(), method: "GET" })
 }
 
-export async function POST(request: NextRequest) {
+// Handler principal do login (sem middlewares)
+async function loginHandler(
+  request: NextRequest,
+  validatedData: { email: string; password: string }
+): Promise<NextResponse> {
   try {
     appLogger.info('auth', 'Iniciando processo de login')
     
@@ -45,32 +56,12 @@ export async function POST(request: NextRequest) {
       nodeEnv: requiredEnvVars.NODE_ENV
     })
     
-    // Aplicar rate limiting para segurança
-    const rateLimitResult = await authRateLimiter(request)
-    if (rateLimitResult instanceof NextResponse) {
-      appLogger.warn('auth', 'Rate limit atingido para tentativa de login')
-      return rateLimitResult
-    }
-
-    const body = await request.json()
-    const { email, password } = body
+    const { email, password } = validatedData
 
     appLogger.debug('auth', 'Dados de login recebidos', { 
       email: email ? email.replace(/(.{2}).*(@.*)/, '$1***$2') : 'undefined',
       hasPassword: !!password 
     })
-
-    // Validar dados
-    if (!email || !password) {
-      appLogger.warn('auth', 'Tentativa de login com dados inválidos', { 
-        hasEmail: !!email, 
-        hasPassword: !!password 
-      })
-      return NextResponse.json(
-        { error: "Email e senha são obrigatórios" },
-        { status: 400 }
-      )
-    }
 
     appLogger.info('auth', 'Tentativa de login', { 
       email: email.replace(/(.{2}).*(@.*)/, '$1***$2') 
@@ -216,6 +207,38 @@ export async function POST(request: NextRequest) {
     )
   }
 }
+
+// Aplicar todos os middlewares em camadas
+const enhancedLoginHandler = withErrorMonitoring(
+  withApiLogging(
+    withPresetRateLimit('auth', {}, // Rate limiting específico para autenticação
+      withPresetSanitization('userForm', {}, // Sanitização para formulários de usuário
+        withValidation(userLoginSchema, // Validação usando Zod
+          withDatabaseErrorHandling( // Tratamento de erros de banco
+            loginHandler,
+            {
+              logErrors: true,
+              sanitizeErrors: process.env.NODE_ENV === 'production',
+              customErrorMessages: {
+                unique_violation: 'Erro de autenticação',
+                foreign_key_violation: 'Erro de autenticação'
+              }
+            }
+          )
+        )
+      )
+    ),
+    {
+      logRequests: true,
+      logResponses: true,
+      logErrors: true,
+      sensitiveFields: ['password', 'token']
+    }
+  )
+)
+
+// Exportar a função POST com middlewares
+export const POST = enhancedLoginHandler
 
 export async function OPTIONS(request: NextRequest) {
   appLogger.debug('auth', 'OPTIONS request received')

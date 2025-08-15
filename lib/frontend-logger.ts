@@ -393,7 +393,8 @@ class FrontendLogger {
   private cleanup(): void {
     // Limpar rate limit map
     const now = Date.now()
-    for (const [key, data] of this.rateLimitMap.entries()) {
+    const entries = Array.from(this.rateLimitMap.entries())
+    for (const [key, data] of entries) {
       if (now > data.resetTime) {
         this.rateLimitMap.delete(key)
       }

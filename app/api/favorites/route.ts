@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServerClient } from '@/lib/supabase'
+import { withValidation } from '@/lib/validation-middleware'
+import { withDatabaseErrorHandling } from '@/lib/database-error-handler'
+import { withPresetRateLimit } from '@/lib/rate-limit-middleware'
+import { withPresetSanitization } from '@/lib/sanitization-middleware'
+import { withErrorMonitoring } from '@/lib/error-monitoring'
+import { withApiLogging } from '@/lib/api-logger-middleware'
+import { favoriteSchema } from '@/lib/validation-schemas'
 
-export async function GET(request: NextRequest) {
+// Handler GET para buscar favoritos (sem middlewares)
+async function getFavoritesHandler(request: NextRequest): Promise<NextResponse> {
   try {
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get('userId')
@@ -35,21 +43,20 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ favorites: processedFavorites })
 
   } catch (error: any) {
-    console.error('Erro na API de favoritos:', error)
-    return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
-    )
+    // O middleware de database error handling vai capturar e tratar este erro
+    throw error
   }
 }
 
-export async function POST(request: NextRequest) {
+// Handler POST para adicionar favorito (sem middlewares)
+async function addFavoriteHandler(
+  request: NextRequest,
+  validatedData: any
+): Promise<NextResponse> {
   try {
-    const { userId, productId } = await request.json()
+    const { userId, productId } = validatedData
 
-    if (!userId || !productId) {
-      return NextResponse.json({ error: 'User ID e Product ID são obrigatórios' }, { status: 400 })
-    }
+    // Dados já validados pelos middlewares
 
     const supabase = getSupabaseServerClient()
 
@@ -87,15 +94,13 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error: any) {
-    console.error('Erro ao adicionar favorito:', error)
-    return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
-    )
+    // O middleware de database error handling vai capturar e tratar este erro
+    throw error
   }
 }
 
-export async function DELETE(request: NextRequest) {
+// Handler DELETE para remover favorito (sem middlewares)
+async function removeFavoriteHandler(request: NextRequest): Promise<NextResponse> {
   try {
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get('userId')
@@ -117,10 +122,44 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ success: true, message: 'Produto removido dos favoritos' })
 
   } catch (error: any) {
-    console.error('Erro ao remover favorito:', error)
-    return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
-    )
+    // O middleware de database error handling vai capturar e tratar este erro
+    throw error
   }
 }
+
+// Aplicar middlewares para GET
+export const GET = withErrorMonitoring(
+  withApiLogging(
+    withDatabaseErrorHandling(
+      getFavoritesHandler
+    )
+  )
+)
+
+// Aplicar middlewares para POST
+export const POST = withErrorMonitoring(
+  withApiLogging(
+    withPresetRateLimit('orders')(
+      withPresetSanitization('userForm')(
+        withValidation(favoriteSchema)(
+          withDatabaseErrorHandling(
+            addFavoriteHandler,
+            {
+              uniqueViolation: 'Produto já está nos favoritos',
+              foreignKeyViolation: 'Produto ou usuário não encontrado'
+            }
+          )
+        )
+      )
+    )
+  )
+)
+
+// Aplicar middlewares para DELETE
+export const DELETE = withErrorMonitoring(
+  withApiLogging(
+    withDatabaseErrorHandling(
+      removeFavoriteHandler
+    )
+  )
+)

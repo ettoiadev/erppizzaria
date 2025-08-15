@@ -1,15 +1,19 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getSupabaseServerClient } from '@/lib/supabase'
+import { withValidation } from '@/lib/validation-middleware'
+import { withDatabaseErrorHandling } from '@/lib/database-error-handler'
+import { withPresetRateLimit } from '@/lib/rate-limit-middleware'
+import { withPresetSanitization } from '@/lib/sanitization-middleware'
+import { withErrorMonitoring } from '@/lib/error-monitoring'
+import { withApiLogging } from '@/lib/api-logger-middleware'
+import { driverSchema } from '@/lib/validation-schemas'
 
-export async function GET(request: NextRequest) {
+// Handler GET para buscar entregadores (sem middlewares)
+async function getDriversHandler(request: NextRequest): Promise<NextResponse> {
   try {
-    console.log("[DRIVERS] Iniciando busca de entregadores usando Supabase")
-    
     const supabase = getSupabaseServerClient()
     const { searchParams } = new URL(request.url)
     const status = searchParams.get("status")
-
-    console.log(`[DRIVERS] Executando query Supabase com status: ${status}`)
 
     // Construir query com filtros
     let driversQuery = supabase
@@ -26,12 +30,8 @@ export async function GET(request: NextRequest) {
     const { data: drivers, error } = await driversQuery
     if (error) throw error
 
-    console.log(`[DRIVERS] Encontrados ${drivers?.length || 0} entregadores`)
-
     // Se não há entregadores, criar alguns de exemplo
     if (!drivers || drivers.length === 0) {
-      console.log("[DRIVERS] Criando entregadores de exemplo...")
-      
       const sampleDrivers = [
         { name: 'João Silva', email: 'joao.silva@entregador.com', phone: '11999999001', vehicle_type: 'motorcycle', vehicle_plate: 'ABC-1234', status: 'available', total_deliveries: 45, average_rating: 4.8, average_delivery_time: 25 },
         { name: 'Maria Santos', email: 'maria.santos@entregador.com', phone: '11999999002', vehicle_type: 'bicycle', vehicle_plate: 'BIC-001', status: 'busy', total_deliveries: 32, average_rating: 4.9, average_delivery_time: 18 },
@@ -44,10 +44,8 @@ export async function GET(request: NextRequest) {
         .upsert(sampleDrivers, { onConflict: 'email', ignoreDuplicates: true })
         .select()
 
-      if (insertError) {
-        console.warn("[DRIVERS] Erro ao criar entregadores de exemplo:", insertError)
-      } else {
-        drivers.push(...(newDrivers || []))
+      if (!insertError && newDrivers) {
+        drivers.push(...newDrivers)
       }
     }
 
@@ -65,7 +63,6 @@ export async function GET(request: NextRequest) {
               .limit(5)
 
             if (ordersError) {
-              console.warn(`[DRIVERS] Erro ao buscar pedidos do entregador ${driver.id}:`, ordersError)
               return { ...driver, currentOrders: [] }
             }
 
@@ -74,7 +71,6 @@ export async function GET(request: NextRequest) {
               currentOrders: (activeOrders || []).map((order: any) => order.id)
             }
           } catch (orderError) {
-            console.warn(`[DRIVERS] Erro ao buscar pedidos do entregador ${driver.id}:`, orderError)
             return { ...driver, currentOrders: [] }
           }
         }
@@ -93,8 +89,6 @@ export async function GET(request: NextRequest) {
         ? Math.round(driversList.reduce((sum: number, d: any) => sum + (d.average_delivery_time || 0), 0) / driversList.length)
         : 0
     }
-
-    console.log(`[DRIVERS] Retornando dados reais:`, statistics)
     
     return NextResponse.json({
       drivers: driversWithOrders,
@@ -102,46 +96,21 @@ export async function GET(request: NextRequest) {
     })
 
   } catch (error: any) {
-    console.error("[DRIVERS] Erro ao buscar entregadores:", error)
-    
-    return NextResponse.json({
-      error: "Erro interno do servidor",
-      message: "Erro ao acessar dados dos entregadores",
-      drivers: [],
-      statistics: { total: 0, available: 0, busy: 0, offline: 0, averageDeliveryTime: 0 }
-    }, { status: 500 })
+    // O middleware de database error handling vai capturar e tratar este erro
+    throw error
   }
 }
 
-export async function POST(request: NextRequest) {
+// Handler POST para criar entregador (sem middlewares)
+async function createDriverHandler(
+  request: NextRequest,
+  validatedData: any
+): Promise<NextResponse> {
   try {
-    console.log("[DRIVERS] Iniciando criação de entregador")
-    
     const supabase = getSupabaseServerClient()
-    const data = await request.json()
-    const { name, email, phone, vehicleType, vehiclePlate, currentLocation } = data
+    const { name, email, phone, vehicleType, vehiclePlate, currentLocation } = validatedData
 
-    // Validação de dados obrigatórios
-    if (!name || !email || !phone || !vehicleType) {
-      return NextResponse.json({
-        error: "Campos obrigatórios missing",
-        message: "name, email, phone e vehicleType são obrigatórios"
-      }, { status: 400 })
-    }
-
-    // Verificar se já existe entregador com o mesmo email
-    const { data: existing, error: existingError } = await supabase
-      .from('drivers')
-      .select('id')
-      .eq('email', email.trim().toLowerCase())
-      .single()
-
-    if (existing) {
-      return NextResponse.json({
-        error: "Email já cadastrado",
-        message: "Já existe um entregador com este email"
-      }, { status: 400 })
-    }
+    // Dados já validados pelos middlewares
 
     // Inserir novo entregador
     const { data: newDriver, error: insertError } = await supabase
@@ -164,8 +133,6 @@ export async function POST(request: NextRequest) {
 
     if (insertError) throw insertError
 
-    console.log("[DRIVERS] Entregador criado com sucesso:", newDriver.id)
-
     // Normalizar resposta
     const normalizedDriver = {
       ...newDriver,
@@ -178,12 +145,35 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error: any) {
-    console.error("[DRIVERS] Erro ao criar entregador:", error)
-    
-    return NextResponse.json({
-      error: "Erro interno do servidor",
-      message: "Erro ao criar entregador",
-      details: error.message
-    }, { status: 500 })
+    // O middleware de database error handling vai capturar e tratar este erro
+    throw error
   }
 }
+
+// Aplicar middlewares para GET
+export const GET = withErrorMonitoring(
+  withApiLogging(
+    withDatabaseErrorHandling(
+      getDriversHandler
+    )
+  )
+)
+
+// Aplicar middlewares para POST
+export const POST = withErrorMonitoring(
+  withApiLogging(
+    withPresetRateLimit('orders')(
+      withPresetSanitization('userForm')(
+        withValidation(driverSchema)(
+          withDatabaseErrorHandling(
+            createDriverHandler,
+            {
+              uniqueViolation: 'Email já está em uso por outro entregador',
+              foreignKeyViolation: 'Referência inválida nos dados do entregador'
+            }
+          )
+        )
+      )
+    )
+  )
+)

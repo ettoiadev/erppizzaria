@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServerClient } from '@/lib/supabase'
+import { withValidation } from '@/lib/validation-middleware'
+import { withDatabaseErrorHandling } from '@/lib/database-error-handler'
+import { withPresetRateLimit } from '@/lib/rate-limit-middleware'
+import { withPresetSanitization } from '@/lib/sanitization-middleware'
+import { withErrorMonitoring } from '@/lib/error-monitoring'
+import { withApiLogging } from '@/lib/api-logger-middleware'
+import { couponSchema } from '@/lib/validation-schemas'
 
-export async function GET(request: NextRequest) {
+// Handler GET para buscar cupons (sem middlewares)
+async function getCouponsHandler(request: NextRequest): Promise<NextResponse> {
   try {
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get('userId')
@@ -47,22 +55,16 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ coupons: processedCoupons })
 
-  } catch (error) {
-    console.error('Erro na API de cupons:', error)
-    return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
-    )
+  } catch (error: any) {
+    // O middleware de database error handling vai capturar e tratar este erro
+    throw error
   }
 }
 
-export async function POST(request: NextRequest) {
+// Handler POST para aplicar cupom (sem middlewares)
+async function applyCouponHandler(request: NextRequest, { validatedData }: { validatedData: any }): Promise<NextResponse> {
   try {
-    const { userId, couponCode, orderId } = await request.json()
-
-    if (!userId || !couponCode) {
-      return NextResponse.json({ error: 'User ID e código do cupom são obrigatórios' }, { status: 400 })
-    }
+    const { userId, couponCode, orderId } = validatedData
 
     const supabase = getSupabaseServerClient()
     const { data: coupon, error } = await supabase
@@ -118,11 +120,36 @@ export async function POST(request: NextRequest) {
       }
     })
 
-  } catch (error) {
-    console.error('Erro ao aplicar cupom:', error)
-    return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
-    )
+  } catch (error: any) {
+    // O middleware de database error handling vai capturar e tratar este erro
+    throw error
   }
-} 
+}
+
+// Aplicar middlewares para GET
+export const GET = withErrorMonitoring(
+  withApiLogging(
+    withDatabaseErrorHandling(
+      getCouponsHandler
+    )
+  )
+)
+
+// Aplicar middlewares para POST
+export const POST = withErrorMonitoring(
+  withApiLogging(
+    withPresetRateLimit('orders')(
+      withPresetSanitization('userForm')(
+        withValidation(couponSchema)(
+          withDatabaseErrorHandling(
+            applyCouponHandler,
+            {
+              uniqueViolation: 'Cupom já foi utilizado',
+              foreignKeyViolation: 'Cupom ou usuário não encontrado'
+            }
+          )
+        )
+      )
+    )
+  )
+)

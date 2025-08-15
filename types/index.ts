@@ -48,6 +48,21 @@ export interface CartItem {
   size?: string
   toppings?: string[]
   notes?: string
+  is_half_and_half?: boolean
+  half_and_half?: {
+    first_half: {
+      product_id: string
+      product_name: string
+      toppings?: string[]
+    }
+    second_half: {
+      product_id: string
+      product_name: string
+      toppings?: string[]
+    }
+  }
+  
+  // Compatibilidade com versões antigas (será removido gradualmente)
   isHalfAndHalf?: boolean
   halfAndHalf?: {
     firstHalf: {
@@ -73,8 +88,13 @@ export interface Order {
     phone: string
     address: string
   }
-  paymentMethod: string
-  createdAt: string
+  payment_method: string
+  created_at: string
+  estimated_delivery?: string
+  
+  // Compatibilidade com versões antigas (será removido gradualmente)
+  paymentMethod?: string
+  createdAt?: string
   estimatedDelivery?: string
 }
 

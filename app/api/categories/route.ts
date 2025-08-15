@@ -1,13 +1,18 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { getCategories as getCategoriesSupabase, createCategory, updateCategorySortOrders } from '@/lib/db-supabase'
+import { withValidation } from '@/lib/validation-middleware'
+import { withDatabaseErrorHandling } from '@/lib/database-error-handler'
+import { withPresetRateLimit } from '@/lib/rate-limit-middleware'
+import { withPresetSanitization } from '@/lib/sanitization-middleware'
+import { withErrorMonitoring } from '@/lib/error-monitoring'
+import { withApiLogging } from '@/lib/api-logger-middleware'
+import { categorySchema } from '@/lib/validation-schemas'
 
-// GET handler para buscar todas as categorias
-export async function GET() {
+// Handler GET para buscar categorias (sem middlewares)
+async function getCategoriesHandler(request: NextRequest): Promise<NextResponse> {
   try {
     // Buscar categorias usando Supabase
     const categories = await getCategoriesSupabase(true) // true = incluir inativas também
-
-    console.log('🔍 Resultado da query - total de linhas:', categories?.length || 0)
     
     // Normalizar os dados para garantir consistência
     const normalizedCategories = (categories || []).map(category => ({
@@ -19,41 +24,25 @@ export async function GET() {
       active: category.active !== false
     }))
 
-    console.log('🔍 Categorias normalizadas - total:', normalizedCategories.length)
-    normalizedCategories.forEach(cat => {
-      console.log(`🔍 Normalizada: ${cat.name}, active: ${cat.active}`)
-    })
-
     return NextResponse.json({ categories: normalizedCategories })
-  } catch (error) {
-    console.error('Erro ao buscar categorias:', error)
-    return NextResponse.json(
-      { error: 'Erro interno ao buscar categorias' },
-      { status: 500 }
-    )
+  } catch (error: any) {
+    // O middleware de database error handling vai capturar e tratar este erro
+    throw error
   }
 }
 
-// POST handler para criar uma nova categoria
-export async function POST(request: Request) {
+// Handler POST para criar categoria (sem middlewares)
+async function createCategoryHandler(
+  request: NextRequest,
+  validatedData: any
+): Promise<NextResponse> {
   try {
-    const body = await request.json()
-    const { name, description, image, sort_order } = body
-
-    // Validar dados
-    if (!name?.trim()) {
-      return NextResponse.json(
-        { error: "Nome da categoria é obrigatório" },
-        { status: 400 }
-      )
-    }
-
-    // Criar categoria via Supabase
+    // Criar categoria via Supabase (dados já validados)
     const insertedCategory = await createCategory({
-      name: name.trim(),
-      description: description || null,
-      image: image || null,
-      sort_order: sort_order || 0,
+      name: validatedData.name.trim(),
+      description: validatedData.description || null,
+      image: validatedData.image || null,
+      sort_order: validatedData.sort_order || 0,
     })
     
     // Normalizar resposta para manter consistência
@@ -67,37 +56,112 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json(normalizedCategory)
-  } catch (error) {
-    console.error('Erro ao criar categoria:', error)
-    return NextResponse.json(
-      { error: 'Erro interno ao criar categoria' },
-      { status: 500 }
-    )
+  } catch (error: any) {
+    // O middleware de database error handling vai capturar e tratar este erro
+    throw error
   }
 }
 
-// PUT handler para atualizar ordem das categorias
-export async function PUT(request: Request) {
+// Schema para atualização de ordem das categorias
+import { z } from 'zod'
+
+const categoryOrdersSchema = z.object({
+  categoryOrders: z.array(z.object({
+    id: z.string().uuid(),
+    sort_order: z.number().min(0)
+  }))
+})
+
+// Handler PUT para atualizar ordem das categorias (sem middlewares)
+async function updateCategoryOrdersHandler(
+  request: NextRequest,
+  validatedData: any
+): Promise<NextResponse> {
   try {
-    const body = await request.json()
-    const { categoryOrders } = body
-
-    if (!Array.isArray(categoryOrders)) {
-      return NextResponse.json(
-        { error: 'categoryOrders deve ser um array' },
-        { status: 400 }
-      )
-    }
-
-    // Atualizar ordens via Supabase
-    await updateCategorySortOrders(categoryOrders)
+    // Atualizar ordens via Supabase (dados já validados)
+    await updateCategorySortOrders(validatedData.categoryOrders)
 
     return NextResponse.json({ message: 'Ordem das categorias atualizada com sucesso' })
-  } catch (error) {
-    console.error('Erro ao atualizar ordem das categorias:', error)
-    return NextResponse.json(
-      { error: 'Erro interno ao atualizar ordem das categorias' },
-      { status: 500 }
-    )
+  } catch (error: any) {
+    // O middleware de database error handling vai capturar e tratar este erro
+    throw error
   }
 }
+
+// Aplicar middlewares para GET (apenas logging e monitoramento)
+const enhancedGetHandler = withErrorMonitoring(
+  withApiLogging(
+    withDatabaseErrorHandling(
+      getCategoriesHandler,
+      {
+        logErrors: true,
+        sanitizeErrors: process.env.NODE_ENV === 'production'
+      }
+    ),
+    {
+      logRequests: true,
+      logResponses: false, // Não logar resposta para GET (pode ser muito grande)
+      logErrors: true
+    }
+  )
+)
+
+// Aplicar todos os middlewares para POST
+const enhancedPostHandler = withErrorMonitoring(
+  withApiLogging(
+    withPresetRateLimit('general', {}, // Rate limiting geral
+      withPresetSanitization('adminContent', {}, // Sanitização para conteúdo administrativo
+        withValidation(categorySchema, // Validação usando Zod
+          withDatabaseErrorHandling( // Tratamento de erros de banco
+            createCategoryHandler,
+            {
+              logErrors: true,
+              sanitizeErrors: process.env.NODE_ENV === 'production',
+              customErrorMessages: {
+                unique_violation: 'Categoria com este nome já existe',
+                foreign_key_violation: 'Dados de referência inválidos'
+              }
+            }
+          )
+        )
+      )
+    ),
+    {
+      logRequests: true,
+      logResponses: true,
+      logErrors: true
+    }
+  )
+)
+
+// Aplicar todos os middlewares para PUT
+const enhancedPutHandler = withErrorMonitoring(
+  withApiLogging(
+    withPresetRateLimit('general', {}, // Rate limiting geral
+      withPresetSanitization('adminContent', {}, // Sanitização para conteúdo administrativo
+        withValidation(categoryOrdersSchema, // Validação usando Zod
+          withDatabaseErrorHandling( // Tratamento de erros de banco
+            updateCategoryOrdersHandler,
+            {
+              logErrors: true,
+              sanitizeErrors: process.env.NODE_ENV === 'production',
+              customErrorMessages: {
+                foreign_key_violation: 'Categoria não encontrada'
+              }
+            }
+          )
+        )
+      )
+    ),
+    {
+      logRequests: true,
+      logResponses: true,
+      logErrors: true
+    }
+  )
+)
+
+// Exportar as funções com middlewares
+export const GET = enhancedGetHandler
+export const POST = enhancedPostHandler
+export const PUT = enhancedPutHandler

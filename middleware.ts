@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { appLogger } from './lib/logging'
 
 // Configuração de segurança
 const SECURITY_HEADERS = {
@@ -18,23 +17,8 @@ const SECURITY_HEADERS = {
 export function middleware(request: NextRequest) {
   const { pathname, protocol, host } = request.nextUrl
   
-  // Log da requisição para auditoria
-  appLogger.info('api', 'Requisição interceptada', {
-    pathname,
-    method: request.method,
-    userAgent: request.headers.get('user-agent'),
-    ip: request.ip || request.headers.get('x-forwarded-for'),
-    protocol
-  })
-
   // 1. Enforçar HTTPS em produção
   if (process.env.NODE_ENV === 'production' && protocol !== 'https:') {
-    appLogger.warn('api', 'Tentativa de acesso HTTP em produção', {
-      pathname,
-      protocol,
-      host
-    })
-    
     const httpsUrl = new URL(request.url)
     httpsUrl.protocol = 'https:'
     return NextResponse.redirect(httpsUrl, 301)
@@ -45,17 +29,7 @@ export function middleware(request: NextRequest) {
   const isApiRoute = pathname.startsWith('/api')
   const isAuthRoute = pathname.startsWith('/api/auth')
   
-  // 3. Aplicar rate limiting adicional para rotas sensíveis
-  if (isAuthRoute || pathname.includes('/api/payments')) {
-    const ip = request.ip || request.headers.get('x-forwarded-for') || 'unknown'
-    appLogger.info('api', 'Acesso a rota sensível', {
-      pathname,
-      ip,
-      timestamp: new Date().toISOString()
-    })
-  }
-
-  // 4. Criar response com headers de segurança
+  // 3. Criar response com headers de segurança
   const response = NextResponse.next()
   
   // Aplicar headers de segurança
@@ -85,13 +59,13 @@ export function middleware(request: NextRequest) {
     }
   }
 
-  // 5. Headers específicos para rotas de API
+  // 4. Headers específicos para rotas de API
   if (isApiRoute) {
     response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate')
     response.headers.set('Pragma', 'no-cache')
   }
 
-  // 6. Headers específicos para rotas admin
+  // 5. Headers específicos para rotas admin
   if (isAdminRoute) {
     response.headers.set('X-Robots-Tag', 'noindex, nofollow')
   }

@@ -1,187 +1,145 @@
-import { NextRequest, NextResponse } from "next/server"
-import { listOrders, createOrder as createOrderSupabase } from '@/lib/db-supabase'
-import { ordersRateLimiter } from '@/lib/rate-limiter'
-import { emitRealtimeEvent, EVENT_ORDER_CREATED, REALTIME_CHANNEL } from '@/lib/realtime'
-import { withApiLogging, createApiLogger } from '@/lib/api-logger-middleware'
-import { frontendLogger } from '@/lib/frontend-logger'
+import { NextRequest, NextResponse } from 'next/server'
+import { getOrders, createOrder } from '@/lib/db-supabase'
+import { withValidation } from '@/lib/validation-middleware'
+import { withDatabaseErrorHandling } from '@/lib/database-error-handler'
+import { withPresetRateLimit } from '@/lib/rate-limit-middleware'
+import { withPresetSanitization } from '@/lib/sanitization-middleware'
+import { withErrorMonitoring } from '@/lib/error-monitoring'
+import { withApiLogging } from '@/lib/api-logger-middleware'
+import { orderSchema } from '@/lib/validation-schemas'
 
 // Force dynamic rendering for this route
 export const dynamic = 'force-dynamic'
 
-async function getOrdersHandler(request: NextRequest) {
-  const logger = createApiLogger(request)
-  
-  const { searchParams } = new URL(request.url)
-  const status = searchParams.get("status")
-  const userId = searchParams.get("userId")
-  const limit = searchParams.get("limit")
-  const offset = searchParams.get("offset")
-  
-  const queryParams = {
-    status,
-    userId,
-    limit: limit ? parseInt(limit) : null,
-    offset: offset ? parseInt(offset) : null,
-  }
-  
-  frontendLogger.info('Buscando pedidos', 'api', {
-    filters: {
-      status,
-      userId: userId ? `user_${userId.substring(0, 8)}***` : null,
-      limit,
-      offset
-    }
-  })
-  
-  logger.logQuery('SELECT orders with filters', queryParams)
-  const { orders, statistics } = await listOrders(queryParams)
-  
-  frontendLogger.info('Pedidos encontrados', 'api', {
-    count: orders.length,
-    total: statistics.total,
-    hasFilters: !!(status || userId)
-  })
-  
-  return NextResponse.json({ 
-    orders, 
-    statistics, 
-    pagination: { 
-      total: statistics.total, 
-      limit: limit ? parseInt(limit) : null, 
-      offset: offset ? parseInt(offset) : 0 
-    } 
-  })
-}
-
-export const GET = withApiLogging(getOrdersHandler, {
-  logRequests: true,
-  logResponses: false, // Não logar response completo para listas
-  logErrors: true
-})
-
-async function createOrderHandler(request: NextRequest) {
-  const logger = createApiLogger(request)
-  
-  // Aplicar rate limiting mais restritivo para criação de pedidos
-  const rateLimitResult = ordersRateLimiter(request)
-  // Somente interromper o fluxo se o rate limiter BLOQUEAR (status 429)
-  if (rateLimitResult && (rateLimitResult as NextResponse).status === 429) {
-    frontendLogger.warn('Rate limit atingido para criação de pedido', 'api')
-    return rateLimitResult
-  }
-
-  const body = await request.json()
-  
-  // Mapear campos alternativos vindos do frontend
-  const user_id = body.user_id ?? body.customerId ?? body.userId
-  const customer_name = body.customer_name ?? body.name ?? body.customer_name_full
-  const customer_phone = body.customer_phone ?? body.delivery_phone ?? body.phone
-  const customer_address = body.customer_address ?? body.delivery_address ?? body.address
-  const payment_method = body.payment_method ?? body.paymentMethod
-  const total = body.total
-  const subtotal = body.subtotal ?? 0
-  const delivery_fee = body.delivery_fee ?? 0
-  const discount = body.discount ?? 0
-  const status = body.status ?? 'RECEIVED'
-  const payment_status = body.payment_status ?? 'PENDING'
-  const delivery_type = body.delivery_type ?? 'delivery'
-  const notes = body.notes ?? body.delivery_instructions ?? null
-  const estimated_delivery_time = body.estimated_delivery_time ?? null
-  const items = Array.isArray(body.items) ? body.items : []
-  
-  frontendLogger.info('Tentativa de criação de pedido', 'api', {
-    userId: user_id ? `user_${user_id.substring(0, 8)}***` : null,
-    customerName: customer_name?.substring(0, 10) + '***',
-    total,
-    paymentMethod: payment_method,
-    itemsCount: items.length,
-    deliveryType: delivery_type
-  })
-
-  // Validar dados obrigatórios
-  if (!user_id || !customer_name || !customer_phone || !customer_address || !total || !payment_method) {
-    frontendLogger.warn('Dados obrigatórios ausentes na criação de pedido', 'api', {
-      hasUserId: !!user_id,
-      hasCustomerName: !!customer_name,
-      hasCustomerPhone: !!customer_phone,
-      hasCustomerAddress: !!customer_address,
-      hasTotal: !!total,
-      hasPaymentMethod: !!payment_method
-    })
-    return NextResponse.json(
-      { error: "Dados obrigatórios não fornecidos" },
-      { status: 400 }
-    )
-  }
-
-  frontendLogger.debug('Processando itens do pedido', 'api', { itemsCount: items.length })
-  
-  const itemsPayload = (items || []).map((item: any) => ({
-    product_id: item.product_id ?? item.id ?? null,
-    name: item.name ?? 'Produto',
-    quantity: item.quantity ?? 1,
-    unit_price: item.unit_price ?? item.price ?? null,
-    total_price: item.total_price ?? null,
-    size: item.size ?? null,
-    toppings: item.toppings ?? null,
-    special_instructions: item.special_instructions ?? item.notes ?? null,
-    half_and_half: item.half_and_half ?? item.halfAndHalf ?? null,
-  }))
-  
-  frontendLogger.debug('Criando pedido no banco de dados', 'api')
-  logger.logQuery('INSERT order', {
-    userId: user_id,
-    total,
-    itemsCount: itemsPayload.length
-  })
-  
-  const order = await createOrderSupabase({
-    user_id,
-    customer_name,
-    customer_phone,
-    customer_address,
-    total,
-    subtotal,
-    delivery_fee,
-    discount,
-    status,
-    payment_method,
-    payment_status,
-    notes,
-    estimated_delivery_time,
-    items: itemsPayload,
-  })
-
-  frontendLogger.info('Pedido criado com sucesso', 'api', {
-    orderId: order.id,
-    total,
-    paymentMethod: payment_method,
-    itemsCount: itemsPayload.length
-  })
-  
-  logger.logPayment(order.id, total, payment_method)
-
-  // Emitir evento Realtime para novos pedidos
+// Handler GET para listar pedidos (sem middlewares)
+async function getOrdersHandler(request: NextRequest): Promise<NextResponse> {
   try {
-    frontendLogger.debug('Emitindo evento realtime para novo pedido', 'api')
-    await emitRealtimeEvent(EVENT_ORDER_CREATED, { orderId: order.id, order })
-    frontendLogger.debug('Evento realtime emitido com sucesso', 'api')
-  } catch (e) {
-    frontendLogger.logError('Falha ao emitir evento Realtime (não crítico)', {
-        orderId: order.id,
-        eventType: EVENT_ORDER_CREATED
-      }, e as Error, 'api')
-  }
+    const { searchParams } = new URL(request.url)
+    const status = searchParams.get('status')
+    const userId = searchParams.get('userId')
+    const limit = parseInt(searchParams.get('limit') || '50')
+    const offset = parseInt(searchParams.get('offset') || '0')
 
-  return NextResponse.json({
-    id: order.id,
-    message: "Pedido criado com sucesso",
-    order: { ...order, items }
-  })
+    const orders = await getOrders({ status, userId, limit, offset })
+    return NextResponse.json(orders)
+  } catch (error: any) {
+    // O middleware de database error handling vai capturar e tratar este erro
+    throw error
+  }
 }
 
-export const POST = withApiLogging(createOrderHandler, {
-  logRequests: true,
-  logResponses: true,
-  logErrors: true
-})
+// Handler POST para criar pedido (sem middlewares)
+async function createOrderHandler(
+  request: NextRequest,
+  validatedData: any
+): Promise<NextResponse> {
+  try {
+  
+    // Mapear campos alternativos vindos do frontend (dados já validados)
+    const user_id = validatedData.user_id ?? validatedData.customerId ?? validatedData.userId
+    const customer_name = validatedData.customer_name ?? validatedData.name ?? validatedData.customer_name_full
+    const customer_phone = validatedData.customer_phone ?? validatedData.delivery_phone ?? validatedData.phone
+    const customer_address = validatedData.customer_address ?? validatedData.delivery_address ?? validatedData.address
+    const payment_method = validatedData.payment_method ?? validatedData.paymentMethod
+    const total = validatedData.total
+    const subtotal = validatedData.subtotal ?? 0
+    const delivery_fee = validatedData.delivery_fee ?? 0
+    const discount = validatedData.discount ?? 0
+    const status = validatedData.status ?? 'RECEIVED'
+    const payment_status = validatedData.payment_status ?? 'PENDING'
+    const delivery_type = validatedData.delivery_type ?? 'delivery'
+    const notes = validatedData.notes ?? validatedData.delivery_instructions ?? null
+    const estimated_delivery_time = validatedData.estimated_delivery_time ?? null
+    const items = Array.isArray(validatedData.items) ? validatedData.items : []
+  
+    // Processar itens do pedido (dados já validados)
+    const itemsPayload = (items || []).map((item: any) => ({
+      product_id: item.product_id ?? item.id ?? null,
+      name: item.name ?? 'Produto',
+      quantity: item.quantity ?? 1,
+      unit_price: item.unit_price ?? item.price ?? null,
+      total_price: item.total_price ?? null,
+      size: item.size ?? null,
+      toppings: item.toppings ?? null,
+      special_instructions: item.special_instructions ?? item.notes ?? null,
+      half_and_half: item.half_and_half ?? item.halfAndHalf ?? null,
+    }))
+  
+    const order = await createOrder({
+      user_id,
+      customer_name,
+      customer_phone,
+      customer_address,
+      total,
+      subtotal,
+      delivery_fee,
+      discount,
+      status,
+      payment_method,
+      payment_status,
+      notes,
+      estimated_delivery_time,
+      items: itemsPayload,
+    })
+
+    return NextResponse.json({
+      id: order.id,
+      message: "Pedido criado com sucesso",
+      order: { ...order, items }
+    })
+  } catch (error) {
+    // O middleware de database error handling vai capturar e tratar este erro
+    throw error
+  }
+}
+
+// Aplicar middlewares para GET (apenas logging e monitoramento)
+const enhancedGetHandler = withErrorMonitoring(
+  withApiLogging(
+    withDatabaseErrorHandling(
+      getOrdersHandler,
+      {
+        logErrors: true,
+        sanitizeErrors: process.env.NODE_ENV === 'production'
+      }
+    ),
+    {
+      logRequests: true,
+      logResponses: false, // Não logar resposta para GET (pode ser muito grande)
+      logErrors: true
+    }
+  )
+)
+
+// Aplicar todos os middlewares para POST
+const enhancedPostHandler = withErrorMonitoring(
+  withApiLogging(
+    withPresetRateLimit('orders', {}, // Rate limiting específico para pedidos
+      withPresetSanitization('userForm', {}, // Sanitização para formulários de usuário
+        withValidation(orderSchema, // Validação usando Zod
+          withDatabaseErrorHandling( // Tratamento de erros de banco
+            createOrderHandler,
+            {
+              logErrors: true,
+              sanitizeErrors: process.env.NODE_ENV === 'production',
+              customErrorMessages: {
+                unique_violation: 'Pedido duplicado',
+                foreign_key_violation: 'Dados de referência inválidos'
+              }
+            }
+          )
+        )
+      )
+    ),
+    {
+      logRequests: true,
+      logResponses: true,
+      logErrors: true,
+      sensitiveFields: ['customer_phone', 'customer_address']
+    }
+  )
+)
+
+// Exportar as funções com middlewares
+export const GET = enhancedGetHandler
+export const POST = enhancedPostHandler

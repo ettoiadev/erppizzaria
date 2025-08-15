@@ -18,7 +18,8 @@ const rateLimitCache = new Map<string, RateLimitEntry>()
 // Limpar cache expirado periodicamente
 setInterval(() => {
   const now = Date.now()
-  for (const [key, entry] of rateLimitCache.entries()) {
+  const entries = Array.from(rateLimitCache.entries())
+  for (const [key, entry] of entries) {
     if (now > entry.resetTime) {
       rateLimitCache.delete(key)
     }
@@ -149,8 +150,9 @@ export function getRateLimitStats() {
   }
   
   const now = Date.now()
+  const entries = Array.from(rateLimitCache.entries())
   
-  for (const [key, entry] of rateLimitCache.entries()) {
+  for (const [key, entry] of entries) {
     if (now <= entry.resetTime) {
       stats.activeLimits++
       if (entry.count > 100) { // Considerar como bloqueado se > 100 requests
@@ -166,7 +168,8 @@ export function getRateLimitStats() {
  * Função para limpar rate limit de um IP específico
  */
 export function clearRateLimit(ip: string) {
-  for (const [key] of rateLimitCache.entries()) {
+  const entries = Array.from(rateLimitCache.entries())
+  for (const [key] of entries) {
     if (key.startsWith(ip)) {
       rateLimitCache.delete(key)
     }
@@ -178,8 +181,9 @@ export function clearRateLimit(ip: string) {
  */
 export function getRateLimitInfo(ip: string) {
   const entries = []
+  const cacheEntries = Array.from(rateLimitCache.entries())
   
-  for (const [key, entry] of rateLimitCache.entries()) {
+  for (const [key, entry] of cacheEntries) {
     if (key.startsWith(ip)) {
       entries.push({
         key,

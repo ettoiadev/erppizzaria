@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServerClient } from '@/lib/supabase'
 import { verifyToken } from '@/lib/auth'
+import { withValidation } from '@/lib/validation-middleware'
+import { withDatabaseErrorHandling } from '@/lib/database-error-handler'
+import { withPresetRateLimit } from '@/lib/rate-limit-middleware'
+import { withPresetSanitization } from '@/lib/sanitization-middleware'
+import { withErrorMonitoring } from '@/lib/error-monitoring'
+import { withApiLogging } from '@/lib/api-logger-middleware'
+import { notificationSchema } from '@/lib/validation-schemas'
 
-// GET - Buscar notificações do usuário
-export async function GET(request: NextRequest) {
+// Handler GET para buscar notificações do usuário (sem middlewares)
+async function getNotificationsHandler(request: NextRequest): Promise<NextResponse> {
   try {
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get('userId')
@@ -40,18 +47,17 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ notifications })
 
   } catch (error: any) {
-    console.error('Erro ao buscar notificações:', error)
-    return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
-    )
+    // O middleware de database error handling vai capturar e tratar este erro
+    throw error
   }
 }
 
-// POST - Criar nova notificação
-export async function POST(request: NextRequest) {
+// Handler POST para criar nova notificação (sem middlewares)
+async function createNotificationHandler(
+  request: NextRequest,
+  validatedData: any
+): Promise<NextResponse> {
   try {
-    const body = await request.json()
     const {
       type,
       title,
@@ -60,15 +66,9 @@ export async function POST(request: NextRequest) {
       data = null,
       userId,
       room = null,
-    } = body
+    } = validatedData
 
-    // Validar campos obrigatórios
-    if (!type || !title || !message) {
-      return NextResponse.json(
-        { error: 'Tipo, título e mensagem são obrigatórios' },
-        { status: 400 }
-      )
-    }
+    // Dados já validados pelos middlewares
 
     const supabase = getSupabaseServerClient()
 
@@ -103,19 +103,18 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error: any) {
-    console.error('Erro ao criar notificação:', error)
-    return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
-    )
+    // O middleware de database error handling vai capturar e tratar este erro
+    throw error
   }
 }
 
-// DELETE - Limpar notificações antigas
-export async function DELETE(request: NextRequest) {
+// Handler DELETE para limpar notificações antigas (sem middlewares)
+async function deleteNotificationsHandler(
+  request: NextRequest,
+  validatedData: any
+): Promise<NextResponse> {
   try {
-    const body = await request.json()
-    const { daysOld = 30 } = body
+    const { daysOld = 30 } = validatedData
 
     const supabase = getSupabaseServerClient()
 
@@ -140,10 +139,48 @@ export async function DELETE(request: NextRequest) {
     })
 
   } catch (error: any) {
-    console.error('Erro ao limpar notificações:', error)
-    return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
-    )
+    // O middleware de database error handling vai capturar e tratar este erro
+    throw error
   }
-} 
+}
+
+// Aplicar middlewares para GET
+export const GET = withErrorMonitoring(
+  withApiLogging(
+    withDatabaseErrorHandling(
+      getNotificationsHandler
+    )
+  )
+)
+
+// Aplicar middlewares para POST
+export const POST = withErrorMonitoring(
+  withApiLogging(
+    withPresetRateLimit('orders')(
+      withPresetSanitization('userForm')(
+        withValidation(notificationSchema)(
+          withDatabaseErrorHandling(
+            createNotificationHandler,
+            {
+              uniqueViolation: 'Notificação duplicada',
+              foreignKeyViolation: 'Referência inválida nos dados da notificação'
+            }
+          )
+        )
+      )
+    )
+  )
+)
+
+// Aplicar middlewares para DELETE
+export const DELETE = withErrorMonitoring(
+  withApiLogging(
+    withPresetRateLimit('orders')(
+      withPresetSanitization('userForm')(
+        withDatabaseErrorHandling(
+          deleteNotificationsHandler
+        )
+      )
+    )
+  )
+)
