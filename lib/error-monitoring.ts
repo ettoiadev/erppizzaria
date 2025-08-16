@@ -194,7 +194,7 @@ export class ErrorMonitoring {
       timestamp: Date.now(),
       type: error.constructor.name,
       message: error.message,
-      stack: error.stack,
+      stack: error.stack || (error as any).stack,
       url: context.url,
       method: context.method,
       userAgent: context.userAgent,

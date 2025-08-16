@@ -136,35 +136,34 @@ describe('/api/orders', () => {
             status: 'pending',
             total: 45.80,
             created_at: '2024-01-15T10:00:00Z'
+          }
+        ]
 
+        mockSupabaseClient.from().select().eq().order().limit().range.mockResolvedValue({
+          data: mockOrders,
+          error: null
+        })
+
+        const { req } = createMocks({
+          method: 'GET',
+          query: {
+            userId: 'user-123',
+            limit: '10',
+            offset: '0'
+          }
+        })
+
+        const response = await GET(req)
+        const data = await response.json()
+
+        expect(response.status).toBe(200)
+        expect(data.success).toBe(true)
+        expect(data.data).toHaveLength(1)
+        expect(data.data[0].user_id).toBe('user-123')
       } catch (error) {
         console.error('Error in test "deve filtrar pedidos por usuário":', error)
         throw error
       }
-            }
-      ]
-
-      mockSupabaseClient.from().select().eq().order().limit().range.mockResolvedValue({
-        data: mockOrders,
-        error: null
-      })
-
-      const { req } = createMocks({
-        method: 'GET',
-        query: {
-          userId: 'user-123',
-          limit: '10',
-          offset: '0'
-        }
-      })
-
-      const response = await GET(req)
-      const data = await response.json()
-
-      expect(response.status).toBe(200)
-      expect(data.success).toBe(true)
-      expect(data.data).toHaveLength(1)
-      expect(data.data[0].user_id).toBe('user-123')
     })
   })
 
@@ -183,50 +182,49 @@ describe('/api/orders', () => {
               productId: 2,
               quantity: 1,
               price: 29.90
+            }
+          ],
+          total: 81.70,
+          deliveryAddress: {
+            street: 'Rua das Flores, 123',
+            city: 'São Paulo',
+            zipCode: '01234-567'
+          },
+          paymentMethod: 'credit_card'
+        }
 
+        const createdOrder = {
+          id: 3,
+          user_id: newOrder.userId,
+          status: 'pending',
+          total: newOrder.total,
+          delivery_address: newOrder.deliveryAddress,
+          payment_method: newOrder.paymentMethod,
+          created_at: new Date().toISOString()
+        }
+
+        mockSupabaseClient.from().insert().select().single.mockResolvedValue({
+          data: createdOrder,
+          error: null
+        })
+
+        const { req } = createMocks({
+          method: 'POST',
+          body: newOrder
+        })
+
+        const response = await POST(req)
+        const data = await response.json()
+
+        expect(response.status).toBe(201)
+        expect(data.success).toBe(true)
+        expect(data.data.id).toBe(3)
+        expect(data.data.status).toBe('pending')
+        expect(data.data.total).toBe(81.70)
       } catch (error) {
         console.error('Error in test "deve criar um novo pedido com dados válidos":', error)
         throw error
       }
-              }
-        ],
-        total: 81.70,
-        deliveryAddress: {
-          street: 'Rua das Flores, 123',
-          city: 'São Paulo',
-          zipCode: '01234-567'
-        },
-        paymentMethod: 'credit_card'
-      }
-
-      const createdOrder = {
-        id: 3,
-        user_id: newOrder.userId,
-        status: 'pending',
-        total: newOrder.total,
-        delivery_address: newOrder.deliveryAddress,
-        payment_method: newOrder.paymentMethod,
-        created_at: new Date().toISOString()
-      }
-
-      mockSupabaseClient.from().insert().select().single.mockResolvedValue({
-        data: createdOrder,
-        error: null
-      })
-
-      const { req } = createMocks({
-        method: 'POST',
-        body: newOrder
-      })
-
-      const response = await POST(req)
-      const data = await response.json()
-
-      expect(response.status).toBe(201)
-      expect(data.success).toBe(true)
-      expect(data.data.id).toBe(3)
-      expect(data.data.status).toBe('pending')
-      expect(data.data.total).toBe(81.70)
     })
 
     it('deve retornar erro com dados inválidos', async () => {

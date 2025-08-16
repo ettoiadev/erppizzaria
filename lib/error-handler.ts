@@ -22,6 +22,8 @@ export interface AppError {
   originalError?: Error
   timestamp: string
   requestId?: string
+  stack?: string
+  name: string
 }
 
 // Mensagens amigáveis para usuários

@@ -14,6 +14,29 @@ export type { UserProfile } from './db/users'
 export type { Product } from './db/products'
 export type { OrderItemInput } from './db/orders'
 
+// Re-exportar funções específicas que estão sendo importadas
+export { 
+  createAddress,
+  getAddressById,
+  updateAddress,
+  deleteAddress,
+  saveCustomerAddress
+} from './db/addresses'
+
+export {
+  getAdminSettings,
+  updateAdminSetting
+} from './db/settings'
+
+export {
+  getUserByEmail
+} from './db/users'
+
+export {
+  updateOrderStatus,
+  updatePaymentStatus
+} from './db/orders'
+
 // Funções movidas para módulos específicos:
 // - Usuários: '@/lib/db/users'
 // - Produtos: '@/lib/db/products'  

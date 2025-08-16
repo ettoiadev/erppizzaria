@@ -63,10 +63,10 @@ export {
 
 // Middlewares pré-configurados para uso comum
 import { withRateLimit, RATE_LIMIT_CONFIGS } from './rate-limit-middleware'
-import { withSanitization } from './sanitization-middleware'
+import { withSanitization, SANITIZATION_PRESETS } from './sanitization-middleware'
 
 export const withPresetRateLimit = (handler: any) => 
   withRateLimit(RATE_LIMIT_CONFIGS.public, handler)
 
 export const withPresetSanitization = (handler: any) => 
-  withPresetSanitization('userForm', {}, handler)
+  withSanitization(SANITIZATION_PRESETS.userForm, handler)
