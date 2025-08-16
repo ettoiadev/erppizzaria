@@ -187,7 +187,73 @@ export const couponSchema = z.object({
     .transform(val => val.trim().toUpperCase().replace(/\s+/g, ''))
     .refine(val => val.length >= 3, 'Código deve ter pelo menos 3 caracteres')
     .refine(val => val.length <= 20, 'Código deve ter no máximo 20 caracteres')
-    .refine(val => /^[A-Z0-9]+$/.test(val), 'Código deve conter apenas letras maiúsculas e números')
+    .refine(val => /^[A-Z0-9]+$/.test(val), 'Código deve conter apenas letras maiúsculas e números'),
+  
+  orderId: z.string().optional()
+})
+
+// Schema para entregador
+export const driverSchema = z.object({
+  name: z.string()
+    .min(2, 'Nome deve ter pelo menos 2 caracteres')
+    .max(100, 'Nome muito longo')
+    .transform(val => val.trim()),
+  
+  email: z.string()
+    .email('Email inválido')
+    .min(1, 'Email é obrigatório')
+    .max(255, 'Email muito longo')
+    .transform(val => val.toLowerCase().trim()),
+  
+  phone: z.string()
+    .min(10, 'Telefone deve ter pelo menos 10 dígitos')
+    .max(15, 'Telefone muito longo')
+    .transform(val => val.replace(/\D/g, ''))
+    .refine(val => val.length >= 10, 'Telefone deve ter pelo menos 10 dígitos'),
+  
+  vehicleType: z.enum(['motorcycle', 'bicycle', 'scooter', 'car'])
+    .default('motorcycle'),
+  
+  vehiclePlate: z.string()
+    .max(10, 'Placa muito longa')
+    .optional()
+    .transform(val => val?.trim().toUpperCase()),
+  
+  currentLocation: z.object({
+    lat: z.number(),
+    lng: z.number()
+  }).optional()
+})
+
+// Schema para favoritos
+export const favoriteSchema = z.object({
+  userId: z.string()
+    .min(1, 'ID do usuário é obrigatório'),
+  
+  productId: z.number()
+    .int('ID do produto deve ser um número inteiro')
+    .positive('ID do produto deve ser maior que 0')
+})
+
+// Schema para notificações
+export const notificationSchema = z.object({
+  userId: z.string()
+    .min(1, 'ID do usuário é obrigatório'),
+  
+  title: z.string()
+    .min(1, 'Título é obrigatório')
+    .max(100, 'Título muito longo')
+    .transform(val => val.trim()),
+  
+  message: z.string()
+    .min(1, 'Mensagem é obrigatória')
+    .max(500, 'Mensagem muito longa')
+    .transform(val => val.trim()),
+  
+  type: z.enum(['order', 'promotion', 'system', 'delivery'])
+    .default('system'),
+  
+  data: z.record(z.any()).optional()
 })
 
 // Schema para atualização de perfil
@@ -268,6 +334,9 @@ export type Product = z.infer<typeof productSchema>
 export type Category = z.infer<typeof categorySchema>
 export type Order = z.infer<typeof orderSchema>
 export type Coupon = z.infer<typeof couponSchema>
+export type Driver = z.infer<typeof driverSchema>
+export type Favorite = z.infer<typeof favoriteSchema>
+export type Notification = z.infer<typeof notificationSchema>
 export type ProfileUpdate = z.infer<typeof profileUpdateSchema>
 export type PasswordChange = z.infer<typeof passwordChangeSchema>
 export type PaymentSettings = z.infer<typeof paymentSettingsSchema>

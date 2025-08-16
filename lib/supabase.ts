@@ -77,6 +77,9 @@ supabaseLogger.logConnection(true, supabaseUrl)
 // Instrumentar cliente para logging automático
 export const supabaseServer: SupabaseClient = instrumentSupabaseClient(supabaseClient)
 
+// Exportar também como 'supabase' para compatibilidade
+export const supabase: SupabaseClient = supabaseServer
+
 export function getSupabaseServerClient(): SupabaseClient {
   appLogger.debug('supabase', 'Cliente Supabase solicitado')
   return supabaseServer

@@ -156,14 +156,16 @@ export const GET = withErrorMonitoring(
 // Aplicar middlewares para POST
 export const POST = withErrorMonitoring(
   withApiLogging(
-    withPresetRateLimit('orders')(
-      withPresetSanitization('userForm')(
-        withValidation(notificationSchema)(
+    withPresetRateLimit('public', {},
+      withPresetSanitization('userForm', {},
+        withValidation(notificationSchema,
           withDatabaseErrorHandling(
             createNotificationHandler,
             {
-              uniqueViolation: 'Notificação duplicada',
-              foreignKeyViolation: 'Referência inválida nos dados da notificação'
+              customErrorMessages: {
+                unique_violation: 'Notificação duplicada',
+                foreign_key_violation: 'Referência inválida nos dados da notificação'
+              }
             }
           )
         )
@@ -175,8 +177,8 @@ export const POST = withErrorMonitoring(
 // Aplicar middlewares para DELETE
 export const DELETE = withErrorMonitoring(
   withApiLogging(
-    withPresetRateLimit('orders')(
-      withPresetSanitization('userForm')(
+    withPresetRateLimit('public', {},
+      withPresetSanitization('userForm', {},
         withDatabaseErrorHandling(
           deleteNotificationsHandler
         )

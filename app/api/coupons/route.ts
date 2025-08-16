@@ -62,7 +62,7 @@ async function getCouponsHandler(request: NextRequest): Promise<NextResponse> {
 }
 
 // Handler POST para aplicar cupom (sem middlewares)
-async function applyCouponHandler(request: NextRequest, { validatedData }: { validatedData: any }): Promise<NextResponse> {
+async function applyCouponHandler(request: NextRequest, validatedData: any): Promise<NextResponse> {
   try {
     const { userId, couponCode, orderId } = validatedData
 
@@ -144,8 +144,10 @@ export const POST = withErrorMonitoring(
           withDatabaseErrorHandling(
             applyCouponHandler,
             {
-              uniqueViolation: 'Cupom já foi utilizado',
-              foreignKeyViolation: 'Cupom ou usuário não encontrado'
+              customErrorMessages: {
+                unique_violation: 'Cupom já foi utilizado',
+                foreign_key_violation: 'Cupom ou usuário não encontrado'
+              }
             }
           )
         )

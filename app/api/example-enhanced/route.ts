@@ -18,8 +18,11 @@ const exampleSchema = z.object({
   email: z.string().email(),
   age: z.number().min(18).max(120).optional(),
   preferences: z.object({
-    newsletter: z.boolean().default(false),
-    notifications: z.boolean().default(true)
+    newsletter: z.boolean(),
+    notifications: z.boolean()
+  }).default({
+    newsletter: false,
+    notifications: true
   }).optional()
 })
 
@@ -79,8 +82,7 @@ const enhancedHandler = withErrorMonitoring(
     {
       logRequests: true,
       logResponses: true,
-      logErrors: true,
-      sensitiveFields: ['password', 'token']
+      logErrors: true
     }
   )
 )
@@ -134,13 +136,11 @@ const getUsersQuerySchema = z.object({
 // Handler GET com middlewares
 const enhancedGetHandler = withErrorMonitoring(
   withApiLogging(
-    withAuth( // Requer autenticação
-      withPresetRateLimit('search', {}, // Rate limiting para buscas
-        withPresetSanitization('search', {}, // Sanitização para buscas
-          withDatabaseErrorHandling(
-            handleGetUsers,
-            { logErrors: true }
-          )
+    withPresetRateLimit('search', {}, // Rate limiting para buscas
+      withPresetSanitization('search', {}, // Sanitização para buscas
+        withDatabaseErrorHandling(
+          handleGetUsers,
+          { logErrors: true }
         )
       )
     ),
@@ -204,20 +204,18 @@ const updateUserSchema = exampleSchema.partial()
 // Handler PUT com middlewares
 const enhancedUpdateHandler = withErrorMonitoring(
   withApiLogging(
-    withAuth(
-      withPresetRateLimit('public', {},
-        withPresetSanitization('userForm', {},
-          withValidation(updateUserSchema,
-            withDatabaseErrorHandling(
-              handleUpdateUser,
-              {
-                logErrors: true,
-                customErrorMessages: {
-                  unique_violation: 'Email já está em uso por outro usuário',
-                  foreign_key_violation: 'Não é possível atualizar devido a dependências'
-                }
+    withPresetRateLimit('public', {},
+      withPresetSanitization('userForm', {},
+        withValidation(updateUserSchema,
+          withDatabaseErrorHandling(
+            handleUpdateUser,
+            {
+              logErrors: true,
+              customErrorMessages: {
+                unique_violation: 'Email já está em uso por outro usuário',
+                foreign_key_violation: 'Não é possível atualizar devido a dependências'
               }
-            )
+            }
           )
         )
       )
@@ -270,17 +268,15 @@ async function handleDeleteUser(
 // Handler DELETE com middlewares
 const enhancedDeleteHandler = withErrorMonitoring(
   withApiLogging(
-    withAuth(
-      withPresetRateLimit('admin', {}, // Rate limiting mais restritivo para exclusões
-        withDatabaseErrorHandling(
-          handleDeleteUser,
-          {
-            logErrors: true,
-            customErrorMessages: {
-              foreign_key_violation: 'Não é possível excluir usuário com registros dependentes'
-            }
+    withPresetRateLimit('admin', {}, // Rate limiting mais restritivo para exclusões
+      withDatabaseErrorHandling(
+        handleDeleteUser,
+        {
+          logErrors: true,
+          customErrorMessages: {
+            foreign_key_violation: 'Não é possível excluir usuário com registros dependentes'
           }
-        )
+        }
       )
     ),
     { logRequests: true, logResponses: true }
@@ -309,49 +305,46 @@ export async function PATCH(req: NextRequest, context: { params: { id: string } 
   // Handler customizado para PATCH com configurações específicas
   const customHandler = withErrorMonitoring(
     withApiLogging(
-      withAuth(
-        withPresetRateLimit('public', {
-          maxRequests: 20, // Limite customizado
-          windowMs: 10 * 60 * 1000, // 10 minutos
-          message: 'Muitas atualizações. Aguarde 10 minutos.'
+      withPresetRateLimit('public', {
+        maxRequests: 20, // Limite customizado
+        windowMs: 10 * 60 * 1000, // 10 minutos
+        message: 'Muitas atualizações. Aguarde 10 minutos.'
+      },
+        withPresetSanitization('userForm', {
+          strictMode: true, // Modo estrito para PATCH
+          maxLength: {
+            name: 50, // Limite menor para nome
+            email: 200
+          }
         },
-          withPresetSanitization('userForm', {
-            strictMode: true, // Modo estrito para PATCH
-            maxLength: {
-              name: 50, // Limite menor para nome
-              email: 200
-            }
-          },
-            withValidation(updateUserSchema.pick({ name: true }), // Apenas nome pode ser atualizado via PATCH
-              withDatabaseErrorHandling(
-                async (req: NextRequest, validatedData: { name: string }) => {
-                  const userId = context.params.id
-                  
-                  const { data, error } = await supabase
-                    .from('users')
-                    .update({ name: validatedData.name })
-                    .eq('id', userId)
-                    .select()
-                    .single()
-                  
-                  if (error) throw error
-                  
-                  return NextResponse.json({
-                    success: true,
-                    data,
-                    message: 'Nome atualizado com sucesso'
-                  })
-                },
-                { logErrors: true }
-              )
+          withValidation(z.object({ name: z.string().min(2).max(100) }), // Apenas nome pode ser atualizado via PATCH
+            withDatabaseErrorHandling(
+              async (req: NextRequest, validatedData: { name: string }) => {
+                const userId = context.params.id
+                
+                const { data, error } = await supabase
+                  .from('users')
+                  .update({ name: validatedData.name })
+                  .eq('id', userId)
+                  .select()
+                  .single()
+                
+                if (error) throw error
+                
+                return NextResponse.json({
+                  success: true,
+                  data,
+                  message: 'Nome atualizado com sucesso'
+                })
+              },
+              { logErrors: true }
             )
           )
         )
       ),
       {
         logRequests: true,
-        logResponses: true,
-        skipLogging: false
+        logResponses: true
       }
     )
   )

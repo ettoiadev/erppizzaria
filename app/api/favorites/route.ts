@@ -139,14 +139,16 @@ export const GET = withErrorMonitoring(
 // Aplicar middlewares para POST
 export const POST = withErrorMonitoring(
   withApiLogging(
-    withPresetRateLimit('orders')(
-      withPresetSanitization('userForm')(
-        withValidation(favoriteSchema)(
+    withPresetRateLimit('public', {},
+      withPresetSanitization('userForm', {},
+        withValidation(favoriteSchema,
           withDatabaseErrorHandling(
             addFavoriteHandler,
             {
-              uniqueViolation: 'Produto já está nos favoritos',
-              foreignKeyViolation: 'Produto ou usuário não encontrado'
+              customErrorMessages: {
+                unique_violation: 'Produto já está nos favoritos',
+                foreign_key_violation: 'Produto ou usuário não encontrado'
+              }
             }
           )
         )

@@ -325,27 +325,8 @@ function EditProductModal({
   onClose: () => void
   onUpdate: (index: number, newItem: CartItem) => void
 }) {
-  // Validação de segurança inicial
-  if (!product || !product.id || !product.name) {
-    return (
-      <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent aria-describedby="error-modal-description">
-          <DialogHeader>
-            <DialogTitle>Erro</DialogTitle>
-            <DialogDescription id="error-modal-description">
-              Dados do produto inválidos. Tente novamente.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="p-4 text-center">
-            <p>Dados do produto inválidos. Tente novamente.</p>
-            <Button onClick={onClose} className="mt-4">Fechar</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-    )
-  }
-
-  const [selectedSize, setSelectedSize] = useState(item.size || product.sizes?.[0]?.name || "")
+  // Todos os hooks devem ser chamados antes de qualquer return condicional
+  const [selectedSize, setSelectedSize] = useState(item.size || product?.sizes?.[0]?.name || "")
   const [selectedToppings, setSelectedToppings] = useState<string[]>(item.toppings || [])
   const [notes, setNotes] = useState(item.notes || "")
   const [quantity, setQuantity] = useState(item.quantity)
@@ -371,6 +352,26 @@ function EditProductModal({
       fetchAvailablePizzas()
     }
   }, [isOpen, isPizza])
+
+  // Validação de segurança inicial - após todos os hooks
+  if (!product || !product.id || !product.name) {
+    return (
+      <Dialog open={isOpen} onOpenChange={onClose}>
+        <DialogContent aria-describedby="error-modal-description">
+          <DialogHeader>
+            <DialogTitle>Erro</DialogTitle>
+            <DialogDescription id="error-modal-description">
+              Dados do produto inválidos. Tente novamente.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="p-4 text-center">
+            <p>Dados do produto inválidos. Tente novamente.</p>
+            <Button onClick={onClose} className="mt-4">Fechar</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    )
+  }
 
   const fetchAvailablePizzas = async () => {
     try {

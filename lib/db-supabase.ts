@@ -202,6 +202,10 @@ export async function createProduct(input: {
   }
 }
 
+export async function getOrders(params: { status?: string | null; userId?: string | null; limit?: number | null; offset?: number | null }) {
+  return listOrders(params)
+}
+
 export async function listOrders(params: { status?: string | null; userId?: string | null; limit?: number | null; offset?: number | null }) {
   const supabase = getSupabaseServerClient()
   let query = supabase

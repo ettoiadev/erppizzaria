@@ -162,14 +162,16 @@ export const GET = withErrorMonitoring(
 // Aplicar middlewares para POST
 export const POST = withErrorMonitoring(
   withApiLogging(
-    withPresetRateLimit('orders')(
-      withPresetSanitization('userForm')(
-        withValidation(driverSchema)(
+    withPresetRateLimit('public', {},
+      withPresetSanitization('userForm', {},
+        withValidation(driverSchema,
           withDatabaseErrorHandling(
             createDriverHandler,
             {
-              uniqueViolation: 'Email já está em uso por outro entregador',
-              foreignKeyViolation: 'Referência inválida nos dados do entregador'
+              customErrorMessages: {
+                unique_violation: 'Email já está em uso por outro entregador',
+                foreign_key_violation: 'Referência inválida nos dados do entregador'
+              }
             }
           )
         )
