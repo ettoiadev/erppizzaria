@@ -8,7 +8,12 @@
     "start": "next start",
     "lint": "next lint",
     "test": "jest",
-    "type-check": "tsc --noEmit"
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:ci": "jest --ci --coverage --watchAll=false",
+    "type-check": "tsc --noEmit",
+    "validate-env": "node -e \"require('./lib/environment-validator').validateAndLogEnvironment()\"",
+    "pre-deploy": "npm run type-check && npm run test:ci && npm run validate-env"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",

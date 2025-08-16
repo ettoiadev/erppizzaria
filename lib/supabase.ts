@@ -1,6 +1,7 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import { appLogger } from './logging'
 import { supabaseLogger, instrumentSupabaseClient } from './supabase-logger'
+import { validateAndLogEnvironment } from './environment-validator'
 
 // Em ambientes Node, garantir WebSocket disponível para canais Realtime
 if (typeof window === 'undefined') {
@@ -35,28 +36,24 @@ if (process.env.NODE_ENV === 'production') {
   })
 }
 
-// Validação obrigatória das variáveis de ambiente
+// Validar configuração de ambiente
+const isValidEnvironment = validateAndLogEnvironment()
+if (!isValidEnvironment) {
+  throw new Error('[Supabase] Configuração de ambiente inválida. Verifique os logs para detalhes.')
+}
+
+// Validação específica do Supabase
 if (!supabaseUrl) {
   const errorMsg = 'SUPABASE_URL não configurada. Configure as variáveis de ambiente na Vercel ou no arquivo .env.local'
-  const availableVars = Object.keys(process.env).filter(key => key.includes('SUPABASE'))
-  
-  appLogger.critical('supabase', errorMsg, undefined, { availableVars })
-  
-  // Log específico do Supabase
+  appLogger.critical('supabase', errorMsg)
   supabaseLogger.logConnection(false, undefined, new Error(`[Supabase] ${errorMsg}`))
-  
   throw new Error(`[Supabase] ${errorMsg}`)
 }
 
 if (!supabaseKey) {
   const errorMsg = 'SUPABASE_KEY não configurada. Configure as variáveis de ambiente na Vercel ou no arquivo .env.local'
-  const availableVars = Object.keys(process.env).filter(key => key.includes('SUPABASE'))
-  
-  appLogger.critical('supabase', errorMsg, undefined, { availableVars })
-  
-  // Log específico do Supabase
+  appLogger.critical('supabase', errorMsg)
   supabaseLogger.logConnection(false, undefined, new Error(`[Supabase] ${errorMsg}`))
-  
   throw new Error(`[Supabase] ${errorMsg}`)
 }
 
