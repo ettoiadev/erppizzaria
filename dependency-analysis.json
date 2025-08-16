@@ -1,0 +1,232 @@
+{
+  "timestamp": "2025-08-16T12:14:33.101Z",
+  "summary": {
+    "totalFiles": 451,
+    "itemsToRemove": 11,
+    "safeToRemove": 9,
+    "hasReferences": 2
+  },
+  "itemAnalysis": [
+    {
+      "item": ".cursor",
+      "exists": true,
+      "isReferenced": false,
+      "referencedBy": [],
+      "canRemove": true,
+      "type": "directory"
+    },
+    {
+      "item": "src",
+      "exists": true,
+      "isReferenced": true,
+      "referencedBy": [
+        {
+          "file": "src\\lib\\auth.ts",
+          "reference": "./supabase",
+          "line": 3,
+          "context": "import { supabase, User } from './supabase'"
+        }
+      ],
+      "canRemove": false,
+      "type": "directory"
+    },
+    {
+      "item": "coverage",
+      "exists": true,
+      "isReferenced": false,
+      "referencedBy": [],
+      "canRemove": true,
+      "type": "directory"
+    },
+    {
+      "item": "tests",
+      "exists": true,
+      "isReferenced": true,
+      "referencedBy": [
+        {
+          "file": "tests\\contracts\\package.json",
+          "reference": "../",
+          "line": 45,
+          "context": "./../"
+        },
+        {
+          "file": "tests\\contracts\\package.json",
+          "reference": "../issues",
+          "line": 48,
+          "context": "./../issues"
+        },
+        {
+          "file": "tests\\contracts\\package.json",
+          "reference": "../README.md",
+          "line": 50,
+          "context": "./../README.md"
+        },
+        {
+          "file": "tests\\contracts\\package.json",
+          "reference": "../",
+          "line": 45,
+          "context": "../../"
+        },
+        {
+          "file": "tests\\contracts\\package.json",
+          "reference": "../issues",
+          "line": 48,
+          "context": "../../issues"
+        },
+        {
+          "file": "tests\\contracts\\package.json",
+          "reference": "../README.md",
+          "line": 50,
+          "context": "../../README.md"
+        }
+      ],
+      "canRemove": false,
+      "type": "directory"
+    },
+    {
+      "item": "package-simplified.json",
+      "exists": true,
+      "isReferenced": false,
+      "referencedBy": [],
+      "canRemove": true,
+      "type": "file"
+    },
+    {
+      "item": "next.config.simplified.js",
+      "exists": true,
+      "isReferenced": false,
+      "referencedBy": [],
+      "canRemove": true,
+      "type": "file"
+    },
+    {
+      "item": "tailwind.config.simplified.js",
+      "exists": true,
+      "isReferenced": false,
+      "referencedBy": [],
+      "canRemove": true,
+      "type": "file"
+    },
+    {
+      "item": "tsconfig.simplified.json",
+      "exists": true,
+      "isReferenced": false,
+      "referencedBy": [],
+      "canRemove": true,
+      "type": "file"
+    },
+    {
+      "item": "README-SIMPLIFIED.md",
+      "exists": true,
+      "isReferenced": false,
+      "referencedBy": [],
+      "canRemove": true,
+      "type": "file"
+    },
+    {
+      "item": "REORGANIZATION_PLAN.md",
+      "exists": true,
+      "isReferenced": false,
+      "referencedBy": [],
+      "canRemove": true,
+      "type": "file"
+    },
+    {
+      "item": "REORGANIZATION_SUMMARY.md",
+      "exists": true,
+      "isReferenced": false,
+      "referencedBy": [],
+      "canRemove": true,
+      "type": "file"
+    }
+  ],
+  "recommendations": [
+    {
+      "item": ".cursor",
+      "severity": "info",
+      "message": "Seguro para remoção - nenhuma referência encontrada."
+    },
+    {
+      "item": "src",
+      "severity": "warning",
+      "message": "Item referenciado por 1 arquivo(s). Verificar antes de remover.",
+      "references": [
+        {
+          "file": "src\\lib\\auth.ts",
+          "line": 3
+        }
+      ]
+    },
+    {
+      "item": "coverage",
+      "severity": "info",
+      "message": "Seguro para remoção - nenhuma referência encontrada."
+    },
+    {
+      "item": "tests",
+      "severity": "warning",
+      "message": "Item referenciado por 6 arquivo(s). Verificar antes de remover.",
+      "references": [
+        {
+          "file": "tests\\contracts\\package.json",
+          "line": 45
+        },
+        {
+          "file": "tests\\contracts\\package.json",
+          "line": 48
+        },
+        {
+          "file": "tests\\contracts\\package.json",
+          "line": 50
+        },
+        {
+          "file": "tests\\contracts\\package.json",
+          "line": 45
+        },
+        {
+          "file": "tests\\contracts\\package.json",
+          "line": 48
+        },
+        {
+          "file": "tests\\contracts\\package.json",
+          "line": 50
+        }
+      ]
+    },
+    {
+      "item": "package-simplified.json",
+      "severity": "info",
+      "message": "Seguro para remoção - nenhuma referência encontrada."
+    },
+    {
+      "item": "next.config.simplified.js",
+      "severity": "info",
+      "message": "Seguro para remoção - nenhuma referência encontrada."
+    },
+    {
+      "item": "tailwind.config.simplified.js",
+      "severity": "info",
+      "message": "Seguro para remoção - nenhuma referência encontrada."
+    },
+    {
+      "item": "tsconfig.simplified.json",
+      "severity": "info",
+      "message": "Seguro para remoção - nenhuma referência encontrada."
+    },
+    {
+      "item": "README-SIMPLIFIED.md",
+      "severity": "info",
+      "message": "Seguro para remoção - nenhuma referência encontrada."
+    },
+    {
+      "item": "REORGANIZATION_PLAN.md",
+      "severity": "info",
+      "message": "Seguro para remoção - nenhuma referência encontrada."
+    },
+    {
+      "item": "REORGANIZATION_SUMMARY.md",
+      "severity": "info",
+      "message": "Seguro para remoção - nenhuma referência encontrada."
+    }
+  ]
+}

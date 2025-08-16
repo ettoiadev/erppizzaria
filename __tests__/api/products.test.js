@@ -40,12 +40,7 @@ describe('/api/products', () => {
             price: 29.90,
             active: true,
             category: { name: 'Pizzas' }
-
-      } catch (error) {
-        console.error('Error in test "deve retornar lista de produtos ativos":', error)
-        throw error
-      }
-            }
+          }
       ]
 
       mockSupabaseClient.from().select().eq().order.mockResolvedValue({
@@ -57,13 +52,17 @@ describe('/api/products', () => {
         method: 'GET'
       })
 
-      const response = await GET(req)
-      const data = await response.json()
+        const response = await GET(req)
+        const data = await response.json()
 
-      expect(response.status).toBe(200)
-      expect(data.success).toBe(true)
-      expect(data.data).toHaveLength(2)
-      expect(data.data[0].name).toBe('Pizza Margherita')
+        expect(response.status).toBe(200)
+        expect(data.success).toBe(true)
+        expect(data.data).toHaveLength(2)
+        expect(data.data[0].name).toBe('Pizza Margherita')
+      } catch (error) {
+        console.error('Error in test "deve retornar lista de produtos ativos":', error)
+        throw error
+      }
     })
 
     it('deve retornar erro quando falha na consulta', async () => {
@@ -83,6 +82,11 @@ describe('/api/products', () => {
         expect(response.status).toBe(500)
         expect(data.success).toBe(false)
         expect(data.error).toContain('Erro ao buscar produtos')
+      } catch (error) {
+        console.error('Error in test "deve retornar erro quando falha na consulta":', error)
+        throw error
+      }
+    })
       })
 
       it('deve retornar array vazio quando não há produtos', async () => {

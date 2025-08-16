@@ -138,9 +138,9 @@ export const GET = withErrorMonitoring(
 // Aplicar middlewares para POST
 export const POST = withErrorMonitoring(
   withApiLogging(
-    withPresetRateLimit('orders')(
-      withPresetSanitization('userForm')(
-        withValidation(couponSchema)(
+    withPresetRateLimit('public', {},
+      withPresetSanitization('userForm', {},
+        withValidation(couponSchema,
           withDatabaseErrorHandling(
             applyCouponHandler,
             {

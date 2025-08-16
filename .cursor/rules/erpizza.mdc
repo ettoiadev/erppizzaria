@@ -1,6 +1,0 @@
----
-alwaysApply: true
----
-I'm not an experienced developer.
-If any commands need to be executed — especially database scripts (we're using pgAdmin 4) — please guide me step by step.
-Let me know anytime something needs to be done manually.

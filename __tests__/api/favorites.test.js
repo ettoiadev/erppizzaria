@@ -98,49 +98,48 @@ describe('/api/favorites', () => {
               active: true,
               category: {
                 name: 'Pizzas'
+              }
+            }
+          },
+          {
+            id: 2,
+            user_id: 'user-123',
+            product_id: 2,
+            product: {
+              id: 2,
+              name: 'Pizza Descontinuada',
+              price: 29.90,
+              active: false,
+              category: {
+                name: 'Pizzas'
+              }
+            }
+          }
+        ]
 
+        mockSupabaseClient.from().select().eq.mockResolvedValue({
+          data: mockFavorites,
+          error: null
+        })
+
+        const { req } = createMocks({
+          method: 'GET',
+          query: {
+            userId: 'user-123'
+          }
+        })
+
+        const response = await GET(req)
+        const data = await response.json()
+
+        expect(response.status).toBe(200)
+        expect(data.success).toBe(true)
+        expect(data.data).toHaveLength(1)
+        expect(data.data[0].product.name).toBe('Pizza Margherita')
       } catch (error) {
         console.error('Error in test "deve filtrar produtos inativos dos favoritos":', error)
         throw error
       }
-                }
-          }
-        },
-        {
-          id: 2,
-          user_id: 'user-123',
-          product_id: 2,
-          product: {
-            id: 2,
-            name: 'Pizza Descontinuada',
-            price: 29.90,
-            active: false,
-            category: {
-              name: 'Pizzas'
-            }
-          }
-        }
-      ]
-
-      mockSupabaseClient.from().select().eq.mockResolvedValue({
-        data: mockFavorites,
-        error: null
-      })
-
-      const { req } = createMocks({
-        method: 'GET',
-        query: {
-          userId: 'user-123'
-        }
-      })
-
-      const response = await GET(req)
-      const data = await response.json()
-
-      expect(response.status).toBe(200)
-      expect(data.success).toBe(true)
-      expect(data.data).toHaveLength(1)
-      expect(data.data[0].product.name).toBe('Pizza Margherita')
     })
 
     it('deve retornar erro quando userId não é fornecido', async () => {
@@ -156,20 +155,21 @@ describe('/api/favorites', () => {
         expect(response.status).toBe(400)
         expect(data.success).toBe(false)
         expect(data.error).toContain('userId é obrigatório')
-      })
-    })
-
-    describe('POST /api/favorites', () => {
-      it('deve adicionar produto aos favoritos', async () => {
-        const favoriteData = {
-          userId: 'user-123',
-          productId: 1
-
       } catch (error) {
         console.error('Error in test "deve retornar erro quando userId não é fornecido":', error)
         throw error
       }
-          }
+    })
+
+  })
+
+  describe('POST /api/favorites', () => {
+    it('deve adicionar produto aos favoritos', async () => {
+      try {
+        const favoriteData = {
+          userId: 'user-123',
+          productId: 1
+        }
 
       // Mock para verificar se o produto existe e está ativo
       mockSupabaseClient.from().select().eq().single.mockResolvedValueOnce({
@@ -205,13 +205,17 @@ describe('/api/favorites', () => {
         body: favoriteData
       })
 
-      const response = await POST(req)
-      const data = await response.json()
+        const response = await POST(req)
+        const data = await response.json()
 
-      expect(response.status).toBe(201)
-      expect(data.success).toBe(true)
-      expect(data.data.user_id).toBe('user-123')
-      expect(data.data.product_id).toBe(1)
+        expect(response.status).toBe(201)
+        expect(data.success).toBe(true)
+        expect(data.data.user_id).toBe('user-123')
+        expect(data.data.product_id).toBe(1)
+      } catch (error) {
+        console.error('Error in test "deve adicionar produto aos favoritos":', error)
+        throw error
+      }
     })
 
     it('deve retornar erro quando produto não existe', async () => {
@@ -219,12 +223,7 @@ describe('/api/favorites', () => {
         const favoriteData = {
           userId: 'user-123',
           productId: 999
-
-      } catch (error) {
-        console.error('Error in test "deve retornar erro quando produto não existe":', error)
-        throw error
-      }
-          }
+        }
 
       mockSupabaseClient.from().select().eq().single.mockResolvedValueOnce({
         data: null,
@@ -236,12 +235,16 @@ describe('/api/favorites', () => {
         body: favoriteData
       })
 
-      const response = await POST(req)
-      const data = await response.json()
+        const response = await POST(req)
+        const data = await response.json()
 
-      expect(response.status).toBe(404)
-      expect(data.success).toBe(false)
-      expect(data.error).toContain('Produto não encontrado')
+        expect(response.status).toBe(404)
+        expect(data.success).toBe(false)
+        expect(data.error).toContain('Produto não encontrado')
+      } catch (error) {
+        console.error('Error in test "deve retornar erro quando produto não existe":', error)
+        throw error
+      }
     })
 
     it('deve retornar erro quando produto está inativo', async () => {
@@ -249,12 +252,7 @@ describe('/api/favorites', () => {
         const favoriteData = {
           userId: 'user-123',
           productId: 1
-
-      } catch (error) {
-        console.error('Error in test "deve retornar erro quando produto está inativo":', error)
-        throw error
-      }
-          }
+        }
 
       mockSupabaseClient.from().select().eq().single.mockResolvedValueOnce({
         data: {
@@ -270,12 +268,16 @@ describe('/api/favorites', () => {
         body: favoriteData
       })
 
-      const response = await POST(req)
-      const data = await response.json()
+        const response = await POST(req)
+        const data = await response.json()
 
-      expect(response.status).toBe(400)
-      expect(data.success).toBe(false)
-      expect(data.error).toContain('Produto não está disponível')
+        expect(response.status).toBe(400)
+        expect(data.success).toBe(false)
+        expect(data.error).toContain('Produto não está disponível')
+      } catch (error) {
+        console.error('Error in test "deve retornar erro quando produto está inativo":', error)
+        throw error
+      }
     })
 
     it('deve retornar erro quando produto já está nos favoritos', async () => {
@@ -283,12 +285,7 @@ describe('/api/favorites', () => {
         const favoriteData = {
           userId: 'user-123',
           productId: 1
-
-      } catch (error) {
-        console.error('Error in test "deve retornar erro quando produto já está nos favoritos":', error)
-        throw error
-      }
-          }
+        }
 
       // Mock para verificar se o produto existe e está ativo
       mockSupabaseClient.from().select().eq().single.mockResolvedValueOnce({
@@ -315,12 +312,16 @@ describe('/api/favorites', () => {
         body: favoriteData
       })
 
-      const response = await POST(req)
-      const data = await response.json()
+        const response = await POST(req)
+        const data = await response.json()
 
-      expect(response.status).toBe(409)
-      expect(data.success).toBe(false)
-      expect(data.error).toContain('Produto já está nos favoritos')
+        expect(response.status).toBe(409)
+        expect(data.success).toBe(false)
+        expect(data.error).toContain('Produto já está nos favoritos')
+      } catch (error) {
+        console.error('Error in test "deve retornar erro quando produto já está nos favoritos":', error)
+        throw error
+      }
     })
   })
 
@@ -337,20 +338,19 @@ describe('/api/favorites', () => {
           query: {
             userId: 'user-123',
             productId: '1'
+          }
+        })
 
+        const response = await DELETE(req)
+        const data = await response.json()
+
+        expect(response.status).toBe(200)
+        expect(data.success).toBe(true)
+        expect(data.message).toContain('Produto removido dos favoritos')
       } catch (error) {
         console.error('Error in test "deve remover produto dos favoritos":', error)
         throw error
       }
-            }
-      })
-
-      const response = await DELETE(req)
-      const data = await response.json()
-
-      expect(response.status).toBe(200)
-      expect(data.success).toBe(true)
-      expect(data.message).toContain('Produto removido dos favoritos')
     })
 
     it('deve retornar erro quando parâmetros não são fornecidos', async () => {
@@ -360,20 +360,19 @@ describe('/api/favorites', () => {
           query: {
             userId: 'user-123'
             // productId ausente
+          }
+        })
 
+        const response = await DELETE(req)
+        const data = await response.json()
+
+        expect(response.status).toBe(400)
+        expect(data.success).toBe(false)
+        expect(data.error).toContain('userId e productId são obrigatórios')
       } catch (error) {
         console.error('Error in test "deve retornar erro quando parâmetros não são fornecidos":', error)
         throw error
       }
-            }
-      })
-
-      const response = await DELETE(req)
-      const data = await response.json()
-
-      expect(response.status).toBe(400)
-      expect(data.success).toBe(false)
-      expect(data.error).toContain('userId e productId são obrigatórios')
     })
 
     it('deve retornar erro quando falha na remoção', async () => {
@@ -388,20 +387,19 @@ describe('/api/favorites', () => {
           query: {
             userId: 'user-123',
             productId: '1'
+          }
+        })
 
+        const response = await DELETE(req)
+        const data = await response.json()
+
+        expect(response.status).toBe(500)
+        expect(data.success).toBe(false)
+        expect(data.error).toContain('Erro ao remover favorito')
       } catch (error) {
         console.error('Error in test "deve retornar erro quando falha na remoção":', error)
         throw error
       }
-            }
-      })
-
-      const response = await DELETE(req)
-      const data = await response.json()
-
-      expect(response.status).toBe(500)
-      expect(data.success).toBe(false)
-      expect(data.error).toContain('Erro ao remover favorito')
     })
   })
 })

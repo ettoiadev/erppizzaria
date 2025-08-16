@@ -232,7 +232,7 @@ const enhancedLoginHandler = withErrorMonitoring(
       logRequests: true,
       logResponses: true,
       logErrors: true,
-      sensitiveFields: ['password', 'token']
+      sensitiveRoutes: ['/api/auth']
     }
   )
 )

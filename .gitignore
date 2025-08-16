@@ -2,15 +2,12 @@
 
 # dependencies
 /node_modules
-/tests/contracts/node_modules
 /.pnp
 .pnp.js
 .yarn/install-state.gz
 
 # testing
 /coverage
-/tests/contracts/coverage
-/tests/contracts/reports
 *.log
 
 # next.js
@@ -42,3 +39,12 @@ next-env.d.ts
 # uploads
 /public/uploads/*
 !/public/uploads/.gitkeep
+
+# backup files
+backup-cleanup/
+*.backup
+*.bak
+
+# editor specific
+.cursor/
+.vscode/settings.json

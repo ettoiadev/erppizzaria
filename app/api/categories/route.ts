@@ -109,7 +109,7 @@ const enhancedGetHandler = withErrorMonitoring(
 // Aplicar todos os middlewares para POST
 const enhancedPostHandler = withErrorMonitoring(
   withApiLogging(
-    withPresetRateLimit('general', {}, // Rate limiting geral
+    withPresetRateLimit('public', {}, // Rate limiting geral
       withPresetSanitization('adminContent', {}, // Sanitização para conteúdo administrativo
         withValidation(categorySchema, // Validação usando Zod
           withDatabaseErrorHandling( // Tratamento de erros de banco
@@ -137,7 +137,7 @@ const enhancedPostHandler = withErrorMonitoring(
 // Aplicar todos os middlewares para PUT
 const enhancedPutHandler = withErrorMonitoring(
   withApiLogging(
-    withPresetRateLimit('general', {}, // Rate limiting geral
+    withPresetRateLimit('public', {}, // Rate limiting geral
       withPresetSanitization('adminContent', {}, // Sanitização para conteúdo administrativo
         withValidation(categoryOrdersSchema, // Validação usando Zod
           withDatabaseErrorHandling( // Tratamento de erros de banco

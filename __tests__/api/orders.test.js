@@ -41,14 +41,9 @@ describe('/api/orders', () => {
                 quantity: 2,
                 price: 25.90,
                 product: { name: 'Pizza Margherita' }
-
-      } catch (error) {
-        console.error('Error in test "deve retornar lista de pedidos":', error)
-        throw error
-      }
-                }
-          ]
-        },
+              }
+            ]
+          },
         {
           id: 2,
           user_id: 'user-456',
@@ -79,14 +74,18 @@ describe('/api/orders', () => {
         }
       })
 
-      const response = await GET(req)
-      const data = await response.json()
+        const response = await GET(req)
+        const data = await response.json()
 
-      expect(response.status).toBe(200)
-      expect(data.success).toBe(true)
-      expect(data.data).toHaveLength(2)
-      expect(data.data[0].id).toBe(1)
-      expect(data.data[0].status).toBe('pending')
+        expect(response.status).toBe(200)
+        expect(data.success).toBe(true)
+        expect(data.data).toHaveLength(2)
+        expect(data.data[0].id).toBe(1)
+        expect(data.data[0].status).toBe('pending')
+      } catch (error) {
+        console.error('Error in test "deve retornar lista de pedidos":', error)
+        throw error
+      }
     })
 
     it('deve filtrar pedidos por status', async () => {
@@ -98,35 +97,34 @@ describe('/api/orders', () => {
             status: 'pending',
             total: 45.80,
             created_at: '2024-01-15T10:00:00Z'
+          }
+        ]
 
+        mockSupabaseClient.from().select().eq().order().limit().range.mockResolvedValue({
+          data: mockOrders,
+          error: null
+        })
+
+        const { req } = createMocks({
+          method: 'GET',
+          query: {
+            status: 'pending',
+            limit: '10',
+            offset: '0'
+          }
+        })
+
+        const response = await GET(req)
+        const data = await response.json()
+
+        expect(response.status).toBe(200)
+        expect(data.success).toBe(true)
+        expect(data.data).toHaveLength(1)
+        expect(data.data[0].status).toBe('pending')
       } catch (error) {
         console.error('Error in test "deve filtrar pedidos por status":', error)
         throw error
       }
-            }
-      ]
-
-      mockSupabaseClient.from().select().eq().order().limit().range.mockResolvedValue({
-        data: mockOrders,
-        error: null
-      })
-
-      const { req } = createMocks({
-        method: 'GET',
-        query: {
-          status: 'pending',
-          limit: '10',
-          offset: '0'
-        }
-      })
-
-      const response = await GET(req)
-      const data = await response.json()
-
-      expect(response.status).toBe(200)
-      expect(data.success).toBe(true)
-      expect(data.data).toHaveLength(1)
-      expect(data.data[0].status).toBe('pending')
     })
 
     it('deve filtrar pedidos por usuário', async () => {
