@@ -53,7 +53,7 @@ export function withValidation<T>(
           requestData = await req.json()
         } catch (error) {
           if (config.logValidationErrors) {
-            frontendLogger.warn('Erro ao parsear JSON do request', 'validation', {
+            frontendLogger.warn('Erro ao parsear JSON do request', 'api', {
               method: req.method,
               url: req.url,
               error: error instanceof Error ? error.message : 'Unknown error'
@@ -71,7 +71,7 @@ export function withValidation<T>(
       const validatedData = schema.parse(requestData)
       
       if (config.logValidationErrors) {
-        frontendLogger.debug('Dados validados com sucesso', 'validation', {
+        frontendLogger.debug('Dados validados com sucesso', 'api', {
           method: req.method,
           url: req.url,
           dataKeys: Object.keys(requestData as object || {})
@@ -91,11 +91,11 @@ export function withValidation<T>(
         }))
         
         if (config.logValidationErrors) {
-          frontendLogger.warn('Erro de validação', 'validation', {
+          frontendLogger.warn('Erro de validação', 'api', {
             method: req.method,
             url: req.url,
             errors: validationErrors,
-            requestData: config.sanitizeErrors ? '[SANITIZED]' : requestData
+            requestData: config.sanitizeErrors ? '[SANITIZED]' : 'data'
           })
         }
         
@@ -112,7 +112,7 @@ export function withValidation<T>(
           frontendLogger.logError('Erro inesperado na validação', {
             method: req.method,
             url: req.url
-          }, error as Error, 'validation')
+          }, error as Error, 'api')
         }
         
         throw error
@@ -147,7 +147,7 @@ export function withQueryValidation<T>(
       const validatedData = schema.parse(processedData)
       
       if (config.logValidationErrors) {
-        frontendLogger.debug('Query parameters validados', 'validation', {
+        frontendLogger.debug('Query parameters validados', 'api', {
           method: req.method,
           url: req.url,
           queryKeys: Object.keys(queryData)
@@ -165,7 +165,7 @@ export function withQueryValidation<T>(
         }))
         
         if (config.logValidationErrors) {
-          frontendLogger.warn('Erro de validação em query parameters', 'validation', {
+          frontendLogger.warn('Erro de validação em query parameters', 'api', {
             method: req.method,
             url: req.url,
             errors: validationErrors
@@ -184,7 +184,7 @@ export function withQueryValidation<T>(
           frontendLogger.logError('Erro inesperado na validação de query', {
             method: req.method,
             url: req.url
-          }, error as Error, 'validation')
+          }, error as Error, 'api')
         }
         
         throw error
@@ -215,7 +215,7 @@ export function withParamsValidation<T>(
       const validatedParams = schema.parse(params)
       
       if (config.logValidationErrors) {
-        frontendLogger.debug('Parâmetros de rota validados', 'validation', {
+        frontendLogger.debug('Parâmetros de rota validados', 'api', {
           method: req.method,
           url: req.url,
           paramKeys: Object.keys(params)
@@ -233,7 +233,7 @@ export function withParamsValidation<T>(
         }))
         
         if (config.logValidationErrors) {
-          frontendLogger.warn('Erro de validação em parâmetros de rota', 'validation', {
+          frontendLogger.warn('Erro de validação em parâmetros de rota', 'api', {
             method: req.method,
             url: req.url,
             errors: validationErrors
@@ -252,7 +252,7 @@ export function withParamsValidation<T>(
           frontendLogger.logError('Erro inesperado na validação de parâmetros', {
             method: req.method,
             url: req.url
-          }, error as Error, 'validation')
+          }, error as Error, 'api')
         }
         
         throw error
@@ -351,7 +351,7 @@ export function withFullValidation<TBody, TQuery, TParams>(
       }
       
       if (config.logValidationErrors) {
-        frontendLogger.debug('Validação completa realizada', 'validation', {
+        frontendLogger.debug('Validação completa realizada', 'api', {
           method: req.method,
           url: req.url,
           hasBody: !!validatedData.body,
@@ -371,7 +371,7 @@ export function withFullValidation<TBody, TQuery, TParams>(
         }))
         
         if (config.logValidationErrors) {
-          frontendLogger.warn('Erro na validação completa', 'validation', {
+          frontendLogger.warn('Erro na validação completa', 'api', {
             method: req.method,
             url: req.url,
             errors: validationErrors
@@ -390,7 +390,7 @@ export function withFullValidation<TBody, TQuery, TParams>(
           frontendLogger.logError('Erro inesperado na validação completa', {
             method: req.method,
             url: req.url
-          }, error as Error, 'validation')
+          }, error as Error, 'api')
         }
         
         throw error

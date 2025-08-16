@@ -275,7 +275,7 @@ export function withSanitization<T extends any[]>(
         
         // Log de atividades suspeitas
         if (suspicious.length > 0 && logSuspiciousActivity) {
-          frontendLogger.warn('Atividade suspeita detectada', 'sanitization', {
+          frontendLogger.warn('Atividade suspeita detectada', 'api', {
             url: req.url,
             method: req.method,
             userAgent: req.headers.get('user-agent'),
@@ -315,7 +315,7 @@ export function withSanitization<T extends any[]>(
         frontendLogger.logError('Erro na sanitização', {
           url: req.url,
           method: req.method
-        }, error as Error, 'sanitization')
+        }, error as Error, 'api')
       }
       
       throw error

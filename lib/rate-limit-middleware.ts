@@ -177,7 +177,7 @@ export function withRateLimit<T extends any[]>(
       // Verificar se excedeu o limite
       if (count >= maxRequests) {
         // Log do limite atingido
-        frontendLogger.warn('Rate limit atingido', 'rate-limit', {
+        frontendLogger.warn('Rate limit atingido', 'api', {
           key,
           count,
           maxRequests,
@@ -245,7 +245,7 @@ export function withRateLimit<T extends any[]>(
         key,
         url: req.url,
         method: req.method
-      }, error as Error, 'rate-limit')
+      }, error as Error, 'api')
       
       return handler(...args)
     }

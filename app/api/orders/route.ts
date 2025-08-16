@@ -114,7 +114,7 @@ const enhancedGetHandler = withErrorMonitoring(
 // Aplicar todos os middlewares para POST
 const enhancedPostHandler = withErrorMonitoring(
   withApiLogging(
-    withPresetRateLimit('orders', {}, // Rate limiting específico para pedidos
+    withPresetRateLimit('critical', {}, // Rate limiting específico para pedidos
       withPresetSanitization('userForm', {}, // Sanitização para formulários de usuário
         withValidation(orderSchema, // Validação usando Zod
           withDatabaseErrorHandling( // Tratamento de erros de banco
@@ -134,8 +134,7 @@ const enhancedPostHandler = withErrorMonitoring(
     {
       logRequests: true,
       logResponses: true,
-      logErrors: true,
-      sensitiveFields: ['customer_phone', 'customer_address']
+      logErrors: true
     }
   )
 )

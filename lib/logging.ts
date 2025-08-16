@@ -4,7 +4,7 @@ import { getGlobalLoggingConfig, isLogLevelEnabled, isContextEnabled, type Loggi
 
 // Tipos de log
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'critical'
-export type LogContext = 'auth' | 'database' | 'api' | 'supabase' | 'vercel' | 'payment' | 'general'
+export type LogContext = 'auth' | 'api' | 'supabase' | 'vercel' | 'payment' | 'general' | 'environment'
 
 interface LogEntry {
   level: LogLevel

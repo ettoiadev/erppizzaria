@@ -181,7 +181,7 @@ export function withDatabaseErrorHandling<T extends any[], R>(
           table: dbError.table,
           constraint: dbError.constraint,
           sanitized: sanitizeErrors
-        }, dbError.originalError, 'database')
+        }, dbError.originalError, 'api')
       }
       
       // Usar mensagem customizada se disponível
@@ -241,7 +241,7 @@ export function withApiDatabaseErrorHandling<T extends any[]>(
           table: dbError.table,
           constraint: dbError.constraint,
           sanitized: sanitizeErrors
-        }, dbError.originalError, 'database')
+        }, dbError.originalError, 'api')
       }
       
       // Usar mensagem customizada se disponível

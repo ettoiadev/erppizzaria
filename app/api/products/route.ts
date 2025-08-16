@@ -71,7 +71,7 @@ const enhancedGetHandler = withErrorMonitoring(
 // Aplicar todos os middlewares para POST
 const enhancedPostHandler = withErrorMonitoring(
   withApiLogging(
-    withPresetRateLimit('general', {}, // Rate limiting geral
+    withPresetRateLimit('public', {}, // Rate limiting geral
       withPresetSanitization('adminContent', {}, // Sanitização para conteúdo administrativo
         withValidation(productSchema, // Validação usando Zod
           withDatabaseErrorHandling( // Tratamento de erros de banco

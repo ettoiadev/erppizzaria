@@ -219,7 +219,7 @@ export class ErrorMonitoring {
       severity: report.severity,
       url: context.url,
       method: context.method
-    }, error, 'monitoring')
+    }, error, 'api')
     
     // Verificar se deve gerar alerta
     if (this.config.enableAlerts) {
@@ -485,7 +485,7 @@ export class ErrorMonitoring {
     store.addAlert(alert)
     
     // Log do alerta
-    frontendLogger.warn('Alerta gerado', 'monitoring', {
+    frontendLogger.warn('Alerta gerado', 'api', {
       alertId: alert.id,
       type: alert.type,
       severity: alert.severity,
@@ -517,7 +517,7 @@ export class ErrorMonitoring {
       frontendLogger.logError('Erro ao enviar webhook de alerta', {
         alertId: alert.id,
         webhook: this.config.alertWebhook
-      }, error as Error, 'monitoring')
+      }, error as Error, 'api')
     }
   }
   

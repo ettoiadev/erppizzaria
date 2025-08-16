@@ -230,10 +230,10 @@ export function DeliveryPersonModal({ deliveryPerson, isOpen, onClose, onSave }:
                   </div>
                 </div>
 
-                {deliveryPerson.currentOrders.length > 0 && (
+                {(deliveryPerson.currentOrders?.length ?? 0) > 0 && (
                   <div className="p-4 bg-yellow-50 rounded-lg">
                     <div className="text-sm text-yellow-800">
-                      <strong>Pedidos em andamento:</strong> {deliveryPerson.currentOrders.join(", ")}
+                      <strong>Pedidos em andamento:</strong> {deliveryPerson.currentOrders?.join(", ") ?? ""}
                     </div>
                   </div>
                 )}
