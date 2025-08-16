@@ -5,11 +5,11 @@
 import { getSupabaseServerClient } from '../supabase'
 
 export interface Product {
-  id: number
+  id: string // UUID no Supabase
   name: string
   description?: string
   price: number
-  category_id?: number
+  category_id?: string // UUID no Supabase
   image?: string | null
   active: boolean
   has_sizes?: boolean
@@ -63,7 +63,7 @@ export async function createProduct(input: {
   name: string
   description?: string
   price: number
-  category_id: number
+  category_id: string // UUID no Supabase
   image?: string | null
   available?: boolean
   sizes?: any[]

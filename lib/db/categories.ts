@@ -52,7 +52,7 @@ export async function createCategory(input: {
 /**
  * Atualiza ordem das categorias
  */
-export async function updateCategorySortOrders(categoryOrders: Array<{ id: number; sort_order: number }>) {
+export async function updateCategorySortOrders(categoryOrders: Array<{ id: string; sort_order: number }>) { // UUID no Supabase
   const supabase = getSupabaseServerClient()
   
   // Atualiza em lote iterativamente

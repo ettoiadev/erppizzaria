@@ -5,7 +5,7 @@
 import { getSupabaseServerClient } from '../supabase'
 
 export interface OrderItemInput {
-  product_id: number | null
+  product_id: string | null // UUID no Supabase
   name: string
   quantity: number
   unit_price: number | null
