@@ -2,7 +2,7 @@
  * Operações de banco de dados relacionadas a usuários
  */
 
-import { getSupabaseServerClient } from '../supabase'
+import { getSupabaseServerClient, supabaseAdmin } from '../supabase'
 
 export interface UserProfile {
   id: string
@@ -19,16 +19,21 @@ export interface UserProfile {
  * Busca usuário por email
  */
 export async function getUserByEmail(email: string): Promise<UserProfile | null> {
-  const supabase = getSupabaseServerClient()
-  const { data, error } = await supabase
+  // Usar cliente administrativo para contornar RLS durante autenticação
+  const { data, error } = await supabaseAdmin
     .from('profiles')
-    .select('id, email, full_name, role, password_hash, phone, created_at, updated_at')
-    .eq('email', email.toLowerCase().trim())
-    .limit(1)
-    .maybeSingle()
-
-  if (error) throw error
-  return data as UserProfile | null
+    .select('*')
+    .eq('email', email)
+    .single()
+  
+  if (error) {
+    if (error.code === 'PGRST116') {
+      return null // Usuário não encontrado
+    }
+    throw error
+  }
+  
+  return data
 }
 
 /**

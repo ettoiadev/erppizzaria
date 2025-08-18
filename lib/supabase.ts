@@ -62,6 +62,16 @@ const supabaseClient: SupabaseClient = createClient(supabaseUrl, supabaseKey, {
   auth: { autoRefreshToken: false, persistSession: false },
 })
 
+// Cliente administrativo para operações que precisam contornar RLS
+// NOTA: Temporariamente usando anon key até obtermos a service_role key
+const supabaseAdminClient: SupabaseClient = createClient(
+  supabaseUrl, 
+  supabaseKey, // Usando anon key temporariamente
+  {
+    auth: { autoRefreshToken: false, persistSession: false },
+  }
+)
+
 appLogger.info('supabase', 'Cliente Supabase inicializado com sucesso', {
   url: supabaseUrl?.substring(0, 30) + '...',
   hasKey: !!supabaseKey,
@@ -76,6 +86,9 @@ export const supabaseServer: SupabaseClient = instrumentSupabaseClient(supabaseC
 
 // Exportar também como 'supabase' para compatibilidade
 export const supabase: SupabaseClient = supabaseServer
+
+// Cliente administrativo instrumentado para operações que precisam contornar RLS
+export const supabaseAdmin: SupabaseClient = instrumentSupabaseClient(supabaseAdminClient)
 
 export function getSupabaseServerClient(): SupabaseClient {
   appLogger.debug('supabase', 'Cliente Supabase solicitado')
@@ -94,6 +107,20 @@ export function assertSupabaseConfigured(context: string) {
   }
   
   return true
+}
+
+export async function getUserByEmail(email: string) {
+  // Usando RPC function para contornar RLS temporariamente
+  const { data, error } = await supabaseAdminClient
+    .rpc('get_user_by_email', { user_email: email })
+
+  if (error) {
+    console.error('Erro ao buscar usuário por email:', error)
+    return null
+  }
+
+  // Retorna o primeiro resultado ou null se não encontrar
+  return data && data.length > 0 ? data[0] : null
 }
 
 export default supabaseServer
