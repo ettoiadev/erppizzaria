@@ -7,7 +7,7 @@
             ],
             "env": {
                 "SUPABASE_URL": "https://pnykmcgxjqrnlusqacqj.supabase.co",
-                "SUPABASE_SERVICE_ROLE_KEY": "${SUPABASE_SERVICE_ROLE_KEY}",
+                "SUPABASE_KEY": "${SUPABASE_KEY}",
                 "FASTMCP_LOG_LEVEL": "ERROR"
             },
             "disabled": false,
