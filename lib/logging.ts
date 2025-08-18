@@ -341,7 +341,10 @@ export const logger = {
 
 // Middleware para capturar informações de request
 export function createRequestLogger(req: Request) {
-  const requestId = crypto.randomUUID()
+  // Polyfill para crypto.randomUUID em ambientes de teste
+  const requestId = typeof crypto !== 'undefined' && crypto.randomUUID 
+    ? crypto.randomUUID() 
+    : 'test-' + Math.random().toString(36).substr(2, 9)
   const userAgent = req.headers.get('user-agent') || 'unknown'
   const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown'
   

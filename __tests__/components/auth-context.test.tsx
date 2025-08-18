@@ -1,9 +1,17 @@
 import React from 'react'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, act } from '@testing-library/react'
 import { AuthProvider, useAuth } from '@/contexts/auth-context'
 
 // Mock do fetch
 global.fetch = jest.fn()
+
+// Mock do window.location
+Object.defineProperty(window, 'location', {
+  value: {
+    pathname: '/login' // Simula página de login para evitar checkAuth automático
+  },
+  writable: true
+})
 
 // Componente de teste para usar o hook
 function TestComponent() {
@@ -22,21 +30,27 @@ function TestComponent() {
 describe('AuthContext', () => {
   beforeEach(() => {
     jest.clearAllMocks()
-    // Mock window.location
+    // Garantir que estamos em página de login
     Object.defineProperty(window, 'location', {
-      value: { pathname: '/' },
+      value: { pathname: '/login' },
       writable: true
     })
   })
 
-  it('should provide auth context', () => {
-    render(
-      <AuthProvider>
-        <TestComponent />
-      </AuthProvider>
-    )
+  it('should provide auth context', async () => {
+    await act(async () => {
+      render(
+        <AuthProvider>
+          <TestComponent />
+        </AuthProvider>
+      )
+    })
 
-    expect(screen.getByTestId('loading')).toHaveTextContent('not-loading')
+    // Aguardar o estado inicial ser definido
+    await waitFor(() => {
+      expect(screen.getByTestId('loading')).toHaveTextContent('not-loading')
+    })
+    
     expect(screen.getByTestId('user')).toHaveTextContent('no-user')
   })
 
@@ -58,14 +72,19 @@ describe('AuthContext', () => {
       })
     })
 
-    render(
-      <AuthProvider>
-        <TestComponent />
-      </AuthProvider>
-    )
+    await act(async () => {
+      render(
+        <AuthProvider>
+          <TestComponent />
+        </AuthProvider>
+      )
+    })
 
     const loginButton = screen.getByText('Login')
-    loginButton.click()
+    
+    await act(async () => {
+      loginButton.click()
+    })
 
     await waitFor(() => {
       expect(screen.getByTestId('user')).toHaveTextContent('test@example.com')
@@ -78,14 +97,19 @@ describe('AuthContext', () => {
       json: async () => ({ success: true })
     })
 
-    render(
-      <AuthProvider>
-        <TestComponent />
-      </AuthProvider>
-    )
+    await act(async () => {
+      render(
+        <AuthProvider>
+          <TestComponent />
+        </AuthProvider>
+      )
+    })
 
     const logoutButton = screen.getByText('Logout')
-    logoutButton.click()
+    
+    await act(async () => {
+      logoutButton.click()
+    })
 
     await waitFor(() => {
       expect(screen.getByTestId('user')).toHaveTextContent('no-user')

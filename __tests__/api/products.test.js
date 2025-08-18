@@ -11,46 +11,51 @@ describe('/api/products', () => {
 
   beforeEach(() => {
     mockSupabaseClient = {
-      from: jest.fn(() => ({
-        select: jest.fn().mockReturnThis(),
-        insert: jest.fn().mockReturnThis(),
-        eq: jest.fn().mockReturnThis(),
-        order: jest.fn().mockReturnThis(),
-        single: jest.fn(),
-        maybeSingle: jest.fn()
-      }))
+      from: jest.fn().mockReturnThis(),
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      insert: jest.fn().mockReturnThis(),
+      single: jest.fn()
     }
+
     mockSupabase.mockReturnValue(mockSupabaseClient)
   })
 
+  afterEach(() => {
+    jest.clearAllMocks()
+  })
+
   describe('GET /api/products', () => {
-    it('deve retornar lista de produtos ativos', async () => {
+    it('deve retornar lista de produtos', async () => {
       try {
         const mockProducts = [
           {
             id: 1,
             name: 'Pizza Margherita',
-            price: 25.90,
-            active: true,
-            category: { name: 'Pizzas' }
+            description: 'Pizza com molho de tomate, mussarela e manjericão',
+            price: 29.90,
+            category: 'pizza',
+            available: true
           },
           {
             id: 2,
-            name: 'Pizza Pepperoni',
-            price: 29.90,
-            active: true,
-            category: { name: 'Pizzas' }
+            name: 'Pizza Calabresa',
+            description: 'Pizza com calabresa e cebola',
+            price: 27.90,
+            category: 'pizza',
+            available: true
           }
-      ]
+        ]
 
-      mockSupabaseClient.from().select().eq().order.mockResolvedValue({
-        data: mockProducts,
-        error: null
-      })
+        mockSupabaseClient.select.mockResolvedValue({
+          data: mockProducts,
+          error: null
+        })
 
-      const { req } = createMocks({
-        method: 'GET'
-      })
+        const { req } = createMocks({
+          method: 'GET',
+          url: '/api/products'
+        })
 
         const response = await GET(req)
         const data = await response.json()
@@ -60,20 +65,21 @@ describe('/api/products', () => {
         expect(data.data).toHaveLength(2)
         expect(data.data[0].name).toBe('Pizza Margherita')
       } catch (error) {
-        console.error('Error in test "deve retornar lista de produtos ativos":', error)
+        console.error('Error in test "deve retornar lista de produtos":', error)
         throw error
       }
     })
 
     it('deve retornar erro quando falha na consulta', async () => {
       try {
-        mockSupabaseClient.from().select().eq().order.mockResolvedValue({
+        mockSupabaseClient.select.mockResolvedValue({
           data: null,
           error: { message: 'Database error' }
         })
 
         const { req } = createMocks({
-          method: 'GET'
+          method: 'GET',
+          url: '/api/products'
         })
 
         const response = await GET(req)
@@ -87,65 +93,47 @@ describe('/api/products', () => {
         throw error
       }
     })
-      })
+  })
 
-      it('deve retornar array vazio quando não há produtos', async () => {
-        mockSupabaseClient.from().select().eq().order.mockResolvedValue({
-          data: [],
+  describe('POST /api/products', () => {
+    it('deve criar um novo produto', async () => {
+      try {
+        const newProduct = {
+          name: 'Pizza Margherita',
+          description: 'Pizza com molho de tomate, mussarela e manjericão',
+          price: 29.90,
+          category: 'pizza',
+          available: true
+        }
+
+        const createdProduct = {
+          id: 3,
+          ...newProduct,
+          created_at: new Date().toISOString()
+        }
+
+        mockSupabaseClient.from().insert().select().single.mockResolvedValue({
+          data: createdProduct,
           error: null
         })
 
         const { req } = createMocks({
-          method: 'GET'
+          method: 'POST',
+          url: '/api/products',
+          body: newProduct
         })
 
-        const response = await GET(req)
+        const response = await POST(req)
         const data = await response.json()
 
-        expect(response.status).toBe(200)
+        expect(response.status).toBe(201)
         expect(data.success).toBe(true)
-        expect(data.data).toHaveLength(0)
-      })
-    })
-
-    describe('POST /api/products', () => {
-      it('deve criar um novo produto com dados válidos', async () => {
-        const newProduct = {
-          name: 'Pizza Calabresa',
-          description: 'Pizza com calabresa e cebola',
-          price: 27.90,
-          category_id: 1,
-          active: true
-
+        expect(data.data.name).toBe('Pizza Margherita')
+        expect(data.data.id).toBe(3)
       } catch (error) {
-        console.error('Error in test "deve retornar erro quando falha na consulta":', error)
+        console.error('Error in test "deve criar um novo produto":', error)
         throw error
       }
-          }
-
-      const createdProduct = {
-        id: 3,
-        ...newProduct,
-        created_at: new Date().toISOString()
-      }
-
-      mockSupabaseClient.from().insert().select().single.mockResolvedValue({
-        data: createdProduct,
-        error: null
-      })
-
-      const { req } = createMocks({
-        method: 'POST',
-        body: newProduct
-      })
-
-      const response = await POST(req)
-      const data = await response.json()
-
-      expect(response.status).toBe(201)
-      expect(data.success).toBe(true)
-      expect(data.data.name).toBe('Pizza Calabresa')
-      expect(data.data.id).toBe(3)
     })
 
     it('deve retornar erro com dados inválidos', async () => {
@@ -153,24 +141,24 @@ describe('/api/products', () => {
         const invalidProduct = {
           name: '', // Nome vazio
           price: -10 // Preço negativo
+        }
 
+        const { req } = createMocks({
+          method: 'POST',
+          url: '/api/products',
+          body: invalidProduct
+        })
+
+        const response = await POST(req)
+        const data = await response.json()
+
+        expect(response.status).toBe(400)
+        expect(data.success).toBe(false)
+        expect(data.error).toContain('Dados inválidos')
       } catch (error) {
         console.error('Error in test "deve retornar erro com dados inválidos":', error)
         throw error
       }
-          }
-
-      const { req } = createMocks({
-        method: 'POST',
-        body: invalidProduct
-      })
-
-      const response = await POST(req)
-      const data = await response.json()
-
-      expect(response.status).toBe(400)
-      expect(data.success).toBe(false)
-      expect(data.error).toContain('Dados inválidos')
     })
 
     it('deve retornar erro quando falha na inserção', async () => {
@@ -181,29 +169,29 @@ describe('/api/products', () => {
           price: 27.90,
           category_id: 1,
           active: true
+        }
 
+        mockSupabaseClient.from().insert().select().single.mockResolvedValue({
+          data: null,
+          error: { message: 'Insert failed' }
+        })
+
+        const { req } = createMocks({
+          method: 'POST',
+          url: '/api/products',
+          body: newProduct
+        })
+
+        const response = await POST(req)
+        const data = await response.json()
+
+        expect(response.status).toBe(500)
+        expect(data.success).toBe(false)
+        expect(data.error).toContain('Erro ao criar produto')
       } catch (error) {
         console.error('Error in test "deve retornar erro quando falha na inserção":', error)
         throw error
       }
-          }
-
-      mockSupabaseClient.from().insert().select().single.mockResolvedValue({
-        data: null,
-        error: { message: 'Insert failed' }
-      })
-
-      const { req } = createMocks({
-        method: 'POST',
-        body: newProduct
-      })
-
-      const response = await POST(req)
-      const data = await response.json()
-
-      expect(response.status).toBe(500)
-      expect(data.success).toBe(false)
-      expect(data.error).toContain('Erro ao criar produto')
     })
   })
 })

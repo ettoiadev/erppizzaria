@@ -23,8 +23,23 @@ const defaultOptions: MiddlewareOptions = {
 
 // Função para extrair informações do request
 function extractRequestInfo(req: NextRequest) {
-  const url = new URL(req.url)
-  const method = req.method
+  if (!req || !req.url) {
+    throw new Error('Request ou URL está ausente')
+  }
+  
+  let url: URL
+  try {
+    url = new URL(req.url)
+  } catch (error) {
+    // Fallback para URLs relativas
+    try {
+      url = new URL(req.url, 'http://localhost')
+    } catch (fallbackError) {
+      throw new Error(`URL inválida passada para extractRequestInfo: ${req.url}`)
+    }
+  }
+  
+  const method = req.method || 'UNKNOWN'
   const pathname = url.pathname
   const searchParams = Object.fromEntries(url.searchParams.entries())
   
@@ -40,11 +55,15 @@ function extractRequestInfo(req: NextRequest) {
 
 // Função para extrair informações do response
 function extractResponseInfo(response: NextResponse) {
+  if (!response) {
+    throw new Error('Response está ausente')
+  }
+  
   return {
-    status: response.status,
-    statusText: response.statusText,
-    contentType: response.headers.get('content-type'),
-    contentLength: response.headers.get('content-length')
+    status: response.status || 500,
+    statusText: response.statusText || 'Unknown',
+    contentType: response.headers?.get('content-type') || null,
+    contentLength: response.headers?.get('content-length') || null
   }
 }
 

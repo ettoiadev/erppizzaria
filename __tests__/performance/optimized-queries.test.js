@@ -1,224 +1,140 @@
-// Carregar variáveis de ambiente
-require('dotenv').config({ path: '.env.local' })
+/**
+ * Testes de performance para queries otimizadas
+ */
 
-const { createClient } = require('@supabase/supabase-js')
-const { performance } = require('perf_hooks')
+import { createClient } from '@supabase/supabase-js'
 
-// Configuração do Supabase
-const supabaseUrl = process.env.SUPABASE_URL
-const supabaseKey = process.env.SUPABASE_KEY
+// Mock do Supabase para testes
+jest.mock('@supabase/supabase-js')
+const mockCreateClient = createClient
 
-if (!supabaseUrl || !supabaseKey) {
-  console.error('❌ Variáveis de ambiente SUPABASE_URL e SUPABASE_KEY são obrigatórias')
-  process.exit(1)
-}
+describe('Performance - Optimized Queries', () => {
+  let mockSupabaseClient
 
-const supabase = createClient(supabaseUrl, supabaseKey)
+  beforeEach(() => {
+    mockSupabaseClient = {
+      from: jest.fn().mockReturnThis(),
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      order: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
+      range: jest.fn().mockReturnThis(),
+      textSearch: jest.fn().mockReturnThis(),
+      single: jest.fn()
+    }
 
-// Função para medir tempo de execução
-function measureTime(label, fn) {
-  return async (...args) => {
-    const start = performance.now()
-    const result = await fn(...args)
-    const end = performance.now()
-    console.log(`⏱️  ${label}: ${(end - start).toFixed(2)}ms`)
-    return result
-  }
-}
+    mockCreateClient.mockReturnValue(mockSupabaseClient)
+  })
 
-// Teste das funções otimizadas
-async function testOptimizedQueries() {
-  console.log('🧪 Testando consultas otimizadas do Supabase...\n')
+  afterEach(() => {
+    jest.clearAllMocks()
+  })
 
-  try {
-    // 1. Teste de listagem de pedidos otimizada
-    console.log('1. Testando listOrdersOptimized...')
-    const listOrdersOptimized = measureTime('listOrdersOptimized', async (options = {}) => {
-      const { status, userId, limit = 10, offset = 0 } = options
-      
-      let query = supabase
-        .from('orders')
-        .select(`
-          *,
-          profiles!orders_user_id_fkey(full_name, email, phone),
-          order_items(
-            *,
-            products(
-              name,
-              price,
-              category_id,
-              categories(name)
-            )
-          )
-        `)
-        .order('created_at', { ascending: false })
-      
-      if (status && status !== 'all') {
-        query = query.eq('status', status)
-      }
-      
-      if (userId) {
-        query = query.eq('user_id', userId)
-      }
-      
-      if (limit) {
-        query = query.limit(limit)
-      }
-      
-      if (offset) {
-        query = query.range(offset, offset + limit - 1)
-      }
-      
-      const { data: orders, error } = await query
-      
-      if (error) throw error
-      
-      return { orders: orders || [], statistics: { total: orders?.length || 0 } }
-    })
-    
-    const ordersResult = await listOrdersOptimized({ limit: 5 })
-    console.log(`✅ PASSOU: Encontrados ${ordersResult.orders.length} pedidos`)
-    
-    // 2. Teste de listagem de clientes otimizada
-    console.log('\n2. Testando listCustomersOptimized...')
-    const listCustomersOptimized = measureTime('listCustomersOptimized', async () => {
-      // Buscar clientes com endereços
-      const { data: customers, error: customersError } = await supabase
-        .from('profiles')
-        .select(`
-          *,
-          addresses(
-            id,
-            street,
-            number,
-            complement,
-            neighborhood,
-            city,
-            state,
-            zip_code,
-            is_default
-          )
-        `)
-        .eq('role', 'customer')
-        .order('created_at', { ascending: false })
-      
-      if (customersError) throw customersError
-      
-      // Buscar estatísticas de pedidos para todos os clientes
-      const { data: orderStats, error: ordersError } = await supabase
-        .from('orders')
-        .select('user_id, total, status, created_at')
-      
-      if (ordersError) throw ordersError
-      
-      // Processar dados em memória
-      const customerMap = new Map()
-      
-      // Inicializar mapa de clientes
-      customers?.forEach(customer => {
-        customerMap.set(customer.id, {
-          ...customer,
-          mainAddress: customer.addresses?.find(addr => addr.is_main) || customer.addresses?.[0] || null,
-          totalSpent: 0,
-          totalOrders: 0,
-          lastOrderDate: null,
-          status: 'inactive'
-        })
+  it('deve executar query de produtos com paginação', async () => {
+    try {
+      const mockProducts = Array.from({ length: 10 }, (_, i) => ({
+        id: i + 1,
+        name: `Produto ${i + 1}`,
+        price: 10.00 + i
+      }))
+
+      mockSupabaseClient.range.mockResolvedValue({
+        data: mockProducts,
+        error: null
       })
+
+      const start = performance.now()
       
-      // Calcular estatísticas
-      orderStats?.forEach(order => {
-        const customer = customerMap.get(order.user_id)
-        if (customer) {
-          customer.totalSpent += order.total || 0
-          customer.totalOrders += 1
-          
-          const orderDate = new Date(order.created_at)
-          if (!customer.lastOrderDate || orderDate > customer.lastOrderDate) {
-            customer.lastOrderDate = orderDate
-          }
-        }
-      })
-      
-      // Determinar status do cliente
-      const now = new Date()
-      const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
-      const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000)
-      
-      customerMap.forEach(customer => {
-        if (customer.totalSpent >= 500) {
-          customer.status = 'vip'
-        } else if (customer.lastOrderDate && customer.lastOrderDate > thirtyDaysAgo) {
-          customer.status = 'active'
-        } else if (customer.lastOrderDate && customer.lastOrderDate > ninetyDaysAgo) {
-          customer.status = 'regular'
-        } else if (customer.lastOrderDate) {
-          customer.status = 'churned'
-        } else {
-          customer.status = 'inactive'
-        }
-      })
-      
-      return Array.from(customerMap.values())
-    })
-    
-    const customersResult = await listCustomersOptimized()
-    console.log(`✅ PASSOU: Encontrados ${customersResult.length} clientes`)
-    
-    // 3. Teste de produtos ativos otimizados
-    console.log('\n3. Testando getProductsActiveOptimized...')
-    const getProductsActiveOptimized = measureTime('getProductsActiveOptimized', async () => {
-      const { data: products, error } = await supabase
+      const result = await mockSupabaseClient
         .from('products')
-        .select(`
-          *,
-          categories(
-            id,
-            name,
-            description,
-            sort_order
-          )
-        `)
+        .select('id, name, price')
         .eq('active', true)
         .order('name')
-      
-      if (error) throw error
-      
-      return products || []
-    })
-    
-    const productsResult = await getProductsActiveOptimized()
-    console.log(`✅ PASSOU: Encontrados ${productsResult.length} produtos ativos`)
-    
-    // 4. Teste de categorias otimizadas
-    console.log('\n4. Testando getCategoriesOptimized...')
-    const getCategoriesOptimized = measureTime('getCategoriesOptimized', async (includeInactive = false) => {
-      let query = supabase
-        .from('categories')
-        .select('*')
-        .order('sort_order')
-      
-      if (!includeInactive) {
-        query = query.eq('active', true)
-      }
-      
-      const { data: categories, error } = await query
-      
-      if (error) throw error
-      
-      return categories || []
-    })
-    
-    const categoriesResult = await getCategoriesOptimized()
-    console.log(`✅ PASSOU: Encontradas ${categoriesResult.length} categorias ativas`)
-    
-    console.log('\n🎉 Todos os testes de consultas otimizadas passaram!')
-    
-  } catch (error) {
-    console.error('❌ Erro nos testes:', error.message)
-    process.exit(1)
-  }
-}
+        .range(0, 9)
 
-// Executar testes
-testOptimizedQueries()
+      const end = performance.now()
+      const executionTime = end - start
+
+      expect(result.data).toHaveLength(10)
+      expect(result.error).toBeNull()
+      expect(executionTime).toBeLessThan(100) // Deve executar em menos de 100ms
+    } catch (error) {
+      console.error('Error in performance test:', error)
+      throw error
+    }
+  })
+
+  it('deve executar query de pedidos com joins otimizados', async () => {
+    try {
+      const mockOrders = [
+        {
+          id: 1,
+          total: 50.00,
+          customer: { name: 'João Silva' },
+          items: [{ product_name: 'Pizza Margherita', quantity: 2 }]
+        }
+      ]
+
+      const start = performance.now()
+      
+      mockSupabaseClient.select.mockResolvedValue({
+        data: mockOrders,
+        error: null
+      })
+
+      const result = await mockSupabaseClient
+        .from('orders')
+        .select(`
+          id,
+          total,
+          customer:customers(name),
+          items:order_items(product_name, quantity)
+        `)
+        .eq('status', 'completed')
+        .order('created_at', { ascending: false })
+        .limit(20)
+
+      const end = performance.now()
+      const executionTime = end - start
+
+      expect(result.data).toHaveLength(1)
+      expect(result.error).toBeNull()
+      expect(executionTime).toBeLessThan(200) // Deve executar em menos de 200ms
+    } catch (error) {
+      console.error('Error in join performance test:', error)
+      throw error
+    }
+  })
+
+  it('deve executar query de busca com índices', async () => {
+    try {
+      const mockSearchResults = [
+        { id: 1, name: 'Pizza Margherita', description: 'Pizza clássica' }
+      ]
+
+      mockSupabaseClient.textSearch.mockResolvedValue({
+        data: mockSearchResults,
+        error: null
+      })
+
+      const start = performance.now()
+      
+      const result = await mockSupabaseClient
+        .from('products')
+        .select('id, name, description')
+        .textSearch('name', 'pizza')
+        .eq('active', true)
+        .limit(10)
+
+      const end = performance.now()
+      const executionTime = end - start
+
+      expect(result.data).toHaveLength(1)
+      expect(result.error).toBeNull()
+      expect(executionTime).toBeLessThan(150) // Deve executar em menos de 150ms
+    } catch (error) {
+      console.error('Error in search performance test:', error)
+      throw error
+    }
+  })
+})

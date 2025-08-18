@@ -210,6 +210,7 @@ describe('/api/orders', () => {
 
         const { req } = createMocks({
           method: 'POST',
+          url: '/api/orders',
           body: newOrder
         })
 
@@ -233,24 +234,24 @@ describe('/api/orders', () => {
           userId: '', // User ID vazio
           items: [], // Array de itens vazio
           total: -10 // Total negativo
+        }
 
+        const { req } = createMocks({
+          method: 'POST',
+          url: '/api/orders',
+          body: invalidOrder
+        })
+
+        const response = await POST(req)
+        const data = await response.json()
+
+        expect(response.status).toBe(400)
+        expect(data.success).toBe(false)
+        expect(data.error).toContain('Dados inválidos')
       } catch (error) {
         console.error('Error in test "deve retornar erro com dados inválidos":', error)
         throw error
       }
-          }
-
-      const { req } = createMocks({
-        method: 'POST',
-        body: invalidOrder
-      })
-
-      const response = await POST(req)
-      const data = await response.json()
-
-      expect(response.status).toBe(400)
-      expect(data.success).toBe(false)
-      expect(data.error).toContain('Dados inválidos')
     })
 
     it('deve retornar erro quando total não confere', async () => {
@@ -262,27 +263,27 @@ describe('/api/orders', () => {
               productId: 1,
               quantity: 2,
               price: 25.90
+            }
+          ],
+          total: 100.00 // Total incorreto
+        }
 
+        const { req } = createMocks({
+          method: 'POST',
+          url: '/api/orders',
+          body: orderWithWrongTotal
+        })
+
+        const response = await POST(req)
+        const data = await response.json()
+
+        expect(response.status).toBe(400)
+        expect(data.success).toBe(false)
+        expect(data.error).toContain('Total do pedido não confere')
       } catch (error) {
         console.error('Error in test "deve retornar erro quando total não confere":', error)
         throw error
       }
-              }
-        ],
-        total: 100.00 // Total incorreto
-      }
-
-      const { req } = createMocks({
-        method: 'POST',
-        body: orderWithWrongTotal
-      })
-
-      const response = await POST(req)
-      const data = await response.json()
-
-      expect(response.status).toBe(400)
-      expect(data.success).toBe(false)
-      expect(data.error).toContain('Total do pedido não confere')
     })
 
     it('deve retornar erro quando falha na inserção', async () => {
@@ -294,32 +295,31 @@ describe('/api/orders', () => {
               productId: 1,
               quantity: 2,
               price: 25.90
+            }
+          ],
+          total: 51.80
+        }
 
+        mockSupabaseClient.from().insert().select().single.mockResolvedValue({
+          data: null,
+          error: { message: 'Insert failed' }
+        })
+
+        const { req } = createMocks({
+          method: 'POST',
+          body: newOrder
+        })
+
+        const response = await POST(req)
+        const data = await response.json()
+
+        expect(response.status).toBe(500)
+        expect(data.success).toBe(false)
+        expect(data.error).toContain('Erro ao criar pedido')
       } catch (error) {
         console.error('Error in test "deve retornar erro quando falha na inserção":', error)
         throw error
       }
-              }
-        ],
-        total: 51.80
-      }
-
-      mockSupabaseClient.from().insert().select().single.mockResolvedValue({
-        data: null,
-        error: { message: 'Insert failed' }
-      })
-
-      const { req } = createMocks({
-        method: 'POST',
-        body: newOrder
-      })
-
-      const response = await POST(req)
-      const data = await response.json()
-
-      expect(response.status).toBe(500)
-      expect(data.success).toBe(false)
-      expect(data.error).toContain('Erro ao criar pedido')
     })
   })
 })
