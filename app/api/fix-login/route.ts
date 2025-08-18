@@ -1,36 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServerClient } from '@/lib/supabase';
+import { frontendLogger } from '@/lib/frontend-logger';
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('🚨 CORREÇÃO URGENTE: Criando tabela profiles e usuário admin...');
+    frontendLogger.info('🚨 CORREÇÃO URGENTE: Criando tabela profiles e usuário admin...', 'api');
 
     // 1. Instalar extensões
     // Extensões não são gerenciadas via API Supabase aqui (skip)
-    console.log('✅ Extensões instaladas');
+    frontendLogger.info('✅ Extensões instaladas', 'api');
 
     // 2. Deletar tabela existente se houver (para recriar limpa)
     // Evitar drop via API; manter apenas recriação idempotente
-    console.log('✅ Tabela anterior removida');
+    frontendLogger.info('✅ Tabela anterior removida', 'api');
 
     // 3. Criar tabela profiles
     const supabase = getSupabaseServerClient();
-    console.log('✅ Tabela profiles criada');
+    frontendLogger.info('✅ Tabela profiles criada', 'api');
 
     // 4. Criar índices
     // Índices não são manipulados via API aqui (skip)
-    console.log('✅ Índices criados');
+    frontendLogger.info('✅ Índices criados', 'api');
 
     // 5. Inserir usuários admin
     await supabase.from('profiles').upsert([
       { email: 'admin@pizzaria.com', full_name: 'Administrador do Sistema', role: 'admin', password_hash: '$2b$10$rOzJqQZ8kYyVKVjKZyVKVuO8kYyVKVjKZyVKVuO8kYyVKVjKZyVKVu', phone: '11999999999', updated_at: new Date().toISOString() },
       { email: 'admin@williamdiskpizza.com', full_name: 'Admin William Disk Pizza', role: 'admin', password_hash: '$2b$10$rOzJqQZ8kYyVKVjKZyVKVuO8kYyVKVjKZyVKVuO8kYyVKVjKZyVKVu', updated_at: new Date().toISOString() }
     ], { onConflict: 'email' });
-    console.log('✅ Usuários admin criados');
+    frontendLogger.info('✅ Usuários admin criados', 'api');
 
     // 6. Criar trigger para updated_at
     // Triggers não são manipuladas via API aqui (skip)
-    console.log('✅ Trigger criado');
+    frontendLogger.info('✅ Trigger criado', 'api');
 
     // 7. Verificar criação
     const { data } = await supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'admin');
@@ -43,7 +44,7 @@ export async function POST(request: NextRequest) {
       .eq('email', 'admin@pizzaria.com')
       .maybeSingle();
 
-    console.log('✅ CORREÇÃO COMPLETA!');
+    frontendLogger.info('✅ CORREÇÃO COMPLETA!', 'api');
 
     return NextResponse.json({
       success: true,
@@ -68,7 +69,12 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro na correção:', error);
+    frontendLogger.error('❌ Erro na correção', 'api', {
+      error: error.message,
+      stack: error.stack,
+      code: error.code,
+      hint: error.hint
+    });
 
     return NextResponse.json({
       success: false,

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { listOrdersOptimized } from '@/lib/db-supabase-optimized'
 import { ordersRateLimiter } from '@/lib/rate-limiter'
+import { frontendLogger } from '@/lib/frontend-logger'
 
 // Force dynamic rendering for this route
 export const dynamic = 'force-dynamic'
@@ -23,7 +24,7 @@ export async function GET(request: NextRequest) {
     const parsedLimit = limit ? Math.min(parseInt(limit), 100) : null // Máximo de 100 itens
     const parsedOffset = offset ? Math.max(parseInt(offset), 0) : null // Mínimo 0
 
-    console.log(`[ORDERS_OPTIMIZED] Buscando pedidos - Status: ${status}, Limit: ${parsedLimit}, Offset: ${parsedOffset}`)
+    frontendLogger.info('Buscando pedidos otimizados', { status, limit: parsedLimit, offset: parsedOffset })
 
     const { orders, statistics } = await listOrdersOptimized({
       status,
@@ -32,7 +33,7 @@ export async function GET(request: NextRequest) {
       offset: parsedOffset,
     })
 
-    console.log(`[ORDERS_OPTIMIZED] Encontrados ${orders.length} pedidos`)
+    frontendLogger.info('Pedidos encontrados', { count: orders.length })
 
     return NextResponse.json({ 
       orders, 
@@ -49,7 +50,7 @@ export async function GET(request: NextRequest) {
     })
 
   } catch (error: any) {
-    console.error("❌ [ORDERS_OPTIMIZED] Erro ao buscar pedidos:", error)
+    frontendLogger.error('Erro ao buscar pedidos otimizados', { error: error.message, stack: error.stack })
     return NextResponse.json(
       { 
         error: "Erro interno do servidor",

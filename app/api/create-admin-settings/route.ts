@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServerClient } from '@/lib/supabase';
+import { frontendLogger } from '@/lib/frontend-logger';
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('🔧 Inicializando admin_settings (Supabase)...');
+    frontendLogger.info('Inicializando admin_settings no Supabase', 'api');
     const supabase = getSupabaseServerClient();
 
     // Inserir configurações padrão (idempotente)
@@ -31,7 +32,9 @@ export async function POST(request: NextRequest) {
       .select('id', { count: 'exact', head: true });
     const settingsCount = (verification as any)?.length || 0;
 
-    console.log('✅ Tabela admin_settings criada com sucesso!');
+    frontendLogger.info('Tabela admin_settings criada com sucesso', 'api', {
+      settingsCreated: settingsCount
+    });
 
     return NextResponse.json({
       success: true,
@@ -41,7 +44,12 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao criar admin_settings:', error);
+    frontendLogger.error('Erro ao criar admin_settings', 'api', {
+      error: error.message,
+      stack: error.stack,
+      code: error.code,
+      hint: error.hint
+    });
 
     return NextResponse.json({
       success: false,

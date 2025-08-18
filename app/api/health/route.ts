@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getSupabaseServerClient } from '@/lib/supabase'
+import { frontendLogger } from '@/lib/frontend-logger'
 
 // Configurações para Vercel
 export const dynamic = 'force-dynamic'
@@ -11,7 +12,7 @@ export async function GET() {
   };
 
   try {
-    console.log('🏥 Health check iniciado');
+    frontendLogger.info('Health check iniciado');
     
     // Testar variáveis de ambiente
     const envCheck = {
@@ -22,7 +23,7 @@ export async function GET() {
       hasMercadoPagoToken: !!process.env.MERCADOPAGO_ACCESS_TOKEN
     };
     
-    console.log('🔧 Environment check:', envCheck);
+    frontendLogger.info('Environment check completed', envCheck);
     
     // Testar Supabase
     let supabaseTest: any = { configured: envCheck.hasSupabaseUrl && envCheck.hasSupabaseKey }
@@ -42,7 +43,7 @@ export async function GET() {
     }, { headers });
     
   } catch (error: any) {
-    console.error('❌ Health check failed:', error);
+    frontendLogger.error('Health check failed:', error);
     
     return NextResponse.json({
       status: 'unhealthy',
@@ -61,4 +62,4 @@ export async function POST() {
     message: 'Health check - POST method working',
     timestamp: new Date().toISOString()
   });
-} 
+}

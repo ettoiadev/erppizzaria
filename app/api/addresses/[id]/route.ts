@@ -1,91 +1,182 @@
 import { NextResponse } from "next/server"
 import { getAddressById, updateAddress, deleteAddress } from "@/lib/db-supabase"
+import { addCorsHeaders, createOptionsHandler } from '@/lib/auth-utils'
+import { frontendLogger } from '@/lib/frontend-logger'
+import { z } from 'zod'
+
+// Schema para validação de atualização de endereços
+const addressUpdateSchema = z.object({
+  name: z.string().min(1, "Nome do endereço é obrigatório").trim(),
+  street: z.string().min(1, "Rua/Logradouro é obrigatório").trim(),
+  number: z.string().min(1, "Número é obrigatório").trim(),
+  complement: z.string().optional().transform(val => val?.trim() || ''),
+  neighborhood: z.string().min(1, "Bairro é obrigatório").trim(),
+  city: z.string().min(1, "Cidade é obrigatória").trim(),
+  state: z.string().length(2, "Estado deve ter 2 caracteres (UF)").toUpperCase(),
+  zip_code: z.string().min(1, "CEP é obrigatório").transform(val => {
+    const cleaned = val.replace(/\D/g, '')
+    if (cleaned.length !== 8) {
+      throw new Error("CEP deve ter 8 dígitos")
+    }
+    return cleaned
+  }),
+  is_default: z.boolean().optional().default(false)
+})
+
+// Schema para validação de atualização parcial (PATCH)
+const addressPatchSchema = z.object({
+  is_default: z.boolean()
+})
 
 // GET - Buscar um endereço específico
 export async function GET(request: Request, { params }: { params: { id: string } }) {
   try {
+    frontendLogger.info('Buscando endereço por ID', { addressId: params.id })
+
     const address = await getAddressById(params.id)
     if (!address) {
-      return NextResponse.json({ error: "Endereço não encontrado" }, { status: 404 })
+      frontendLogger.warn('Endereço não encontrado', { addressId: params.id })
+      const response = NextResponse.json({ error: "Endereço não encontrado" }, { status: 404 })
+      return addCorsHeaders(response)
     }
-    return NextResponse.json({ address })
+    
+    frontendLogger.info('Endereço encontrado', { addressId: params.id })
+    const response = NextResponse.json({ address })
+    return addCorsHeaders(response)
   } catch (error) {
-    console.error("Erro ao buscar endereço:", error)
-    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
+    frontendLogger.error("Erro ao buscar endereço:", error)
+    const response = NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
+    return addCorsHeaders(response)
   }
 }
 
 // PATCH - Atualizar um endereço parcialmente (para marcar como padrão)
 export async function PATCH(request: Request, { params }: { params: { id: string } }) {
   try {
-    const body = await request.json()
-    const { is_default } = body
+    let body
+    try {
+      body = await request.json()
+    } catch (error) {
+      const response = NextResponse.json({
+        error: "JSON inválido"
+      }, { status: 400 })
+      return addCorsHeaders(response)
+    }
 
-    console.log("PATCH /api/addresses - Atualizando endereço:", params.id, body)
+    frontendLogger.info('Atualizando endereço parcialmente', { 
+      addressId: params.id,
+      data: body 
+    })
 
-    const address = await updateAddress(params.id, { is_default })
-    return NextResponse.json({ address })
-  } catch (error) {
-    console.error("Erro ao atualizar endereço:", error)
-    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
+    // Validar dados usando Zod
+    const validationResult = addressPatchSchema.safeParse(body)
+    if (!validationResult.success) {
+      frontendLogger.warn('Dados inválidos para atualização parcial de endereço', { 
+        addressId: params.id,
+        errors: validationResult.error.errors 
+      })
+      const response = NextResponse.json({
+        error: "Dados inválidos",
+        details: validationResult.error.errors
+      }, { status: 400 })
+      return addCorsHeaders(response)
+    }
+
+    const validatedData = validationResult.data
+    const address = await updateAddress(params.id, validatedData)
+    
+    frontendLogger.info('Endereço atualizado parcialmente com sucesso', { 
+      addressId: params.id 
+    })
+    
+    const response = NextResponse.json({ address })
+    return addCorsHeaders(response)
+  } catch (error: any) {
+    frontendLogger.error('Erro ao atualizar endereço', 'api', {
+      error: error.message,
+      stack: error.stack,
+      addressId: params.id
+    })
+    const response = NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
+    return addCorsHeaders(response)
   }
 }
 
 // PUT - Atualizar um endereço completo
 export async function PUT(request: Request, { params }: { params: { id: string } }) {
   try {
-    const body = await request.json()
-    const { name, street, number, complement, neighborhood, city, state, zip_code, is_default } = body
-
-    console.log("PUT /api/addresses - Dados recebidos:", body)
-
-    // Validações detalhadas dos campos obrigatórios
-    if (!name || !name.trim()) {
-      return NextResponse.json({ error: "Nome do endereço é obrigatório" }, { status: 400 })
-    }
-    if (!zip_code || !zip_code.trim()) {
-      return NextResponse.json({ error: "CEP é obrigatório" }, { status: 400 })
-    }
-    const zipCodeNumbers = zip_code.replace(/\D/g, "")
-    if (zipCodeNumbers.length !== 8) {
-      return NextResponse.json({ error: "CEP deve ter 8 dígitos" }, { status: 400 })
-    }
-    if (!street || !street.trim()) {
-      return NextResponse.json({ error: "Rua/Logradouro é obrigatório" }, { status: 400 })
-    }
-    if (!number || !number.trim()) {
-      return NextResponse.json({ error: "Número é obrigatório" }, { status: 400 })
-    }
-    if (!neighborhood || !neighborhood.trim()) {
-      return NextResponse.json({ error: "Bairro é obrigatório" }, { status: 400 })
-    }
-    if (!city || !city.trim()) {
-      return NextResponse.json({ error: "Cidade é obrigatória" }, { status: 400 })
-    }
-    if (!state || !state.trim()) {
-      return NextResponse.json({ error: "Estado é obrigatório" }, { status: 400 })
-    }
-    if (state.length !== 2) {
-      return NextResponse.json({ error: "Estado deve ter 2 caracteres (UF)" }, { status: 400 })
+    let body
+    try {
+      body = await request.json()
+    } catch (error) {
+      const response = NextResponse.json({
+        error: "JSON inválido"
+      }, { status: 400 })
+      return addCorsHeaders(response)
     }
 
-    const address = await updateAddress(params.id, { label: name || 'Endereço', street, number, complement, neighborhood, city, state, zip_code, is_default: is_default || false })
-    return NextResponse.json({ address })
+    frontendLogger.info('Atualizando endereço completo', { 
+      addressId: params.id,
+      data: body 
+    })
+
+    // Validar e sanitizar dados usando Zod
+    const validationResult = addressUpdateSchema.safeParse(body)
+    if (!validationResult.success) {
+      frontendLogger.warn('Dados inválidos para atualização de endereço', { 
+        addressId: params.id,
+        errors: validationResult.error.errors 
+      })
+      const response = NextResponse.json({
+        error: "Dados inválidos",
+        details: validationResult.error.errors
+      }, { status: 400 })
+      return addCorsHeaders(response)
+    }
+
+    const validatedData = validationResult.data
+    const { name, street, number, complement, neighborhood, city, state, zip_code, is_default } = validatedData
+
+    const address = await updateAddress(params.id, { 
+      label: name || 'Endereço', 
+      street, 
+      number, 
+      complement, 
+      neighborhood, 
+      city, 
+      state, 
+      zip_code, 
+      is_default: is_default || false 
+    })
+    
+    frontendLogger.info('Endereço atualizado com sucesso', { 
+      addressId: params.id 
+    })
+    
+    const response = NextResponse.json({ address })
+    return addCorsHeaders(response)
   } catch (error) {
-    console.error("Erro ao atualizar endereço:", error)
-    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
+    frontendLogger.error("Erro ao atualizar endereço:", error)
+    const response = NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
+    return addCorsHeaders(response)
   }
 }
 
 // DELETE - Excluir um endereço
 export async function DELETE(request: Request, { params }: { params: { id: string } }) {
   try {
-    console.log("DELETE /api/addresses - Excluindo endereço:", params.id)
+    frontendLogger.info('Excluindo endereço', { addressId: params.id })
 
     await deleteAddress(params.id)
-    return NextResponse.json({ message: "Endereço excluído com sucesso" })
+    
+    frontendLogger.info('Endereço excluído com sucesso', { addressId: params.id })
+    const response = NextResponse.json({ message: "Endereço excluído com sucesso" })
+    return addCorsHeaders(response)
   } catch (error) {
-    console.error("Erro ao excluir endereço:", error)
-    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
+    frontendLogger.error("Erro ao excluir endereço:", error)
+    const response = NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
+    return addCorsHeaders(response)
   }
 }
+
+export const OPTIONS = createOptionsHandler()

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServerClient } from '@/lib/supabase'
 import { verifyAdmin } from '@/lib/auth'
+import { frontendLogger } from '@/lib/frontend-logger'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,7 +33,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Acesso negado" }, { status: 403 })
     }
 
-    console.log('[DELIVERY_ZONES] Buscando zonas de entrega...')
+    frontendLogger.info('Buscando zonas de entrega')
 
     const supabase = getSupabaseServerClient()
     const { data: zonesRows, error: zonesErr } = await supabase
@@ -60,7 +61,7 @@ export async function GET(request: NextRequest) {
       stats: stats[String(zone.id)] || { cached_addresses: 0, deliverable_addresses: 0 }
     }))
 
-    console.log('[DELIVERY_ZONES] Zonas encontradas:', zonesWithStats.length)
+    frontendLogger.info('Zonas de entrega encontradas', { count: zonesWithStats.length })
 
     return NextResponse.json({ 
       success: true,
@@ -69,7 +70,7 @@ export async function GET(request: NextRequest) {
     })
 
   } catch (error: any) {
-    console.error('[DELIVERY_ZONES] Erro ao buscar zonas:', error)
+    frontendLogger.error('Erro ao buscar zonas de entrega', { error: error.message, stack: error.stack })
     return NextResponse.json({ 
       success: false,
       error: 'Erro interno do servidor',
@@ -103,7 +104,7 @@ export async function POST(request: NextRequest) {
       active = true
     } = await request.json()
 
-    console.log('[DELIVERY_ZONES] Criando nova zona:', { name, min_distance_km, max_distance_km })
+    frontendLogger.info('Criando nova zona de entrega', { name, min_distance_km, max_distance_km })
 
     // Validações
     if (!name || name.trim().length === 0) {
@@ -160,7 +161,7 @@ export async function POST(request: NextRequest) {
       .single()
     if (error) throw error
 
-    console.log('[DELIVERY_ZONES] Zona criada com sucesso:', newZone.id)
+    frontendLogger.info('Zona de entrega criada com sucesso', { zoneId: newZone.id, name: newZone.name })
 
     return NextResponse.json({ 
       success: true,
@@ -169,7 +170,7 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error: any) {
-    console.error('[DELIVERY_ZONES] Erro ao criar zona:', error)
+    frontendLogger.error('Erro ao criar zona de entrega', { error: error.message, stack: error.stack })
     return NextResponse.json({ 
       success: false,
       error: 'Erro interno do servidor',

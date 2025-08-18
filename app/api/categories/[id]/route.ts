@@ -1,15 +1,34 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getSupabaseServerClient } from '@/lib/supabase'
-import { withAdminAuth } from '@/lib/auth-middleware'
 import { frontendLogger } from '@/lib/frontend-logger'
+import { validateAdminAuth, createAuthErrorResponse, addCorsHeaders, createOptionsHandler } from '@/lib/auth-utils'
+import { z } from 'zod'
 
 export const dynamic = 'force-dynamic'
 
+// Schema para validação completa de categoria (PUT)
+const categoryUpdateSchema = z.object({
+  name: z.string().min(1, "Nome é obrigatório").max(100, "Nome deve ter no máximo 100 caracteres").trim(),
+  description: z.string().max(500, "Descrição deve ter no máximo 500 caracteres").optional().default(""),
+  image_url: z.string().url("URL da imagem deve ser válida").optional().nullable(),
+  sort_order: z.number().int().min(0, "Ordem deve ser um número positivo").optional().default(0),
+  active: z.boolean().optional().default(true)
+});
 
+// Schema para validação parcial de categoria (PATCH)
+const categoryPatchSchema = z.object({
+  name: z.string().min(1, "Nome é obrigatório").max(100, "Nome deve ter no máximo 100 caracteres").trim().optional(),
+  description: z.string().max(500, "Descrição deve ter no máximo 500 caracteres").optional(),
+  image_url: z.string().url("URL da imagem deve ser válida").optional().nullable(),
+  sort_order: z.number().int().min(0, "Ordem deve ser um número positivo").optional(),
+  active: z.boolean().optional()
+});
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    console.log('GET /api/categories/[id] - ID:', params.id)
+    frontendLogger.info('Busca de categoria por ID iniciada', 'api', {
+      categoryId: params.id
+    });
     
     const supabase = getSupabaseServerClient()
     const { data: category, error } = await supabase
@@ -20,8 +39,11 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     if (error) throw error
 
     if (!category) {
-      console.log('Categoria não encontrada:', params.id)
-      return NextResponse.json({ error: "Categoria não encontrada" }, { status: 404 })
+      frontendLogger.warn('Categoria não encontrada', 'api', {
+        categoryId: params.id
+      });
+      const response = NextResponse.json({ error: "Categoria não encontrada" }, { status: 404 })
+      return addCorsHeaders(response)
     }
 
     const normalizedCategory = {
@@ -33,52 +55,73 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       active: category.active !== false
     }
 
-    console.log('Categoria encontrada:', normalizedCategory)
-    return NextResponse.json({ category: normalizedCategory })
+    frontendLogger.info('Categoria encontrada com sucesso', 'api', {
+      categoryId: params.id,
+      categoryName: category.name
+    });
+    const response = NextResponse.json({ category: normalizedCategory })
+    return addCorsHeaders(response)
   } catch (error: any) {
-    console.error("Erro ao buscar categoria:", error)
-    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
+    frontendLogger.error('Erro ao buscar categoria', 'api', {
+      error: error.message,
+      categoryId: params.id
+    });
+    const response = NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
+    return addCorsHeaders(response)
   }
 }
 
 export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
-  return withAdminAuth(request, async (req, admin) => {
-    try {
-      console.log(`[CATEGORIES] PUT request iniciado para categoria ID: ${params.id}`)
-      console.log(`[CATEGORIES] PUT: Acesso autorizado para admin: ${admin.email}`)
-    
-    // Validar se o ID foi fornecido
-    if (!params.id || params.id.trim() === '') {
-      console.error('ID da categoria não fornecido')
-      return NextResponse.json(
-        { error: "ID da categoria é obrigatório" },
-        { status: 400 }
-      )
-    }
+  // Validar autenticação de admin
+  const authResult = await validateAdminAuth(request)
+  if (!authResult.success) {
+    return createAuthErrorResponse(authResult.error, authResult.status)
+  }
+  
+  const admin = authResult.user
 
+  try {
+    frontendLogger.info('Requisição PUT para categoria iniciada', 'api', {
+      adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+      categoryId: params.id
+    });
+  
     // Parse do body com tratamento de erro
     let body
     try {
       body = await request.json()
-      console.log('Body recebido:', body)
     } catch (parseError) {
-      console.error('Erro ao fazer parse do JSON:', parseError)
-      return NextResponse.json(
+      frontendLogger.warn('JSON inválido na requisição PUT categoria', 'api', {
+        adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+        categoryId: params.id,
+        error: parseError.message
+      });
+      const response = NextResponse.json(
         { error: "Dados JSON inválidos" },
         { status: 400 }
       )
+      return addCorsHeaders(response)
     }
 
-    const { name, description, image, active } = body
-
-    // Validação robusta dos dados
-    if (!name || typeof name !== 'string' || !name.trim()) {
-      console.error('Nome da categoria inválido:', name)
-      return NextResponse.json(
-        { error: "Nome da categoria é obrigatório e deve ser uma string válida" },
+    // Validação com Zod
+    const validationResult = categoryUpdateSchema.safeParse(body);
+    if (!validationResult.success) {
+      frontendLogger.warn('Dados inválidos na requisição PUT categoria', 'api', {
+        adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+        categoryId: params.id,
+        errors: validationResult.error.errors
+      });
+      const response = NextResponse.json(
+        { 
+          error: "Dados inválidos", 
+          details: validationResult.error.errors 
+        },
         { status: 400 }
       )
+      return addCorsHeaders(response)
     }
+
+    const validatedData = validationResult.data;
 
     // Verificar se a categoria existe antes de tentar atualizar
     const supabase = getSupabaseServerClient()
@@ -90,35 +133,26 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     if (exErr) throw exErr
 
     if (!existing) {
-      console.error('Categoria não encontrada para update:', params.id)
-      return NextResponse.json(
+      frontendLogger.warn('Categoria não encontrada para atualização', 'api', {
+        adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+        categoryId: params.id
+      });
+      const response = NextResponse.json(
         { error: "Categoria não encontrada" },
         { status: 404 }
       )
+      return addCorsHeaders(response)
     }
 
-    // Preparar valores com valores padrão seguros
-    const updateName = name.trim()
-    const updateDescription = (description && typeof description === 'string') ? description.trim() : ''
-    const updateImage = (image && typeof image === 'string') ? image.trim() : ''
-    const updateActive = active !== undefined ? Boolean(active) : true
-
-    console.log('Valores para update:', {
-      name: updateName,
-      description: updateDescription, 
-      image: updateImage,
-      active: updateActive,
-      id: params.id
-    })
-
-    // Atualizar categoria usando Supabase
+    // Atualizar categoria usando Supabase com dados validados
     const { data: updatedCategory, error: updErr } = await supabase
       .from('categories')
       .update({
-        name: updateName,
-        description: updateDescription,
-        image_url: updateImage || null,
-        active: updateActive,
+        name: validatedData.name,
+        description: validatedData.description,
+        image_url: validatedData.image_url || null,
+        sort_order: validatedData.sort_order,
+        active: validatedData.active,
         updated_at: new Date().toISOString(),
       })
       .eq('id', params.id)
@@ -136,48 +170,54 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       active: updatedCategory.active !== false
     }
 
-    console.log('Categoria atualizada com sucesso:', normalizedCategory)
-    frontendLogger.info('Categoria atualizada', 'api', {
+    frontendLogger.info('Categoria atualizada com sucesso', 'api', {
       adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
       categoryId: params.id,
       categoryName: normalizedCategory.name
-    })
-    return NextResponse.json(normalizedCategory)
+    });
+    const response = NextResponse.json(normalizedCategory)
+    return addCorsHeaders(response)
 
-    } catch (error: any) {
-      console.error("Erro completo ao atualizar categoria:", {
-        message: error.message,
-        stack: error.stack,
-        id: params?.id
-      })
-      
-      frontendLogger.logError('Erro ao atualizar categoria', {
-           error: error.message,
-           adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
-           categoryId: params.id
-         }, error, 'api')
-      
-      return NextResponse.json({ 
-        error: "Erro interno do servidor",
-        details: process.env.NODE_ENV === 'development' ? error.message : undefined
-      }, { status: 500 })
-    }
-  })
+  } catch (error: any) {
+    frontendLogger.error('Erro ao atualizar categoria', 'api', {
+      error: error.message,
+      adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+      categoryId: params.id
+    });
+    
+    const response = NextResponse.json({ 
+      error: "Erro interno do servidor",
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    }, { status: 500 })
+    return addCorsHeaders(response)
+  }
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
-  return withAdminAuth(request, async (req, admin) => {
-    try {
-      console.log(`[CATEGORIES] DELETE request iniciado para categoria ID: ${params.id}`)
-      console.log(`[CATEGORIES] DELETE: Acesso autorizado para admin: ${admin.email}`)
-    
+  // Validar autenticação de admin
+  const authResult = await validateAdminAuth(request)
+  if (!authResult.success) {
+    return createAuthErrorResponse(authResult.error, authResult.status)
+  }
+  
+  const admin = authResult.user
+
+  try {
+    frontendLogger.info('Iniciando exclusão de categoria', 'api', {
+      adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+      categoryId: params.id
+    });
+  
     // Validar se o ID foi fornecido
     if (!params.id || params.id.trim() === '') {
-      console.error('ID da categoria não fornecido')
-      return NextResponse.json(
+      frontendLogger.warn('ID da categoria não fornecido para exclusão', 'api', {
+        adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2')
+      });
+      const response = NextResponse.json(
         { error: "ID da categoria é obrigatório" },
         { status: 400 }
       )
+      return addCorsHeaders(response)
     }
 
     const supabase = getSupabaseServerClient()
@@ -189,14 +229,17 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     if (exErr) throw exErr
 
     if (!existing) {
-      console.error('Categoria não encontrada para delete:', params.id)
-      return NextResponse.json(
+      frontendLogger.warn('Categoria não encontrada para exclusão', 'api', {
+        adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+        categoryId: params.id
+      });
+      const response = NextResponse.json(
         { error: "Categoria não encontrada" },
         { status: 404 }
       )
+      return addCorsHeaders(response)
     }
     const existingCategory = existing;
-    console.log('Categoria encontrada para delete:', existingCategory.name)
 
     // Verificar se há produtos associados à categoria
     const { data: prodRows, error: prodErr } = await supabase
@@ -208,14 +251,20 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     const productsCount = (prodRows as any)?.length || 0
 
     if (productsCount > 0) {
-      console.log(`Categoria tem ${productsCount} produtos associados`)
-      return NextResponse.json(
+      frontendLogger.warn('Tentativa de exclusão de categoria com produtos associados', 'api', {
+        adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+        categoryId: params.id,
+        categoryName: existingCategory.name,
+        productsCount
+      });
+      const response = NextResponse.json(
         { 
           error: "Não é possível excluir categoria com produtos associados",
           details: `Esta categoria possui ${productsCount} produto(s) associado(s). Remova ou mova os produtos antes de excluir a categoria.`
         },
         { status: 400 }
       )
+      return addCorsHeaders(response)
     }
 
     // Deletar categoria usando Supabase (soft delete)
@@ -225,34 +274,33 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
       .eq('id', params.id)
     if (delErr) throw delErr
 
-    console.log('Categoria deletada com sucesso:', params.id)
-    frontendLogger.info('Categoria deletada', 'api', {
+    frontendLogger.info('Categoria deletada com sucesso', 'api', {
       adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
       categoryId: params.id,
       categoryName: existingCategory.name
-    })
-    return NextResponse.json({ 
+    });
+    const response = NextResponse.json({ 
       message: "Categoria deletada com sucesso",
       id: params.id 
     })
+    return addCorsHeaders(response)
 
-    } catch (error: any) {
-      console.error("Erro completo ao deletar categoria:", {
-        message: error.message,
-        stack: error.stack,
-        id: params?.id
-      })
+  } catch (error: any) {
+    frontendLogger.error('Erro ao deletar categoria', 'api', {
+      error: error.message,
+      adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+      categoryId: params.id
+    });
 
-      frontendLogger.logError('Erro ao deletar categoria', {
-           error: error.message,
-           adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
-           categoryId: params.id
-         }, error, 'api')
+    const response = NextResponse.json({ 
+      error: "Erro interno do servidor",
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    }, { status: 500 })
+    return addCorsHeaders(response)
+  }
+}
 
-      return NextResponse.json({ 
-        error: "Erro interno do servidor",
-        details: process.env.NODE_ENV === 'development' ? error.message : undefined
-      }, { status: 500 })
-    }
-  })
+// Handler para requisições OPTIONS (CORS)
+export async function OPTIONS() {
+  return createOptionsHandler()
 }

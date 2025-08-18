@@ -1,28 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServerClient } from '@/lib/supabase'
 import { verifyAdmin } from '@/lib/auth'
+import { frontendLogger } from '@/lib/frontend-logger'
 
 export async function DELETE(request: NextRequest) {
   try {
-    console.log('[DELETE_SALES] Iniciando exclusão de todos os dados de vendas...')
+    frontendLogger.info('Iniciando exclusão de todos os dados de vendas')
 
     // Verificar autenticação admin
     const authHeader = request.headers.get('authorization')
     const token = authHeader?.split(' ')[1]
     
     if (!token) {
-      console.log('[DELETE_SALES] Token de autorização não fornecido')
+      frontendLogger.info('Token de autorização não fornecido')
       return NextResponse.json({ error: 'Token de autorização necessário' }, { status: 401 })
     }
 
     const admin = await verifyAdmin(token)
     
     if (!admin) {
-      console.log('[DELETE_SALES] Usuário não é admin')
+      frontendLogger.info('Usuário não é admin')
       return NextResponse.json({ error: 'Acesso negado - usuário não é admin' }, { status: 403 })
     }
 
-    console.log('[DELETE_SALES] Autenticação admin verificada, prosseguindo...')
+    frontendLogger.info('Autenticação admin verificada, prosseguindo com exclusão de vendas')
 
     const supabase = getSupabaseServerClient()
 
@@ -38,16 +39,16 @@ export async function DELETE(request: NextRequest) {
       const { data: ord } = await supabase.from('orders').select('id', { count: 'exact', head: true })
       const totalOrders = (ord as any)?.length || 0
 
-      console.log(`[DELETE_SALES] Encontrados ${totalOrderItems} itens de pedidos e ${totalOrders} pedidos para deletar`)
+      frontendLogger.info('Encontrados itens e pedidos para deletar', { totalOrderItems, totalOrders })
 
       // 3. Deletar todos os itens de pedidos
-      console.log('[DELETE_SALES] Deletando itens de pedidos...')
+      frontendLogger.info('Deletando itens de pedidos')
       const { error: delOiErr } = await supabase.from('order_items').delete().neq('id', '00000000-0000-0000-0000-000000000000')
       if (delOiErr) throw delOiErr
       deletedOrderItems = totalOrderItems
 
       // 4. Deletar todos os pedidos
-      console.log('[DELETE_SALES] Deletando pedidos...')
+      frontendLogger.info('Deletando pedidos')
       const { error: delOrdErr } = await supabase.from('orders').delete().neq('id', '00000000-0000-0000-0000-000000000000')
       if (delOrdErr) throw delOrdErr
       deletedOrders = totalOrders
@@ -57,7 +58,7 @@ export async function DELETE(request: NextRequest) {
       
       // Sem transação: operações simples e idempotentes em Supabase
 
-      console.log(`[DELETE_SALES] Exclusão concluída: ${deletedOrderItems} itens e ${deletedOrders} pedidos deletados`)
+      frontendLogger.info('Exclusão de vendas concluída', { deletedOrderItems, deletedOrders })
 
       return NextResponse.json({
         success: true,
@@ -70,12 +71,12 @@ export async function DELETE(request: NextRequest) {
       })
 
     } catch (error) {
-      console.error('[DELETE_SALES] Erro durante exclusão:', error)
+      frontendLogger.error('Erro durante exclusão de vendas', { error: error.message, stack: error.stack })
       throw error
     }
 
   } catch (error: any) {
-    console.error('[DELETE_SALES] Erro ao deletar dados de vendas:', error)
+    frontendLogger.error('Erro ao deletar dados de vendas', { error: error.message, stack: error.stack })
     
     return NextResponse.json(
       { 

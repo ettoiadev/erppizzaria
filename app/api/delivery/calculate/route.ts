@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServerClient } from '@/lib/supabase'
+import { frontendLogger } from '@/lib/frontend-logger'
+import { addCorsHeaders } from '@/lib/auth-utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,7 +28,7 @@ async function geocodeAddress(address: string, apiKey: string): Promise<{
 } | null> {
   try {
     if (!apiKey || apiKey.trim() === '') {
-      console.log('[GEOCODING] API key não configurada')
+      frontendLogger.warn('API key do Google Maps não configurada')
       return null
     }
 
@@ -58,10 +60,14 @@ async function geocodeAddress(address: string, apiKey: string): Promise<{
       }
     }
 
-    console.log('[GEOCODING] Erro na API do Google:', data.status, data.error_message)
+    frontendLogger.warn('Erro na API do Google Maps', { status: data.status, error: data.error_message })
     return null
-  } catch (error) {
-    console.error('[GEOCODING] Erro na geocodificação:', error)
+  } catch (error: any) {
+    frontendLogger.error('Erro na geocodificação', 'api', {
+      error: error.message,
+      stack: error.stack,
+      address
+    })
     return null
   }
 }
@@ -70,13 +76,13 @@ export async function POST(request: NextRequest) {
   try {
     const { address, latitude, longitude } = await request.json()
 
-    console.log('[DELIVERY_CALC] Calculando entrega para:', { address, latitude, longitude })
+    frontendLogger.info('Calculando entrega', { address, latitude, longitude })
 
     if (!address && (!latitude || !longitude)) {
-      return NextResponse.json({ 
+      return addCorsHeaders(NextResponse.json({ 
         error: 'Endereço ou coordenadas são obrigatórios',
         deliverable: false
-      }, { status: 400 })
+      }, { status: 400 }))
     }
 
     // Buscar configurações da pizzaria
@@ -96,7 +102,7 @@ export async function POST(request: NextRequest) {
       config[String(row.setting_key)] = String(row.setting_value)
     })
 
-    console.log('[DELIVERY_CALC] Configurações carregadas:', Object.keys(config))
+    frontendLogger.info('Configurações de entrega carregadas', { configKeys: Object.keys(config) })
 
     // Se geolocalização está desabilitada, usar taxa padrão
     if (config.enable_geolocation_delivery !== 'true') {
@@ -122,7 +128,7 @@ export async function POST(request: NextRequest) {
 
     // Se não tiver coordenadas, buscar no cache ou geocodificar
     if (!targetLat || !targetLon) {
-      console.log('[DELIVERY_CALC] Buscando coordenadas para:', address)
+      frontendLogger.info('Buscando coordenadas para endereço', { address })
 
       // Buscar no cache primeiro
         const { data: cacheRows } = await supabase
@@ -139,7 +145,7 @@ export async function POST(request: NextRequest) {
         targetLon = parseFloat(cached.longitude)
         formattedAddress = cached.formatted_address || address
         
-        console.log('[DELIVERY_CALC] Coordenadas encontradas no cache')
+        frontendLogger.info('Coordenadas encontradas no cache', { targetLat, targetLon })
 
         // Se tem distância cached e ainda é válida, usar diretamente
         if (cached.distance_km && cached.delivery_zone_id) {
@@ -152,9 +158,13 @@ export async function POST(request: NextRequest) {
             if ((zoneRows || []).length > 0) {
               const zone = (zoneRows || [])[0]
             
-            console.log('[DELIVERY_CALC] Resultado completo encontrado no cache')
+            frontendLogger.info('Resultado completo encontrado no cache', { 
+              distance: cached.distance_km, 
+              deliverable: cached.is_deliverable,
+              zone: zone.name 
+            })
             
-            return NextResponse.json({
+            return addCorsHeaders(NextResponse.json({
               deliverable: cached.is_deliverable,
               delivery_fee: cached.is_deliverable ? parseFloat(zone.delivery_fee) : 0,
               estimated_time: cached.is_deliverable ? zone.estimated_time_minutes : 0,
@@ -164,36 +174,36 @@ export async function POST(request: NextRequest) {
               formatted_address: formattedAddress,
               message: cached.is_deliverable ? `Entrega disponível - ${zone.name}` : 'Fora da área de entrega',
               method: 'cache'
-            })
+            }))
           }
         }
       } else {
         // Geocodificar usando Google Maps API
-        console.log('[DELIVERY_CALC] Geocodificando endereço...')
+        frontendLogger.info('Geocodificando endereço via Google Maps API')
         
         const geocoded = await geocodeAddress(address, config.google_maps_api_key || '')
         
         if (!geocoded) {
-          return NextResponse.json({
+          return addCorsHeaders(NextResponse.json({
             deliverable: false,
             error: 'Não foi possível localizar o endereço. Verifique se está correto e tente novamente.',
             message: 'Endereço não encontrado',
             method: 'geocoding_failed'
-          }, { status: 400 })
+          }, { status: 400 }))
         }
 
         targetLat = geocoded.latitude
         targetLon = geocoded.longitude
         formattedAddress = geocoded.formatted_address
 
-        console.log('[DELIVERY_CALC] Endereço geocodificado:', { targetLat, targetLon })
+        frontendLogger.info('Endereço geocodificado com sucesso', { targetLat, targetLon, formattedAddress })
       }
     }
 
     // Calcular distância
     const distance = calculateDistance(pizzariaLat, pizzariaLon, targetLat, targetLon)
     
-    console.log('[DELIVERY_CALC] Distância calculada:', distance.toFixed(2), 'km')
+    frontendLogger.info('Distância calculada', { distance: distance.toFixed(2) + ' km' })
 
     // Verificar se está dentro do raio máximo
     if (distance > maxRadius) {
@@ -214,14 +224,14 @@ export async function POST(request: NextRequest) {
           }, { onConflict: 'address_text' })
       }
 
-      return NextResponse.json({
+      return addCorsHeaders(NextResponse.json({
         deliverable: false,
         distance_km: distance,
         max_radius_km: maxRadius,
         formatted_address: formattedAddress,
         message: `Endereço fora da área de entrega. Distância: ${distance.toFixed(1)}km (máximo: ${maxRadius}km)`,
         method: 'out_of_range'
-      })
+      }))
     }
 
     // Buscar zona de entrega apropriada
@@ -266,9 +276,15 @@ export async function POST(request: NextRequest) {
         }, { onConflict: 'address_text' })
     }
 
-    console.log('[DELIVERY_CALC] Cálculo concluído:', { deliveryFee, estimatedTime, zoneName })
+    frontendLogger.info('Cálculo de entrega concluído', { 
+      deliveryFee, 
+      estimatedTime, 
+      zoneName, 
+      distance: distance.toFixed(2) + ' km',
+      method: zone ? 'zone_match' : 'fallback'
+    })
 
-    return NextResponse.json({
+    return addCorsHeaders(NextResponse.json({
       deliverable: true,
       delivery_fee: deliveryFee,
       estimated_time: estimatedTime,
@@ -279,16 +295,16 @@ export async function POST(request: NextRequest) {
       message: `Entrega disponível - ${zoneName}`,
       method: zone ? 'zone_match' : 'fallback',
       pizzaria_address: config.pizzaria_address
-    })
+    }))
 
   } catch (error: any) {
-    console.error('[DELIVERY_CALC] Erro no cálculo de entrega:', error)
-    return NextResponse.json({ 
+    frontendLogger.error('Erro no cálculo de entrega:', error)
+    return addCorsHeaders(NextResponse.json({ 
       deliverable: false,
       error: 'Erro interno do servidor',
       message: 'Não foi possível calcular a entrega. Tente novamente.',
       details: error.message,
       method: 'error'
-    }, { status: 500 })
+    }, { status: 500 }))
   }
 }

@@ -1,11 +1,12 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getSupabaseServerClient } from "@/lib/supabase"
+import { frontendLogger } from '@/lib/frontend-logger'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    console.log('GET /api/categories/[id] - ID:', params.id)
+    frontendLogger.info('Busca de categoria por ID', 'api', { categoryId: params.id })
     
     const supabase = getSupabaseServerClient()
     const { data: categoryRow, error } = await supabase
@@ -16,7 +17,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     if (error) throw error
 
     if (!categoryRow) {
-      console.log('Categoria não encontrada:', params.id)
+      frontendLogger.info('Categoria não encontrada', 'api', { categoryId: params.id })
       return NextResponse.json({ error: "Categoria não encontrada" }, { status: 404 })
     }
 
@@ -30,21 +31,28 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       active: category.active !== false
     }
 
-    console.log('Categoria encontrada:', normalizedCategory)
+    frontendLogger.info('Categoria encontrada', 'api', { 
+      categoryId: normalizedCategory.id,
+      categoryName: normalizedCategory.name
+    })
     return NextResponse.json({ category: normalizedCategory })
   } catch (error) {
-    console.error("Erro ao buscar categoria:", error)
+    frontendLogger.error('Erro ao buscar categoria', 'api', {
+      categoryId: params.id,
+      error: (error as any)?.message,
+      stack: (error as any)?.stack
+    })
     return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
   }
 }
 
 export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    console.log('PUT /api/categories/[id] - ID:', params.id)
+    frontendLogger.info('Atualização de categoria por ID', 'api', { categoryId: params.id })
     
     // Validar se o ID foi fornecido
     if (!params.id || params.id.trim() === '') {
-      console.error('ID da categoria não fornecido')
+      frontendLogger.error('ID da categoria não fornecido', 'api')
       return NextResponse.json(
         { error: "ID da categoria é obrigatório" },
         { status: 400 }
@@ -55,9 +63,12 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     let body
     try {
       body = await request.json()
-      console.log('Body recebido:', body)
+      frontendLogger.info('Body recebido para atualização', 'api', { categoryId: params.id })
     } catch (parseError) {
-      console.error('Erro ao fazer parse do JSON:', parseError)
+      frontendLogger.error('Erro ao fazer parse do JSON', 'api', {
+        categoryId: params.id,
+        error: (parseError as any)?.message
+      })
       return NextResponse.json(
         { error: "Dados JSON inválidos" },
         { status: 400 }
@@ -68,7 +79,10 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
     // Validação robusta dos dados
     if (!name || typeof name !== 'string' || !name.trim()) {
-      console.error('Nome da categoria inválido:', name)
+      frontendLogger.error('Nome da categoria inválido', 'api', {
+        categoryId: params.id,
+        providedName: name
+      })
       return NextResponse.json(
         { error: "Nome da categoria é obrigatório e deve ser uma string válida" },
         { status: 400 }
@@ -85,7 +99,9 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     if (exErr) throw exErr
 
     if (!existing) {
-      console.error('Categoria não encontrada para update:', params.id)
+      frontendLogger.error('Categoria não encontrada para update', 'api', {
+        categoryId: params.id
+      })
       return NextResponse.json(
         { error: "Categoria não encontrada" },
         { status: 404 }
@@ -98,12 +114,12 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     const updateImage = (image && typeof image === 'string') ? image.trim() : ''
     const updateActive = active !== undefined ? Boolean(active) : true
 
-    console.log('Valores para update:', {
+    frontendLogger.info('Valores para update', 'api', {
+      categoryId: params.id,
       name: updateName,
-      description: updateDescription, 
+      description: updateDescription,
       image: updateImage,
-      active: updateActive,
-      id: params.id
+      active: updateActive
     })
 
     const { data: category, error: updErr } = await supabase
@@ -128,14 +144,17 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       active: category.active !== false
     }
 
-    console.log('Categoria atualizada com sucesso:', normalizedCategory)
+    frontendLogger.info('Categoria atualizada com sucesso', 'api', {
+      categoryId: normalizedCategory.id,
+      categoryName: normalizedCategory.name
+    })
     return NextResponse.json(normalizedCategory)
 
   } catch (error) {
-    console.error("Erro completo ao atualizar categoria:", {
-      message: (error as any)?.message,
-      stack: (error as any)?.stack,
-      id: params?.id
+    frontendLogger.error('Erro completo ao atualizar categoria', 'api', {
+      categoryId: params?.id,
+      error: (error as any)?.message,
+      stack: (error as any)?.stack
     })
     
     // Retornar erro mais específico se possível
@@ -162,7 +181,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    console.log('DELETE /api/categories/[id] - ID:', params.id)
+    frontendLogger.info('Exclusão de categoria por ID', 'api', { categoryId: params.id })
     
     // Validar se o ID foi fornecido
     if (!params.id || params.id.trim() === '') {
@@ -197,13 +216,19 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
       return NextResponse.json({ error: "Categoria não encontrada" }, { status: 404 })
     }
 
-    console.log('Categoria marcada como inativa:', inact)
+    frontendLogger.info('Categoria marcada como inativa', 'api', {
+      categoryId: inact.id
+    })
     return NextResponse.json({ 
       message: "Categoria excluída com sucesso",
       success: true 
     })
   } catch (error) {
-    console.error("Erro ao excluir categoria:", error)
+    frontendLogger.error('Erro ao excluir categoria', 'api', {
+      categoryId: params.id,
+      error: (error as any)?.message,
+      stack: (error as any)?.stack
+    })
     return NextResponse.json({ 
       error: "Erro interno do servidor",
       details: process.env.NODE_ENV === 'development' ? (error as any)?.message : undefined 

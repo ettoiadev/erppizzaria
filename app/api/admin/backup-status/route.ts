@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyAdmin } from '@/lib/auth'
+import { frontendLogger } from '@/lib/frontend-logger'
 import fs from 'fs'
 import path from 'path'
 
@@ -65,7 +66,10 @@ export async function GET(request: NextRequest) {
           lastDatabaseBackup = databaseBackups[0]
         }
       } catch (error) {
-        console.error('Erro ao ler backups de banco:', error)
+        frontendLogger.error('Erro ao ler backups de banco de dados', 'api', {
+          error: error instanceof Error ? error.message : String(error),
+          backupDir
+        })
       }
     }
     
@@ -92,7 +96,10 @@ export async function GET(request: NextRequest) {
           lastFilesBackup = filesBackups[0]
         }
       } catch (error) {
-        console.error('Erro ao ler backups de arquivos:', error)
+        frontendLogger.error('Erro ao ler backups de arquivos', 'api', {
+          error: error instanceof Error ? error.message : String(error),
+          filesBackupDir
+        })
       }
     }
     
@@ -113,7 +120,10 @@ export async function GET(request: NextRequest) {
       diskFree = parseInt(parts[3]) * 1024 // Em bytes
       diskUsage = ((diskTotal - diskFree) / diskTotal) * 100
     } catch (error) {
-      console.error('Erro ao verificar espaço em disco:', error)
+      frontendLogger.error('Erro ao verificar espaço em disco', 'api', {
+        error: error instanceof Error ? error.message : String(error),
+        backupDir
+      })
     }
     
     // Verificar se há backups recentes (últimas 24h)
@@ -156,7 +166,10 @@ export async function GET(request: NextRequest) {
     })
     
   } catch (error: any) {
-    console.error('Erro ao obter status de backup:', error)
+    frontendLogger.error('Erro ao obter status de backup', 'api', {
+      error: error.message,
+      stack: error.stack
+    })
     return NextResponse.json(
       { 
         error: 'Erro interno do servidor',

@@ -1,40 +1,23 @@
 import { NextRequest, NextResponse } from "next/server"
 import { listCustomers } from '@/lib/db-supabase'
-import { withDatabaseErrorHandling } from '@/lib/database-error-handler'
-import { withErrorMonitoring } from '@/lib/error-monitoring'
-import { withApiLogging } from '@/lib/api-logger-middleware'
+import { addCorsHeaders, createOptionsHandler } from '@/lib/auth-utils'
+import { frontendLogger } from '@/lib/frontend-logger'
 
 // Force dynamic rendering for this route
 export const dynamic = 'force-dynamic'
 
-// Handler GET para buscar clientes (sem middlewares)
-async function getCustomersHandler(request: NextRequest): Promise<NextResponse> {
+// Handler GET para buscar clientes
+export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
+    frontendLogger.info('Buscando lista de clientes')
     const customers = await listCustomers()
-    return NextResponse.json({ customers, total: customers.length })
+    frontendLogger.info(`Encontrados ${customers.length} clientes`)
+    return addCorsHeaders(NextResponse.json({ customers, total: customers.length }))
   } catch (error: any) {
-    // O middleware de database error handling vai capturar e tratar este erro
-    throw error
+    frontendLogger.error('Erro ao buscar clientes:', error)
+    return addCorsHeaders(NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 }))
   }
 }
 
-// Aplicar middlewares para GET (apenas logging e monitoramento)
-const enhancedGetHandler = withErrorMonitoring(
-  withApiLogging(
-    withDatabaseErrorHandling(
-      getCustomersHandler,
-      {
-        logErrors: true,
-        sanitizeErrors: process.env.NODE_ENV === 'production'
-      }
-    ),
-    {
-      logRequests: true,
-      logResponses: false, // Não logar resposta para GET (pode ser muito grande)
-      logErrors: true
-    }
-  )
-)
-
-// Exportar a função com middlewares
-export const GET = enhancedGetHandler
+// Handler OPTIONS para CORS
+export const OPTIONS = createOptionsHandler()

@@ -1,16 +1,47 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getSupabaseServerClient } from '@/lib/supabase';
-import { withAdminAuth } from '@/lib/auth-middleware';
 import { frontendLogger } from '@/lib/frontend-logger';
+import { validateAdminAuth, createAuthErrorResponse, addCorsHeaders, createOptionsHandler } from '@/lib/auth-utils';
+import { z } from 'zod';
 
+// Schema para atualização completa de produto
+const productUpdateSchema = z.object({
+  name: z.string().min(1, "Nome é obrigatório").max(100, "Nome deve ter no máximo 100 caracteres").trim(),
+  description: z.string().max(500, "Descrição deve ter no máximo 500 caracteres").optional().default(""),
+  price: z.number().min(0, "Preço deve ser positivo"),
+  category_id: z.string().uuid("ID da categoria deve ser um UUID válido").optional(),
+  categoryId: z.string().uuid("ID da categoria deve ser um UUID válido").optional(),
+  image: z.string().url("URL da imagem deve ser válida").optional().nullable(),
+  available: z.boolean().optional().default(true),
+  showImage: z.boolean().optional().default(true),
+  sizes: z.array(z.any()).optional().default([]),
+  toppings: z.array(z.any()).optional().default([])
+}).refine(data => data.category_id || data.categoryId, {
+  message: "ID da categoria é obrigatório",
+  path: ["category_id"]
+});
 
-
+// Schema para atualização parcial de produto
+const productPatchSchema = z.object({
+  name: z.string().min(1, "Nome é obrigatório").max(100, "Nome deve ter no máximo 100 caracteres").trim().optional(),
+  description: z.string().max(500, "Descrição deve ter no máximo 500 caracteres").optional(),
+  price: z.number().min(0, "Preço deve ser positivo").optional(),
+  category_id: z.string().uuid("ID da categoria deve ser um UUID válido").optional(),
+  categoryId: z.string().uuid("ID da categoria deve ser um UUID válido").optional(),
+  image: z.string().url("URL da imagem deve ser válida").optional().nullable(),
+  available: z.boolean().optional(),
+  showImage: z.boolean().optional(),
+  sizes: z.array(z.any()).optional(),
+  toppings: z.array(z.any()).optional()
+});
 // GET - Publicly fetch a specific product
 export async function GET(
   request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
+    frontendLogger.info('Buscando produto por ID', 'api', { productId: params.id });
+    
     const supabase = getSupabaseServerClient();
     const { data, error } = await supabase
       .from('products')
@@ -20,10 +51,12 @@ export async function GET(
     if (error) throw error;
 
     if (!data) {
-      return NextResponse.json(
+      frontendLogger.warn('Produto não encontrado', 'api', { productId: params.id });
+      const response = NextResponse.json(
         { error: "Produto não encontrado" },
         { status: 404 }
       );
+      return addCorsHeaders(response);
     }
     const product = data as any;
 
@@ -38,13 +71,23 @@ export async function GET(
       toppings: [] // Será implementado posteriormente se necessário
     };
 
-    return NextResponse.json({ product: normalizedProduct });
+    frontendLogger.info('Produto encontrado com sucesso', 'api', { 
+      productId: params.id, 
+      productName: product.name 
+    });
+    
+    const response = NextResponse.json({ product: normalizedProduct });
+    return addCorsHeaders(response);
   } catch (error: any) {
-    console.error("Erro ao buscar produto:", error);
-    return NextResponse.json(
+    frontendLogger.error('Erro ao buscar produto', 'api', { 
+      productId: params.id, 
+      error: error.message 
+    });
+    const response = NextResponse.json(
       { error: "Erro interno do servidor" },
       { status: 500 }
     );
+    return addCorsHeaders(response);
   }
 }
 
@@ -53,12 +96,50 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  return withAdminAuth(request, async (req, admin) => {
-    try {
-      console.log(`[PRODUCTS] PUT request iniciado para produto ID: ${params.id}`);
-      console.log(`[PRODUCTS] PUT: Acesso autorizado para admin: ${admin.email}`);
+  // Validar autenticação de admin
+  const authResult = await validateAdminAuth(request)
+  if (!authResult.success) {
+    return createAuthErrorResponse(authResult.error, authResult.status)
+  }
+  
+  const admin = authResult.user
 
-    const body = await request.json();
+  try {
+    frontendLogger.info('PUT request iniciado para produto', 'api', { 
+      productId: params.id,
+      adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2')
+    });
+
+    // Validação e sanitização dos dados de entrada
+    let body;
+    try {
+      body = await request.json();
+    } catch (error) {
+      frontendLogger.warn('JSON inválido recebido', 'api', { productId: params.id });
+      const response = NextResponse.json(
+        { error: "Dados JSON inválidos" },
+        { status: 400 }
+      );
+      return addCorsHeaders(response);
+    }
+
+    // Validar dados usando Zod
+    const validationResult = productUpdateSchema.safeParse(body);
+    if (!validationResult.success) {
+      const errorMessage = validationResult.error.errors[0]?.message || 'Dados inválidos';
+      frontendLogger.warn('Dados inválidos para atualização de produto', 'api', { 
+        productId: params.id,
+        error: errorMessage,
+        adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2')
+      });
+      const response = NextResponse.json(
+        { error: errorMessage },
+        { status: 400 }
+      );
+      return addCorsHeaders(response);
+    }
+
+    const validatedData = validationResult.data;
     const {
       name,
       description,
@@ -70,25 +151,19 @@ export async function PUT(
       showImage,
       sizes,
       toppings,
-    } = body;
+    } = validatedData;
 
     const finalCategoryId = categoryId || category_id;
-
-    if (!name?.trim() || price === undefined || price < 0) {
-      return NextResponse.json(
-        { error: "Nome e preço são obrigatórios e o preço deve ser positivo" },
-        { status: 400 }
-      );
-    }
 
     const supabase = getSupabaseServerClient();
     const { data: exists, error: existsErr } = await supabase.from('products').select('id').eq('id', params.id).maybeSingle();
     if (existsErr) throw existsErr;
     if (!exists) {
-      return NextResponse.json(
+      const response = NextResponse.json(
         { error: "Produto não encontrado" },
         { status: 404 }
       );
+      return addCorsHeaders(response);
     }
 
     // Atualizar produto
@@ -122,76 +197,104 @@ export async function PUT(
       toppings: toppings || []
     };
 
-    console.log(`[PRODUCTS] PUT: Produto ${params.id} atualizado com sucesso`);
-    frontendLogger.info('Produto atualizado', 'api', {
+    frontendLogger.info('Produto atualizado com sucesso', 'api', {
       adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
       productId: params.id,
       productName: name.trim()
     });
 
-    return NextResponse.json({ product: normalizedProduct });
-    } catch (error: any) {
-      console.error("Erro ao atualizar produto:", error);
-      frontendLogger.logError('Erro ao atualizar produto', {
-           error: error.message,
-           adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
-           productId: params.id
-         }, error, 'api');
-      return NextResponse.json(
-        { error: "Erro interno do servidor" },
-        { status: 500 }
-      );
-    }
-  });
+    const response = NextResponse.json({ product: normalizedProduct });
+    return addCorsHeaders(response);
+  } catch (error: any) {
+    frontendLogger.error('Erro ao atualizar produto', 'api', {
+      error: error.message,
+      adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+      productId: params.id
+    });
+    const response = NextResponse.json(
+      { error: "Erro interno do servidor" },
+      { status: 500 }
+    );
+    return addCorsHeaders(response);
+  }
 }
+
+export const OPTIONS = createOptionsHandler();
 
 // PATCH - Partially update a product (Admin only)
 export async function PATCH(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  // Validar autenticação de admin
+  const authResult = await validateAdminAuth(request);
+  if (!authResult.success) {
+    return createAuthErrorResponse(authResult.error, authResult.status);
+  }
+  
+  const admin = authResult.user;
+
   try {
-
-    
-    const body = await request.json();
-    
-    // Mapeamento de campos permitidos
-    const allowedFields = {
-      name: 'name',
-      description: 'description', 
-      price: 'price',
-      category_id: 'category_id',
-      categoryId: 'category_id',
-      image: 'image',
-      available: 'active',
-      active: 'active',
-      sizes: 'sizes',
-      toppings: 'toppings',
-      show_image: 'show_image',
-      product_number: 'product_number'
-    };
-
-    // Construir objeto de atualização
-    const updates: any = {};
-    let hasValidFields = false;
-
-    Object.entries(body).forEach(([key, value]) => {
-      const dbField = allowedFields[key as keyof typeof allowedFields];
-      if (dbField && value !== undefined) {
-        updates[dbField] = value;
-        hasValidFields = true;
-      }
+    frontendLogger.info('PATCH request iniciado para produto', 'api', { 
+      productId: params.id,
+      adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2')
     });
 
-    if (!hasValidFields) {
-      return NextResponse.json(
+    // Validação e sanitização dos dados de entrada
+    let body;
+    try {
+      body = await request.json();
+    } catch (error) {
+      frontendLogger.warn('JSON inválido recebido', 'api', { productId: params.id });
+      const response = NextResponse.json(
+        { error: "Dados JSON inválidos" },
+        { status: 400 }
+      );
+      return addCorsHeaders(response);
+    }
+
+    // Validar dados usando Zod
+    const validationResult = productPatchSchema.safeParse(body);
+    if (!validationResult.success) {
+      const errorMessage = validationResult.error.errors[0]?.message || 'Dados inválidos';
+      frontendLogger.warn('Dados inválidos para atualização parcial de produto', 'api', { 
+        productId: params.id,
+        error: errorMessage,
+        adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2')
+      });
+      const response = NextResponse.json(
+        { error: errorMessage },
+        { status: 400 }
+      );
+      return addCorsHeaders(response);
+    }
+
+    const validatedData = validationResult.data;
+    
+    // Verificar se há campos para atualizar
+    const fieldsToUpdate = Object.keys(validatedData).filter(key => validatedData[key as keyof typeof validatedData] !== undefined);
+    if (fieldsToUpdate.length === 0) {
+      frontendLogger.warn('Nenhum campo válido para atualização', 'api', { productId: params.id });
+      const response = NextResponse.json(
         { error: "Nenhum campo válido para atualização" },
         { status: 400 }
       );
+      return addCorsHeaders(response);
     }
 
-    // Sempre atualizar updated_at
-    updates.updated_at = new Date().toISOString();
+    // Construir objeto de atualização
+    const updates: any = { updated_at: new Date().toISOString() };
+    
+    // Mapear campos validados para campos do banco
+    if (validatedData.name !== undefined) updates.name = validatedData.name;
+    if (validatedData.description !== undefined) updates.description = validatedData.description;
+    if (validatedData.price !== undefined) updates.price = validatedData.price;
+    if (validatedData.category_id !== undefined) updates.category_id = validatedData.category_id;
+    if (validatedData.categoryId !== undefined) updates.category_id = validatedData.categoryId;
+    if (validatedData.image !== undefined) updates.image = validatedData.image;
+    if (validatedData.available !== undefined) updates.active = validatedData.available;
+    if (validatedData.sizes !== undefined) updates.sizes = validatedData.sizes;
+    if (validatedData.toppings !== undefined) updates.toppings = validatedData.toppings;
 
     const supabase = getSupabaseServerClient();
     
@@ -205,10 +308,12 @@ export async function PATCH(
     if (existsError) throw existsError;
     
     if (!existingProduct) {
-      return NextResponse.json(
+      const response = NextResponse.json(
         { error: "Produto não encontrado" },
         { status: 404 }
       );
+      addCorsHeaders(response);
+      return response;
     }
 
     // Atualizar o produto
@@ -239,19 +344,25 @@ export async function PATCH(
       toppings: updatedProduct.toppings || []
     };
 
-    return NextResponse.json({ product: normalizedProduct });
+    frontendLogger.info('Produto atualizado parcialmente com sucesso', 'api', {
+      adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+      productId: params.id,
+      fieldsUpdated: Object.keys(updates).filter(key => key !== 'updated_at')
+    });
+
+    const response = NextResponse.json({ product: normalizedProduct });
+    return addCorsHeaders(response);
   } catch (error: any) {
-    console.error("Erro ao atualizar produto:", error);
-    if (error.message.includes('Token não fornecido') || error.message.includes('Acesso não autorizado')) {
-        return NextResponse.json({ error: error.message }, { status: 401 });
-    }
-    return NextResponse.json(
-      {
-        error: "Erro interno do servidor",
-        details: error instanceof Error ? error.message : "Unknown error",
-      },
+    frontendLogger.error('Erro ao atualizar produto parcialmente', 'api', {
+      error: error.message,
+      adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+      productId: params.id
+    });
+    const response = NextResponse.json(
+      { error: "Erro interno do servidor" },
       { status: 500 }
     );
+    return addCorsHeaders(response);
   }
 }
 
@@ -260,19 +371,32 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  return withAdminAuth(request, async (req, admin) => {
-    try {
-      console.log(`[PRODUCTS] DELETE request iniciado para produto ID: ${params.id}`);
-      console.log(`[PRODUCTS] DELETE: Acesso autorizado para admin: ${admin.email}`);
+  try {
+    // Validar autenticação de admin
+    const authResult = await validateAdminAuth(request);
+    if (!authResult.success) {
+      return createAuthErrorResponse(authResult.error);
+    }
+    const admin = authResult.admin;
+
+    frontendLogger.info('Requisição DELETE para produto iniciada', 'api', {
+      adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+      productId: params.id
+    });
     
     const supabase = getSupabaseServerClient();
     const { data: existing, error: existErr } = await supabase.from('products').select('id, name').eq('id', params.id).maybeSingle();
     if (existErr) throw existErr;
     if (!existing) {
-      return NextResponse.json(
+      frontendLogger.warn('Produto não encontrado para exclusão', 'api', {
+        adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+        productId: params.id
+      });
+      const response = NextResponse.json(
         { error: "Produto não encontrado" },
         { status: 404 }
       );
+      return addCorsHeaders(response);
     }
 
     const existingProduct = existing;
@@ -281,29 +405,28 @@ export async function DELETE(
     const { error } = await supabase.from('products').update({ active: false, updated_at: new Date().toISOString() }).eq('id', params.id);
     if (error) throw error;
 
-    console.log(`[PRODUCTS] DELETE: Produto ${params.id} excluído com sucesso`);
-    frontendLogger.info('Produto excluído', 'api', {
+    frontendLogger.info('Produto excluído com sucesso', 'api', {
       adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
       productId: params.id,
       productName: existing.name
     });
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       message: "Produto excluído com sucesso",
       product: { id: params.id, name: existing.name }
     });
-    } catch (error: any) {
-      console.error("Erro ao excluir produto:", error);
-      frontendLogger.logError('Erro ao excluir produto', {
-           error: error.message,
-           adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
-           productId: params.id
-         }, error, 'api');
+    return addCorsHeaders(response);
+  } catch (error: any) {
+    frontendLogger.error('Erro ao excluir produto', 'api', {
+      error: error.message,
+      adminEmail: admin?.email?.replace(/(.{2}).*(@.*)/, '$1***$2') || 'unknown',
+      productId: params.id
+    });
 
-      return NextResponse.json(
-        { error: "Erro interno do servidor" },
-        { status: 500 }
-      );
-    }
-  });
+    const response = NextResponse.json(
+      { error: "Erro interno do servidor" },
+      { status: 500 }
+    );
+    return addCorsHeaders(response);
+  }
 }

@@ -1,14 +1,15 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createOrder as createOrderSupabase } from '@/lib/db-supabase'
+import { frontendLogger } from '@/lib/frontend-logger'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
   try {
-    console.log("=== POST /api/orders/manual - INÍCIO ===")
+    frontendLogger.info('=== POST /api/orders/manual - INÍCIO ===', 'api')
     
     const body = await request.json()
-    console.log("POST /api/orders/manual - Request body:", JSON.stringify(body, null, 2))
+    frontendLogger.info('POST /api/orders/manual - Request body', 'api', { body })
 
     // Extrair dados específicos para pedidos manuais
     const items = body.items || []
@@ -26,7 +27,7 @@ export async function POST(request: NextRequest) {
     // Definir endereço baseado no tipo se não fornecido
     const finalDeliveryAddress = deliveryAddress || (orderType === "balcao" ? "Manual (Balcão)" : "Manual (Telefone)")
 
-    console.log("Dados extraídos para pedido manual:", {
+    frontendLogger.info('Dados extraídos para pedido manual', 'api', {
       items_count: items.length,
       total,
       subtotal,
@@ -103,7 +104,7 @@ export async function POST(request: NextRequest) {
       items: itemsPayload,
     })
 
-    console.log("Pedido manual criado com sucesso!", order.id)
+    frontendLogger.info('Pedido manual criado com sucesso!', 'api', { orderId: order.id })
 
     return NextResponse.json({
       success: true,
@@ -113,15 +114,13 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error: any) {
-    console.error("=== ERRO COMPLETO NO POST /api/orders/manual ===")
-    console.error("Tipo:", error.constructor.name)
-    console.error("Mensagem:", error.message)
-    console.error("Stack:", error.stack)
-    
-    if (error.code) {
-      console.error("Código:", error.code)
-      console.error("Detalhe:", error.details)
-    }
+    frontendLogger.error('=== ERRO COMPLETO NO POST /api/orders/manual ===', 'api', {
+      type: error.constructor.name,
+      error: error.message,
+      stack: error.stack,
+      code: error.code,
+      details: error.details
+    })
 
     return NextResponse.json({
       success: false,

@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServerClient } from '@/lib/supabase';
+import { frontendLogger } from '@/lib/frontend-logger';
 
 export async function GET(request: NextRequest) {
   try {
-    console.log('🔍 AUDITORIA COMPLETA - Verificando migração Supabase → PostgreSQL...');
+    frontendLogger.info('Iniciando auditoria completa - Verificando migração Supabase → PostgreSQL');
 
     const auditResults = {
       summary: {
@@ -32,10 +33,10 @@ export async function GET(request: NextRequest) {
       const { error: pingErr } = await supabase.from('profiles').select('id').limit(1);
       if (!pingErr) {
         auditResults.database.connection = true;
-        console.log('✅ Conexão Supabase funcionando');
+        frontendLogger.info('Conexão Supabase funcionando');
       }
     } catch (error) {
-      console.log('❌ Falha na conexão Supabase');
+      frontendLogger.error('Falha na conexão Supabase');
       auditResults.recommendations.push('Verificar SUPABASE_URL/SUPABASE_KEY');
     }
 
@@ -221,7 +222,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro na auditoria completa:', error);
+    frontendLogger.error('Erro na auditoria completa', { error: error.message, stack: error.stack });
 
     return NextResponse.json({
       success: false,
@@ -237,7 +238,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('🔧 Executando correções automáticas pós-auditoria...');
+    frontendLogger.info('Executando correções automáticas pós-auditoria');
 
     const corrections = [];
     let correctionsMade = 0;
@@ -339,7 +340,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro nas correções automáticas:', error);
+    frontendLogger.error('Erro nas correções automáticas', { error: error.message, stack: error.stack });
 
     return NextResponse.json({
       success: false,

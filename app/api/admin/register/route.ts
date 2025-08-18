@@ -1,19 +1,42 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { createUser, emailExists } from "@/lib/auth"
 import { getSupabaseServerClient } from "@/lib/supabase"
+import { checkRateLimit, addRateLimitHeaders } from '@/lib/simple-rate-limit'
+import { addCorsHeaders } from '@/lib/auth-utils'
+import { validateInput } from '@/lib/input-validation'
+import { userRegistrationSchema } from '@/lib/validation-schemas'
+import { frontendLogger } from '@/lib/frontend-logger'
 
 export async function POST(request: NextRequest) {
+  // Verificar rate limiting
+  const rateLimitCheck = await checkRateLimit(request, 'auth')
+  if (!rateLimitCheck.allowed) {
+    const response = NextResponse.json(
+      { error: 'Muitas tentativas. Tente novamente mais tarde.' },
+      { status: 429 }
+    )
+    addCorsHeaders(response)
+    return response
+  }
+
   try {
-    const { full_name, email, password } = await request.json()
+    const rawData = await request.json()
 
-    // Validate input
-    if (!full_name?.trim() || !email?.trim() || !password) {
-      return NextResponse.json({ error: "Todos os campos são obrigatórios" }, { status: 400 })
+    // Validar e sanitizar dados usando Zod schema
+    let validatedData
+    try {
+      validatedData = userRegistrationSchema.parse({
+        ...rawData,
+        role: 'admin' // Forçar role admin para esta rota
+      })
+    } catch (validationError: any) {
+      const errorMessage = validationError.errors?.[0]?.message || 'Dados inválidos'
+      const response = NextResponse.json({ error: errorMessage }, { status: 400 })
+      addCorsHeaders(response)
+      return response
     }
 
-    if (password.length < 6) {
-      return NextResponse.json({ error: "Senha deve ter pelo menos 6 caracteres" }, { status: 400 })
-    }
+    const { full_name, email, password } = validatedData
 
     // Check if admin registration is allowed (default to true if setting doesn't exist)
     let allowRegistration = true
@@ -30,7 +53,7 @@ export async function POST(request: NextRequest) {
         allowRegistration = value === "true" || value === true || value === "enabled"
       }
     } catch (error) {
-      console.log("Admin settings table not found or accessible, allowing registration by default")
+      frontendLogger.info("Admin settings table not found or accessible, allowing registration by default")
       allowRegistration = true
     }
 
@@ -62,9 +85,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Erro ao criar usuário administrador" }, { status: 500 })
     }
 
-    console.log("Admin user created successfully:", user.id)
+    frontendLogger.info(`Admin user created successfully: ${user.id}`, {
+      adminId: user.id,
+      email: user.email?.replace(/(.{2}).*(@.*)/, '$1***$2'), // Anonimizar email
+      fullName: user.full_name
+    })
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       message: "Administrador criado com sucesso",
       user: {
         id: user.id,
@@ -73,8 +100,16 @@ export async function POST(request: NextRequest) {
         role: user.role
       }
     })
+    
+    // Adicionar cabeçalhos de rate limit e CORS
+    addRateLimitHeaders(response, rateLimitCheck.remaining, rateLimitCheck.resetTime)
+    addCorsHeaders(response)
+    
+    return response
   } catch (error: any) {
-    console.error("Admin registration API error:", error)
-    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
+    frontendLogger.error("Admin registration API error:", error)
+    const response = NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
+    addCorsHeaders(response)
+    return response
   }
 }

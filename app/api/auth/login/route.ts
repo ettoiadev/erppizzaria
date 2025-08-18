@@ -3,31 +3,41 @@ import bcrypt from "bcryptjs"
 import { sign } from 'jsonwebtoken'
 import { frontendLogger } from '@/lib/frontend-logger'
 import { getSupabaseServerClient } from '@/lib/supabase'
-import { authRateLimiter } from '@/lib/rate-limiter'
 import { appLogger } from '@/lib/logging'
-import { withValidation } from '@/lib/validation-middleware'
-import { withDatabaseErrorHandling } from '@/lib/database-error-handler'
-import { withPresetRateLimit } from '@/lib/rate-limit-middleware'
-import { withPresetSanitization } from '@/lib/sanitization-middleware'
-import { withErrorMonitoring } from '@/lib/error-monitoring'
-import { withApiLogging } from '@/lib/api-logger-middleware'
 import { userLoginSchema } from '@/lib/validation-schemas'
+import { addCorsHeaders, createOptionsHandler } from '@/lib/auth-utils'
+import { validateAndSanitizeData, createValidationErrorResponse } from '@/lib/validation-utils'
+import { applyRateLimit, createRateLimitErrorResponse } from '@/lib/rate-limit-utils'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
-  return NextResponse.json({ message: "Login endpoint is working", timestamp: new Date().toISOString(), method: "GET" })
+  const response = NextResponse.json({ message: "Login endpoint is working", timestamp: new Date().toISOString(), method: "GET" })
+  return addCorsHeaders(response)
 }
 
-// Handler principal do login (sem middlewares)
-async function loginHandler(
-  request: NextRequest,
-  validatedData: { email: string; password: string }
-): Promise<NextResponse> {
+// Nova função POST integrada (sem middlewares)
+export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
-    appLogger.info('auth', 'Iniciando processo de login')
+    // 1. Rate Limiting
+    const rateLimitResult = await applyRateLimit(request, 'auth')
+    if (!rateLimitResult.success) {
+      return createRateLimitErrorResponse(rateLimitResult)
+    }
+
+    // 2. Validação e Sanitização
+    const body = await request.json()
+    const validationResult = await validateAndSanitizeData(body, userLoginSchema)
+    if (!validationResult.success) {
+      return createValidationErrorResponse(validationResult.errors)
+    }
+
+    const validatedData = validationResult.data as { email: string; password: string }
     
-    // Validar variáveis de ambiente críticas
+    // 3. Logging da requisição
+    appLogger.info('auth', 'Login request received', { email: validatedData.email.replace(/(.{2}).*(@.*)/, '$1***$2') })
+    frontendLogger.info('Login attempt', 'auth', { email: validatedData.email.replace(/(.{2}).*(@.*)/, '$1***$2') })
+  // 4. Validar variáveis de ambiente críticas
     const requiredEnvVars = {
       JWT_SECRET: process.env.JWT_SECRET,
       REFRESH_TOKEN_SECRET: process.env.REFRESH_TOKEN_SECRET,
@@ -42,10 +52,11 @@ async function loginHandler(
     
     if (missingVars.length > 0 && process.env.NODE_ENV === 'production') {
       appLogger.critical('auth', 'Variáveis de ambiente críticas não configuradas', undefined, { missingVars })
-      return NextResponse.json(
+      const response = NextResponse.json(
         { error: "Configuração do servidor incompleta" },
         { status: 500 }
       )
+      return addCorsHeaders(response)
     }
     
     appLogger.info('auth', 'Variáveis de ambiente validadas', { 
@@ -81,10 +92,11 @@ async function loginHandler(
       appLogger.warn('auth', 'Tentativa de login com usuário inexistente', { 
         email: email.replace(/(.{2}).*(@.*)/, '$1***$2') 
       })
-      return NextResponse.json(
+      const response = NextResponse.json(
         { error: "Email ou senha inválidos" },
         { status: 401 }
       )
+      return addCorsHeaders(response)
     }
     
     appLogger.debug('auth', 'Usuário encontrado', { 
@@ -108,10 +120,11 @@ async function loginHandler(
       appLogger.warn('auth', 'Tentativa de login com senha inválida', { 
         email: email.replace(/(.{2}).*(@.*)/, '$1***$2') 
       })
-      return NextResponse.json(
+      const response = NextResponse.json(
         { error: "Email ou senha inválidos" },
         { status: 401 }
       )
+      return addCorsHeaders(response)
     }
 
     // Gerar apenas access token (sem refresh token para resolver erro 500)
@@ -165,13 +178,7 @@ async function loginHandler(
       message: 'Login realizado com sucesso (modo simplificado - sem refresh tokens)'
     })
 
-    // Adicionar headers CORS na resposta
-    response.headers.set('Access-Control-Allow-Origin', 'https://erppizzaria-tau.vercel.app')
-    response.headers.set('Access-Control-Allow-Credentials', 'true')
-    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, Origin')
-
-    return response
+    return addCorsHeaders(response)
 
   } catch (error: any) {
     // Log detalhado do erro
@@ -191,70 +198,26 @@ async function loginHandler(
     
     // Em desenvolvimento, retornar mais detalhes
     if (process.env.NODE_ENV === 'development') {
-      return NextResponse.json(
+      const response = NextResponse.json(
         { 
           error: "Erro interno do servidor", 
           details: errorDetails 
         },
         { status: 500 }
       )
+      return addCorsHeaders(response)
     }
     
     // Em produção, retornar erro genérico
-    return NextResponse.json(
+    const response = NextResponse.json(
       { error: "Erro interno do servidor" },
       { status: 500 }
     )
+    return addCorsHeaders(response)
   }
 }
 
-// Aplicar todos os middlewares em camadas
-const enhancedLoginHandler = withErrorMonitoring(
-  withApiLogging(
-    withPresetRateLimit('auth', {}, // Rate limiting específico para autenticação
-      withPresetSanitization('userForm', {}, // Sanitização para formulários de usuário
-        withValidation(userLoginSchema, // Validação usando Zod
-          withDatabaseErrorHandling( // Tratamento de erros de banco
-            loginHandler,
-            {
-              logErrors: true,
-              sanitizeErrors: process.env.NODE_ENV === 'production',
-              customErrorMessages: {
-                unique_violation: 'Erro de autenticação',
-                foreign_key_violation: 'Erro de autenticação'
-              }
-            }
-          )
-        )
-      )
-    ),
-    {
-      logRequests: true,
-      logResponses: true,
-      logErrors: true,
-      sensitiveRoutes: ['/api/auth']
-    }
-  )
-)
-
-// Exportar a função POST com middlewares
-export const POST = enhancedLoginHandler
-
-export async function OPTIONS(request: NextRequest) {
-  appLogger.debug('auth', 'OPTIONS request received')
-  const origin = request.headers.get('origin')
-  
-  if (origin === 'https://erppizzaria-tau.vercel.app') {
-    return new NextResponse(null, {
-      status: 200,
-      headers: {
-        'Access-Control-Allow-Origin': origin,
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization, Origin',
-        'Access-Control-Allow-Credentials': 'true'
-      },
-    })
-  }
-  
-  return new NextResponse(null, { status: 204 })
+// Handler para requisições OPTIONS (CORS)
+export async function OPTIONS() {
+  return createOptionsHandler()
 }

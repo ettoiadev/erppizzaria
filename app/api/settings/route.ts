@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getAdminSettings } from '@/lib/db-supabase'
+import { frontendLogger } from '@/lib/frontend-logger'
 
 // API pública para buscar configurações que podem ser exibidas na página inicial
 export async function GET() {
@@ -72,7 +73,11 @@ export async function GET() {
       success: true 
     })
   } catch (error) {
-    console.error('Erro ao buscar configurações públicas:', error)
+    frontendLogger.error('Erro ao buscar configurações públicas:', {
+      message: error.message,
+      stack: error.stack,
+      error
+    })
     return NextResponse.json(
       { 
         error: 'Erro interno ao buscar configurações',
@@ -81,4 +86,4 @@ export async function GET() {
       { status: 500 }
     )
   }
-} 
+}

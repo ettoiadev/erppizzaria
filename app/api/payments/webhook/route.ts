@@ -4,6 +4,7 @@ import { getSupabaseServerClient } from '@/lib/supabase'
 import { emitRealtimeEvent, EVENT_PAYMENT_APPROVED } from '@/lib/realtime'
 import crypto from 'crypto'
 import { appLogger } from '@/lib/logging'
+import { frontendLogger } from '@/lib/frontend-logger'
 
 // Verificar assinatura do webhook do Mercado Pago
 function verifyWebhookSignature(body: any, signature: string | null): boolean {
@@ -55,7 +56,7 @@ function verifyWebhookSignature(body: any, signature: string | null): boolean {
 async function processPaymentEvent(data: any) {
   const { id, status, external_reference, transaction_amount } = data
   
-  console.log(`💰 Processando pagamento ${id} - Status: ${status}`)
+  frontendLogger.info(`💰 Processando pagamento ${id} - Status: ${status}`)
   
   // Buscar pedido pelo external_reference
   const supabase = getSupabaseServerClient()
@@ -66,7 +67,10 @@ async function processPaymentEvent(data: any) {
     .maybeSingle()
   if (error) throw error
   if (!order) {
-    console.error(`❌ Pedido não encontrado: ${external_reference}`)
+    frontendLogger.error(`❌ Pedido não encontrado: ${external_reference}`, {
+      external_reference,
+      payment_id: id
+    })
     return false
   }
   
@@ -92,7 +96,11 @@ async function processPaymentEvent(data: any) {
       break
       
     default:
-      console.log(`⚠️ Status desconhecido: ${status}`)
+      frontendLogger.warn(`⚠️ Status desconhecido: ${status}`, {
+        payment_id: id,
+        status,
+        external_reference
+      })
       return false
   }
   
@@ -107,7 +115,7 @@ async function processPaymentEvent(data: any) {
     .from('order_status_history')
     .insert({ order_id: external_reference, old_status: order.status, new_status: newOrderStatus, notes: `Pagamento ${status} via Mercado Pago`, created_at: new Date().toISOString() })
   
-  console.log(`✅ Pedido ${external_reference} atualizado: ${order.status} → ${newOrderStatus}`)
+  frontendLogger.info(`✅ Pedido ${external_reference} atualizado: ${order.status} → ${newOrderStatus}`)
   
   // Realtime: notificar pagamento aprovado
   if (newPaymentStatus === 'PAID') {
@@ -118,7 +126,10 @@ async function processPaymentEvent(data: any) {
         status,
       })
     } catch (e) {
-      console.warn('⚠️ Falha ao emitir evento Realtime (payment_approved):', (e as Error)?.message)
+      frontendLogger.warn('⚠️ Falha ao emitir evento Realtime (payment_approved):', {
+        error: (e as Error)?.message,
+        orderId: external_reference
+      })
     }
   }
   
@@ -138,7 +149,7 @@ export async function POST(request: NextRequest) {
                      request.headers.get('x-signature') ||
                      request.headers.get('x-hub-signature')
     
-    console.log('🔗 Webhook recebido:', {
+    frontendLogger.info('🔗 Webhook recebido:', {
       type: body.type,
       data_id: body.data?.id,
       signature: signature ? 'present' : 'missing'
@@ -146,7 +157,10 @@ export async function POST(request: NextRequest) {
     
     // Verificar assinatura
     if (!verifyWebhookSignature(body, signature)) {
-      console.error('❌ Assinatura inválida do webhook')
+      frontendLogger.error('❌ Assinatura inválida do webhook', {
+        signature: signature ? 'present' : 'missing',
+        type: body.type
+      })
       return NextResponse.json(
         { error: 'Invalid signature' },
         { status: 401 }
@@ -160,21 +174,28 @@ export async function POST(request: NextRequest) {
         break
         
       case 'mp-connect':
-        console.log('🔗 Evento MP Connect:', body.data)
+        frontendLogger.info('🔗 Evento MP Connect:', body.data)
         break
         
       case 'subscription_preauthorization':
-        console.log('🔗 Evento de pré-autorização:', body.data)
+        frontendLogger.info('🔗 Evento de pré-autorização:', body.data)
         break
         
       default:
-        console.log(`⚠️ Tipo de evento não processado: ${body.type}`)
+        frontendLogger.warn(`⚠️ Tipo de evento não processado: ${body.type}`, {
+          type: body.type,
+          data: body.data
+        })
     }
     
     return NextResponse.json({ success: true })
     
   } catch (error: any) {
-    console.error('❌ Erro ao processar webhook:', error)
+    frontendLogger.error('❌ Erro ao processar webhook:', {
+      message: error.message,
+      stack: error.stack,
+      error
+    })
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

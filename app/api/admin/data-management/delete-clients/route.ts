@@ -1,55 +1,56 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServerClient } from '@/lib/supabase'
 import { verifyAdmin } from '@/lib/auth'
+import { frontendLogger } from '@/lib/frontend-logger'
 
 export async function DELETE(request: NextRequest) {
   try {
-    console.log('[DELETE_CLIENTS] Iniciando exclusão de todos os clientes...')
+    frontendLogger.info('Iniciando exclusão de todos os clientes')
 
     // Verificar autenticação admin
     const authHeader = request.headers.get('authorization')
     const token = authHeader?.split(' ')[1]
     
-    console.log('[DELETE_CLIENTS] Token recebido:', token ? 'SIM' : 'NÃO')
+    frontendLogger.info('Token recebido', { hasToken: !!token })
     
     if (!token) {
-      console.log('[DELETE_CLIENTS] Token de autorização não fornecido')
+      frontendLogger.warn('Token de autorização não fornecido')
       return NextResponse.json({ error: 'Token de autorização necessário' }, { status: 401 })
     }
 
-    console.log('[DELETE_CLIENTS] Verificando admin...')
+    frontendLogger.info('Verificando admin')
     const admin = await verifyAdmin(token)
     
     if (!admin) {
-      console.log('[DELETE_CLIENTS] Usuário não é admin')
+      frontendLogger.warn('Usuário não é admin')
       return NextResponse.json({ error: 'Acesso negado - usuário não é admin' }, { status: 403 })
     }
 
-    console.log('[DELETE_CLIENTS] Admin verificado:', admin.email)
+    frontendLogger.info('Admin verificado', { adminEmail: admin.email?.replace(/(.{2}).*(@.*)/, '$1***$2') })
 
     const supabase = getSupabaseServerClient()
     
-    console.log('[DELETE_CLIENTS] Verificando se a tabela profiles existe...')
+    frontendLogger.info('Verificando se a tabela profiles existe')
 
     // Teste 2: Verificar se há clientes
-    console.log('[DELETE_CLIENTS] Contando clientes...')
+    frontendLogger.info('Contando clientes')
     const { count: totalClients, error: countError } = await supabase
       .from('profiles')
       .select('*', { count: 'exact', head: true })
       .eq('role', 'customer')
     
     if (countError) {
-      console.error('[DELETE_CLIENTS] Erro ao contar clientes:', countError)
+      frontendLogger.error('Erro ao contar clientes', { error: countError.message, stack: countError.stack })
       return NextResponse.json({ 
         error: 'Erro ao contar clientes',
         details: countError.message
       }, { status: 500 })
     }
 
-    console.log(`[DELETE_CLIENTS] Encontrados ${totalClients || 0} clientes`)
+    frontendLogger.info('Clientes encontrados', { totalClients: totalClients || 0 })
 
     if (!totalClients || totalClients === 0) {
-      console.log('[DELETE_CLIENTS] Nenhum cliente encontrado para deletar')
+      frontendLogger.info('Nenhum cliente encontrado para deletar')
       return NextResponse.json({ 
         success: true,
         deletedCount: 0,
@@ -58,14 +59,14 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Buscar IDs dos clientes para deletar dados relacionados
-    console.log('[DELETE_CLIENTS] Buscando IDs dos clientes...')
+    frontendLogger.info('Buscando IDs dos clientes')
     const { data: customers, error: customersError } = await supabase
       .from('profiles')
       .select('id')
       .eq('role', 'customer')
     
     if (customersError) {
-      console.error('[DELETE_CLIENTS] Erro ao buscar clientes:', customersError)
+      frontendLogger.error('Erro ao buscar clientes', { error: customersError.message, stack: customersError.stack })
       return NextResponse.json({ 
         error: 'Erro ao buscar clientes',
         details: customersError.message
@@ -76,44 +77,44 @@ export async function DELETE(request: NextRequest) {
     
     // Deletar endereços dos clientes
     if (customerIds.length > 0) {
-      console.log('[DELETE_CLIENTS] Deletando endereços dos clientes...')
+      frontendLogger.info('Deletando endereços dos clientes')
       const { error: addressesError } = await supabase
         .from('customer_addresses')
         .delete()
         .in('user_id', customerIds)
       
       if (addressesError) {
-        console.warn('[DELETE_CLIENTS] Erro ao deletar endereços (tabela pode não existir):', addressesError.message)
+        frontendLogger.warn('Erro ao deletar endereços (tabela pode não existir)', { error: addressesError.message })
       }
 
       // Deletar cupons dos usuários
-      console.log('[DELETE_CLIENTS] Deletando cupons dos usuários...')
+      frontendLogger.info('Deletando cupons dos usuários')
       const { error: couponsError } = await supabase
         .from('user_coupons')
         .delete()
         .in('user_id', customerIds)
       
       if (couponsError) {
-        console.warn('[DELETE_CLIENTS] Erro ao deletar cupons (tabela pode não existir):', couponsError.message)
+        frontendLogger.warn('Erro ao deletar cupons (tabela pode não existir)', { error: couponsError.message })
       }
     }
 
     // Verificar se há pedidos associados aos clientes
-    console.log('[DELETE_CLIENTS] Verificando pedidos associados...')
+    frontendLogger.info('Verificando pedidos associados')
     const { count: totalOrders, error: ordersError } = await supabase
       .from('orders')
       .select('*', { count: 'exact', head: true })
       .in('user_id', customerIds)
     
     if (ordersError) {
-      console.warn('[DELETE_CLIENTS] Erro ao contar pedidos (pode não existir):', ordersError.message)
+      frontendLogger.warn('Erro ao contar pedidos (pode não existir)', { error: ordersError.message })
     }
 
     let message = ''
 
     if (totalOrders && totalOrders > 0) {
       // Se há pedidos, não deletar os clientes, apenas desativar
-      console.log(`[DELETE_CLIENTS] ${totalOrders} pedidos encontrados, desativando clientes...`)
+      frontendLogger.info('Pedidos encontrados, desativando clientes', { totalOrders })
       
       const timestamp = Math.floor(Date.now() / 1000)
       const { error: updateError } = await supabase
@@ -129,10 +130,10 @@ export async function DELETE(request: NextRequest) {
       }
       
       message = `${totalClients} clientes desativados (possuem pedidos associados)`
-      console.log(`[DELETE_CLIENTS] ${message}`)
+      frontendLogger.info('Clientes desativados', { message })
     } else {
       // Se não há pedidos, deletar completamente
-      console.log('[DELETE_CLIENTS] Nenhum pedido encontrado, deletando clientes completamente...')
+      frontendLogger.info('Nenhum pedido encontrado, deletando clientes completamente')
       
       const { error: deleteError } = await supabase
         .from('profiles')
@@ -144,7 +145,7 @@ export async function DELETE(request: NextRequest) {
       }
       
       message = `${totalClients} clientes deletados completamente`
-      console.log(`[DELETE_CLIENTS] ${message}`)
+      frontendLogger.info('Clientes deletados completamente', { message })
     }
 
     return NextResponse.json({ 
@@ -154,8 +155,7 @@ export async function DELETE(request: NextRequest) {
     })
 
   } catch (error: any) {
-    console.error('[DELETE_CLIENTS] Erro ao deletar todos os clientes:', error)
-    console.error('[DELETE_CLIENTS] Stack trace:', error.stack)
+    frontendLogger.error('Erro ao deletar todos os clientes', { error: error.message, stack: error.stack })
     return NextResponse.json({ 
       error: 'Erro ao excluir todos os clientes',
       details: error.message,

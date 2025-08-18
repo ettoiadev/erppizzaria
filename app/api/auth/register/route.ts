@@ -1,13 +1,31 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { createUser } from "@/lib/auth"
 import { saveCustomerAddress } from "@/lib/db-supabase"
-import { withApiLogging, createApiLogger } from "@/lib/api-logger-middleware"
 import { frontendLogger } from "@/lib/frontend-logger"
+import { checkRateLimit, addRateLimitHeaders } from '@/lib/simple-rate-limit'
+import { addCorsHeaders } from '@/lib/auth-utils'
+import { userRegistrationSchema } from '@/lib/validation-schemas'
 
-async function registerHandler(request: NextRequest) {
-  const logger = createApiLogger(request)
+async function registerHandler(request: NextRequest, rateLimitCheck: any) {
+  const requestData = await request.json()
   
-  const { email, password, full_name, phone, address } = await request.json()
+  // Validar e sanitizar entrada usando Zod schema
+  let validatedData
+  try {
+    validatedData = userRegistrationSchema.parse({
+      ...requestData,
+      role: 'customer' // Forçar role customer para esta rota
+    })
+  } catch (validationError: any) {
+    const errorMessage = validationError.errors?.[0]?.message || 'Dados inválidos'
+    frontendLogger.logError('Dados inválidos no registro', { error: errorMessage }, undefined, 'api')
+    const response = NextResponse.json({ error: errorMessage }, { status: 400 })
+    addCorsHeaders(response)
+    return response
+  }
+
+  const { email, password, full_name, phone } = validatedData
+  const { address } = requestData // Address não está no schema principal
   
   frontendLogger.info('Tentativa de registro de usuário', 'api', {
     email: email?.substring(0, 3) + '***', // Mascarar email para logs
@@ -15,30 +33,6 @@ async function registerHandler(request: NextRequest) {
     hasPhone: !!phone,
     hasAddress: !!address
   })
-
-  // Validate input
-  if (!email?.trim() || !password || !full_name?.trim()) {
-    frontendLogger.warn('Dados obrigatórios ausentes no registro', 'api', {
-      hasEmail: !!email?.trim(),
-      hasPassword: !!password,
-      hasFullName: !!full_name?.trim()
-    })
-    return NextResponse.json({ error: "Email, senha e nome completo são obrigatórios" }, { status: 400 })
-  }
-
-  if (password.length < 6) {
-    frontendLogger.warn('Senha muito curta no registro', 'api', { passwordLength: password.length })
-    return NextResponse.json({ error: "A senha deve ter pelo menos 6 caracteres" }, { status: 400 })
-  }
-
-  // Validate phone if provided
-  if (phone) {
-    const phoneNumbers = phone.replace(/\D/g, "")
-    if (phoneNumbers.length < 10 || phoneNumbers.length > 11) {
-      frontendLogger.warn('Telefone inválido no registro', 'api', { phoneLength: phoneNumbers.length })
-      return NextResponse.json({ error: "Telefone deve ter 10 ou 11 dígitos" }, { status: 400 })
-    }
-  }
 
   // Create user
   frontendLogger.debug('Criando usuário no banco de dados', 'api')
@@ -55,7 +49,7 @@ async function registerHandler(request: NextRequest) {
     return NextResponse.json({ error: "Erro ao criar usuário" }, { status: 500 })
   }
 
-  logger.logAuth('user_created', user.id, true)
+  frontendLogger.info('Evento de autenticação: usuário criado', 'api', { userId: user.id })
   frontendLogger.info('Usuário criado com sucesso', 'api', { userId: user.id, email: user.email })
 
   // Save address if provided
@@ -84,27 +78,42 @@ async function registerHandler(request: NextRequest) {
 }
 
 // Wrapper com tratamento de erro específico para registro
-export const POST = withApiLogging(async (request: NextRequest) => {
+export async function POST(request: NextRequest) {
+  // Verificar rate limiting
+  const rateLimitCheck = await checkRateLimit(request, 'auth')
+  if (!rateLimitCheck.allowed) {
+    const response = NextResponse.json(
+      { error: 'Muitas tentativas. Tente novamente mais tarde.' },
+      { status: 429 }
+    )
+    addCorsHeaders(response)
+    return response
+  }
+
   try {
-    return await registerHandler(request)
-  } catch (error: any) {
-    const logger = createApiLogger(request)
+    const result = await registerHandler(request, rateLimitCheck)
     
+    // Adicionar cabeçalhos de rate limit apenas se a resposta for de sucesso (status 200/201)
+    if (result.status === 200 || result.status === 201) {
+      addRateLimitHeaders(result, rateLimitCheck.remaining, rateLimitCheck.resetTime)
+    }
+    
+    return result
+  } catch (error: any) {
     // Handle specific database errors
     if (error.code === '23505') { // Unique constraint violation
       frontendLogger.warn('Tentativa de registro com email duplicado', 'api', {
         errorCode: error.code,
         constraint: error.constraint
-      })
-      return NextResponse.json({ error: "Este email já está em uso" }, { status: 400 })
+      }, undefined)
+      const response = NextResponse.json({ error: "Este email já está em uso" }, { status: 400 })
+      addCorsHeaders(response)
+      return response
     }
     
-    // Log do erro será feito pelo middleware
-    throw error
+    frontendLogger.logError('Erro no registro de usuário', { error: error.message }, error, 'api')
+    const response = NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
+    addCorsHeaders(response)
+    return response
   }
-}, {
-  logRequests: true,
-  logResponses: true,
-  logErrors: true,
-  sensitiveRoutes: ['/api/auth']
-})
+}

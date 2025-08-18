@@ -1,24 +1,33 @@
 import { NextResponse, type NextRequest } from "next/server"
-import { withAdminAuth } from "@/lib/auth-middleware"
 import { getSupabaseServerClient } from "@/lib/supabase"
 import { frontendLogger } from "@/lib/frontend-logger"
+import { validateAdminAuth, createAuthErrorResponse, addCorsHeaders, createOptionsHandler } from '@/lib/auth-utils'
 import bcrypt from "bcryptjs"
 
 // Force dynamic rendering for this route  
 export const dynamic = 'force-dynamic'
 
 export async function PATCH(request: NextRequest) {
-  return withAdminAuth(request, async (req, admin) => {
-    try {
+  // Validar autenticação de admin
+  const authResult = await validateAdminAuth(request)
+  if (!authResult.success) {
+    return createAuthErrorResponse(authResult.error, authResult.status)
+  }
+  
+  const admin = authResult.user
+
+  try {
 
       const { currentPassword, newPassword } = await request.json()
 
       if (!currentPassword || !newPassword) {
-        return NextResponse.json({ error: "Senha atual e nova senha são obrigatórias" }, { status: 400 })
+        const response = NextResponse.json({ error: "Senha atual e nova senha são obrigatórias" }, { status: 400 })
+        return addCorsHeaders(response)
       }
 
       if (newPassword.length < 6) {
-        return NextResponse.json({ error: "A nova senha deve ter pelo menos 6 caracteres" }, { status: 400 })
+        const response = NextResponse.json({ error: "A nova senha deve ter pelo menos 6 caracteres" }, { status: 400 })
+        return addCorsHeaders(response)
       }
 
       const supabase = getSupabaseServerClient()
@@ -35,7 +44,8 @@ export async function PATCH(request: NextRequest) {
           adminId: admin.id,
           adminEmail: admin.email
         })
-        return NextResponse.json({ error: "Usuário não encontrado" }, { status: 404 })
+        const response = NextResponse.json({ error: "Usuário não encontrado" }, { status: 404 })
+        return addCorsHeaders(response)
       }
 
       const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.password_hash || '')
@@ -44,7 +54,8 @@ export async function PATCH(request: NextRequest) {
         frontendLogger.warn('Tentativa de alteração de senha com senha atual incorreta', 'api', {
           adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2')
         })
-        return NextResponse.json({ error: "Senha atual incorreta" }, { status: 400 })
+        const response = NextResponse.json({ error: "Senha atual incorreta" }, { status: 400 })
+        return addCorsHeaders(response)
       }
 
       // Gerar nova senha hasheada
@@ -62,14 +73,20 @@ export async function PATCH(request: NextRequest) {
         adminId: admin.id
       })
 
-      return NextResponse.json({ message: "Senha atualizada com sucesso" })
-    } catch (error: any) {
-      frontendLogger.logError('Erro ao alterar senha', {
-        error: error.message,
-        adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
-        stack: error.stack
-      }, error, 'api')
-      return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
-    }
-  })
+      const response = NextResponse.json({ message: "Senha atualizada com sucesso" })
+      return addCorsHeaders(response)
+  } catch (error: any) {
+    frontendLogger.logError('Erro ao alterar senha', {
+      error: error.message,
+      adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+      stack: error.stack
+    }, error, 'api')
+    const response = NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
+    return addCorsHeaders(response)
+  }
+}
+
+// Handler para requisições OPTIONS (CORS)
+export async function OPTIONS() {
+  return createOptionsHandler()
 }

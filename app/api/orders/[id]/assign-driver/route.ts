@@ -1,24 +1,63 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getSupabaseServerClient } from '@/lib/supabase'
+import { frontendLogger } from '@/lib/logger'
+import { validateAdminAuth, createAuthErrorResponse, addCorsHeaders } from '@/lib/auth-utils'
+import { z } from 'zod'
+
+// Schema para validação de atribuição de entregador
+const assignDriverSchema = z.object({
+  driverId: z.string().uuid('ID do entregador deve ser um UUID válido')
+})
 
 export async function PATCH(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  // Validar autenticação de admin
+  const authResult = await validateAdminAuth(request)
+  if (!authResult.success) {
+    return createAuthErrorResponse(authResult.error, authResult.status)
+  }
+  
+  const admin = authResult.user
+
   try {
     const orderId = params.id
-    const body = await request.json()
-    const { driverId } = body
+    
+    frontendLogger.info('Iniciando atribuição de entregador', 'api', {
+      adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+      orderId
+    });
 
-    console.log("PATCH /api/orders/[id]/assign-driver - Atribuindo entregador:", { orderId, driverId })
-
-    // Validações
-    if (!driverId) {
-      return NextResponse.json(
-        { error: "ID do entregador é obrigatório" },
-        { status: 400 }
-      )
+    // Parse do JSON
+    let body
+    try {
+      body = await request.json()
+    } catch (error) {
+      frontendLogger.warn('JSON inválido na atribuição de entregador', 'api', {
+        adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+        orderId
+      });
+      const response = NextResponse.json({ error: "JSON inválido" }, { status: 400 })
+      return addCorsHeaders(response)
     }
+
+    // Validação usando Zod
+    const validationResult = assignDriverSchema.safeParse(body)
+    if (!validationResult.success) {
+      frontendLogger.warn('Dados inválidos na atribuição de entregador', 'api', {
+        adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+        orderId,
+        errors: validationResult.error.errors
+      });
+      const response = NextResponse.json({ 
+        error: "Dados inválidos", 
+        details: validationResult.error.errors 
+      }, { status: 400 })
+      return addCorsHeaders(response)
+    }
+
+    const { driverId } = validationResult.data
 
     const supabase = getSupabaseServerClient()
 
@@ -31,17 +70,24 @@ export async function PATCH(
       .single()
 
     if (driverError || !driver) {
-      return NextResponse.json(
-        { error: "Entregador não encontrado" },
-        { status: 404 }
-      )
+      frontendLogger.warn('Entregador não encontrado na atribuição', 'api', {
+        adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+        orderId,
+        driverId
+      });
+      const response = NextResponse.json({ error: "Entregador não encontrado" }, { status: 404 })
+      return addCorsHeaders(response)
     }
 
     if (driver.status !== 'available') {
-      return NextResponse.json(
-        { error: "Entregador não está disponível" },
-        { status: 400 }
-      )
+      frontendLogger.warn('Entregador não disponível para atribuição', 'api', {
+        adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+        orderId,
+        driverId,
+        driverStatus: driver.status
+      });
+      const response = NextResponse.json({ error: "Entregador não está disponível" }, { status: 400 })
+      return addCorsHeaders(response)
     }
 
     // Verificar se o pedido existe e está em preparo
@@ -52,17 +98,24 @@ export async function PATCH(
       .single()
 
     if (orderError || !order) {
-      return NextResponse.json(
-        { error: "Pedido não encontrado" },
-        { status: 404 }
-      )
+      frontendLogger.warn('Pedido não encontrado na atribuição de entregador', 'api', {
+        adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+        orderId,
+        driverId
+      });
+      const response = NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 })
+      return addCorsHeaders(response)
     }
 
     if (order.status !== 'PREPARING' && order.status !== 'READY') {
-      return NextResponse.json(
-        { error: "Pedido não está disponível para atribuição de entregador" },
-        { status: 400 }
-      )
+      frontendLogger.warn('Pedido não disponível para atribuição de entregador', 'api', {
+        adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+        orderId,
+        driverId,
+        orderStatus: order.status
+      });
+      const response = NextResponse.json({ error: "Pedido não está disponível para atribuição de entregador" }, { status: 400 })
+      return addCorsHeaders(response)
     }
 
     // Usar transação Supabase para garantir consistência
@@ -109,29 +162,43 @@ export async function PATCH(
         throw new Error('Falha ao atualizar entregador: ' + driverUpdateError?.message)
       }
 
-      console.log("Entregador atribuído com sucesso:", {
-        order: updatedOrder,
-        driver: updatedDriver
-      })
+      frontendLogger.info('Entregador atribuído com sucesso', 'api', {
+        adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+        orderId: updatedOrder.id,
+        driverId: updatedDriver.id,
+        driverName: updatedDriver.name,
+        orderStatus: updatedOrder.status
+      });
 
-      return NextResponse.json({
+      const response = NextResponse.json({
         message: "Entregador atribuído com sucesso",
         order: updatedOrder,
         driver: updatedDriver
       })
+      return addCorsHeaders(response)
 
     } catch (transactionError) {
-      console.error("Erro na operação de atribuição:", transactionError);
+      frontendLogger.error('Erro na operação de atribuição de entregador', 'api', {
+        adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+        orderId,
+        driverId,
+        error: transactionError
+      });
       throw transactionError;
     }
 
   } catch (error: any) {
-    console.error("Erro ao atribuir entregador:", error)
+    frontendLogger.error('Erro ao atribuir entregador', 'api', {
+      adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+      orderId: params.id,
+      error: error.message
+    });
     
-    return NextResponse.json({
+    const response = NextResponse.json({
       error: "Erro interno do servidor",
       message: "Erro ao atribuir entregador ao pedido",
       details: error.message
     }, { status: 500 })
+    return addCorsHeaders(response)
   }
 }

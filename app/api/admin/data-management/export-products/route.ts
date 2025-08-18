@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServerClient } from '@/lib/supabase'
 import * as XLSX from 'xlsx'
+import { frontendLogger } from '@/lib/frontend-logger'
 
 export async function GET(request: NextRequest) {
   try {
-    console.log('[EXPORT_PRODUCTS] Iniciando exportação de produtos...')
+    frontendLogger.info('Exportação de produtos iniciada', 'api')
 
     // Buscar todos os produtos com suas categorias
     const supabase = getSupabaseServerClient()
@@ -25,7 +26,9 @@ export async function GET(request: NextRequest) {
       'Data Cadastro': product.created_at ? new Date(product.created_at).toLocaleDateString('pt-BR') : ''
     }))
 
-    console.log(`[EXPORT_PRODUCTS] ${products.length} produtos encontrados para exportação`)
+    frontendLogger.info('Produtos encontrados para exportação', 'api', {
+      count: products.length
+    })
 
     // Criar workbook e worksheet
     const wb = XLSX.utils.book_new()
@@ -49,7 +52,7 @@ export async function GET(request: NextRequest) {
     // Converter para buffer
     const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'buffer' })
     
-    console.log('[EXPORT_PRODUCTS] Arquivo Excel de produtos gerado com sucesso')
+    frontendLogger.info('Arquivo Excel de produtos gerado com sucesso', 'api')
 
     // Retornar arquivo
     return new NextResponse(excelBuffer, {
@@ -60,7 +63,10 @@ export async function GET(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('[EXPORT_PRODUCTS] Erro ao exportar produtos:', error)
+    frontendLogger.error('Erro ao exportar produtos para Excel', 'api', {
+      error: error.message,
+      stack: error.stack
+    })
     return NextResponse.json({ 
       error: 'Erro ao exportar produtos para Excel' 
     }, { status: 500 })

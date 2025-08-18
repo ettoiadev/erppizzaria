@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServerClient } from '@/lib/supabase'
 import * as XLSX from 'xlsx'
+import { frontendLogger } from '@/lib/frontend-logger'
 
 export async function GET(request: NextRequest) {
   try {
-    console.log('[EXPORT_CLIENTS] Iniciando exportação de clientes...')
+    frontendLogger.info('Exportação de clientes iniciada', 'api')
 
     // Buscar todos os clientes com seus endereços
     const supabase = getSupabaseServerClient()
@@ -31,7 +32,9 @@ export async function GET(request: NextRequest) {
       'Data Cadastro': client.created_at ? new Date(client.created_at).toLocaleDateString('pt-BR') : ''
     }))
 
-    console.log(`[EXPORT_CLIENTS] ${clients.length} clientes encontrados para exportação`)
+    frontendLogger.info('Clientes encontrados para exportação', 'api', {
+      count: clients.length
+    })
 
     // Criar workbook e worksheet
     const wb = XLSX.utils.book_new()
@@ -60,7 +63,7 @@ export async function GET(request: NextRequest) {
     // Converter para buffer
     const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'buffer' })
     
-    console.log('[EXPORT_CLIENTS] Arquivo Excel gerado com sucesso')
+    frontendLogger.info('Arquivo Excel de clientes gerado com sucesso', 'api')
 
     // Retornar arquivo
     return new NextResponse(excelBuffer, {
@@ -71,7 +74,10 @@ export async function GET(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('[EXPORT_CLIENTS] Erro ao exportar clientes:', error)
+    frontendLogger.error('Erro ao exportar clientes para Excel', 'api', {
+      error: error.message,
+      stack: error.stack
+    })
     return NextResponse.json({ 
       error: 'Erro ao exportar clientes para Excel' 
     }, { status: 500 })

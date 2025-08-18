@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getSupabaseServerClient } from '@/lib/supabase'
+import { frontendLogger } from '@/lib/frontend-logger'
 
 // GET handler para buscar todas as categorias
 export async function GET() {
@@ -16,7 +17,7 @@ export async function GET() {
       hasSortOrderField = columns.includes('sort_order')
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
-      console.log('Erro ao verificar estrutura da tabela:', message)
+      frontendLogger.warn('Erro ao verificar estrutura da tabela:', { message })
     }
 
     // Construir query dinamicamente baseada nos campos disponíveis
@@ -67,7 +68,11 @@ export async function GET() {
 
     return NextResponse.json({ categories: normalizedCategories })
   } catch (error) {
-    console.error('Erro ao buscar categorias:', error)
+    frontendLogger.error('Erro ao buscar categorias:', {
+      message: error.message,
+      stack: error.stack,
+      error
+    })
     return NextResponse.json(
       { error: 'Erro interno ao buscar categorias' },
       { status: 500 }
@@ -145,7 +150,11 @@ export async function POST(request: Request) {
 
     return NextResponse.json(normalizedCategory)
   } catch (error) {
-    console.error('Erro ao criar categoria:', error)
+    frontendLogger.error('Erro ao criar categoria:', {
+      message: error.message,
+      stack: error.stack,
+      error
+    })
     return NextResponse.json(
       { error: 'Erro interno ao criar categoria' },
       { status: 500 }
@@ -198,7 +207,11 @@ export async function PUT(request: Request) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Erro ao atualizar ordem das categorias:', error)
+    frontendLogger.error('Erro ao atualizar ordem das categorias:', {
+      message: error.message,
+      stack: error.stack,
+      error
+    })
     return NextResponse.json(
       { error: 'Erro interno ao atualizar ordem das categorias' },
       { status: 500 }

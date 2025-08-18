@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { getSupabaseServerClient } from '@/lib/supabase'
+import { frontendLogger } from '@/lib/frontend-logger'
 
 export async function GET() {
   try {
@@ -15,7 +16,10 @@ export async function GET() {
       .or('active.is.null,active.eq.true')
     
     if (error) {
-      console.error('[CUSTOMERS] Erro ao buscar códigos:', error)
+      frontendLogger.error('Erro ao buscar códigos de clientes', 'api', {
+        error: error.message,
+        stack: error.stack
+      })
       throw error
     }
 
@@ -36,7 +40,10 @@ export async function GET() {
     const nextNumber = maxCode + 1
     const formattedCode = nextNumber.toString().padStart(4, '0')
 
-    console.log(`[CUSTOMERS] Próximo código sequencial: ${formattedCode}`)
+    frontendLogger.info('Próximo código sequencial gerado', 'api', {
+      nextCode: formattedCode,
+      nextNumber: nextNumber
+    })
 
     return NextResponse.json({
       next_code: formattedCode,
@@ -44,7 +51,10 @@ export async function GET() {
     })
 
   } catch (error: any) {
-    console.error("[CUSTOMERS] Erro ao buscar próximo código:", error)
+    frontendLogger.error('Erro ao buscar próximo código de cliente', 'api', {
+      error: error.message,
+      stack: error.stack
+    })
     return NextResponse.json({
       error: "Erro interno do servidor",
       details: error.message

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { getSupabaseServerClient } from "@/lib/supabase"
+import { frontendLogger } from '@/lib/frontend-logger'
 
 // POST - Enviar mensagem de contato
 export async function POST(request: Request) {
@@ -40,7 +41,13 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ message: "Mensagem enviada com sucesso", contact: data })
   } catch (error) {
-    console.error("Erro ao enviar mensagem:", error)
+    frontendLogger.error('Erro ao enviar mensagem de contato', 'api', {
+      error: error.message,
+      stack: error.stack,
+      name,
+      email,
+      subject: subject || 'Contato via site'
+    })
     return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
   }
 }

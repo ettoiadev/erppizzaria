@@ -4,10 +4,18 @@ import { sign } from "jsonwebtoken"
 import { frontendLogger } from '@/lib/frontend-logger'
 import { getSupabaseServerClient } from '@/lib/supabase'
 import { appLogger } from '@/lib/logging'
+import { checkRateLimit, addRateLimitHeaders } from '@/lib/simple-rate-limit'
+import { validateInput, createValidationErrorResponse } from '@/lib/input-validation'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
+  // Verificar rate limiting
+  const rateLimitCheck = checkRateLimit(request, 'auth')
+  if (!rateLimitCheck.allowed) {
+    return rateLimitCheck.response!
+  }
+
   try {
     appLogger.info('auth', 'Iniciando processo de login SIMPLIFICADO')
     
@@ -22,15 +30,21 @@ export async function POST(request: NextRequest) {
     }
     
     const body = await request.json()
-    const { email, password } = body
-
-    // Validar dados
-    if (!email || !password) {
-      return NextResponse.json(
-        { error: "Email e senha são obrigatórios" },
-        { status: 400 }
-      )
+    
+    // Validar e sanitizar entrada
+    const loginSchema = {
+      email: { required: true, type: 'email' as const },
+      password: { required: true, type: 'string' as const, minLength: 1 }
     }
+    
+    const validation = validateInput(body, loginSchema)
+    if (!validation.isValid) {
+      const response = createValidationErrorResponse(validation.errors)
+      addCorsHeaders(response)
+      return response
+    }
+
+    const { email, password } = validation.sanitizedData
 
     appLogger.info('auth', 'Tentativa de login simplificado', { 
       email: email.replace(/(.{2}).*(@.*)/, '$1***$2') 
@@ -105,6 +119,9 @@ export async function POST(request: NextRequest) {
     response.headers.set('Access-Control-Allow-Credentials', 'true')
     response.headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
     response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, Origin')
+
+    // Adicionar headers de rate limit
+    addRateLimitHeaders(response, rateLimitCheck.remaining, rateLimitCheck.resetTime)
 
     return response
 

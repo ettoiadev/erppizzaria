@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServerClient } from '@/lib/supabase'
 import { mercadoPagoGateway } from '@/lib/mercadopago'
 import { ordersRateLimiter } from '@/lib/rate-limiter'
+import { frontendLogger } from '@/lib/frontend-logger'
 
 export async function POST(request: NextRequest) {
   try {
@@ -30,11 +31,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log("💰 Processando pagamento:", {
+    frontendLogger.info('Processando pagamento', {
       order_id,
       amount,
       payment_method,
-      customer_email
+      customer_email: customer_email?.replace(/(.{2}).*(@.*)/, '$1***$2')
     })
 
     const supabase = getSupabaseServerClient()
@@ -95,7 +96,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!paymentResult.success) {
-      console.error("❌ Falha ao criar pagamento:", paymentResult.error)
+      frontendLogger.error('Falha ao criar pagamento', { error: paymentResult.error })
       return NextResponse.json(
         { error: paymentResult.error || "Erro ao processar pagamento" },
         { status: 500 }
@@ -108,7 +109,7 @@ export async function POST(request: NextRequest) {
       .update({ payment_status: 'PENDING', updated_at: new Date().toISOString() })
       .eq('id', order_id)
 
-    console.log("✅ Pagamento criado com sucesso:", paymentResult.payment_id)
+    frontendLogger.info('Pagamento criado com sucesso', { payment_id: paymentResult.payment_id })
 
     return NextResponse.json({
       success: true,
@@ -119,7 +120,7 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error: any) {
-    console.error("❌ Erro ao processar pagamento:", error)
+    frontendLogger.error('Erro ao processar pagamento', { error: error.message, stack: error.stack })
     return NextResponse.json(
       { error: "Erro interno do servidor" },
       { status: 500 }
@@ -185,7 +186,7 @@ export async function GET(request: NextRequest) {
     }
 
   } catch (error: any) {
-    console.error("❌ Erro ao verificar pagamento:", error)
+    frontendLogger.error('Erro ao verificar pagamento', { error: error.message, stack: error.stack })
     return NextResponse.json(
       { error: "Erro interno do servidor" },
       { status: 500 }

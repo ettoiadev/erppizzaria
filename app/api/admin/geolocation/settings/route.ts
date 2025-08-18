@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServerClient } from '@/lib/supabase'
 import { verifyAdmin } from '@/lib/auth'
+import { frontendLogger } from '@/lib/frontend-logger'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,7 +21,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Acesso negado" }, { status: 403 })
     }
 
-    console.log('[GEOLOCATION_SETTINGS] Buscando configurações...')
+    frontendLogger.info('Buscando configurações de geolocalização')
 
     const supabase = getSupabaseServerClient()
     const { data: rows, error } = await supabase
@@ -32,7 +33,7 @@ export async function GET(request: NextRequest) {
     const settings: GeolocationSettingsMap = {}
     ;(rows || []).forEach((row: any) => { settings[row.setting_key] = row.setting_value })
 
-    console.log('[GEOLOCATION_SETTINGS] Configurações encontradas:', Object.keys(settings).length)
+    frontendLogger.info('Configurações de geolocalização encontradas', { count: Object.keys(settings).length })
 
     return NextResponse.json({ 
       success: true,
@@ -41,7 +42,7 @@ export async function GET(request: NextRequest) {
     })
 
   } catch (error: any) {
-    console.error('[GEOLOCATION_SETTINGS] Erro ao buscar configurações:', error)
+    frontendLogger.error('Erro ao buscar configurações de geolocalização', { error: error.message, stack: error.stack })
     return NextResponse.json({ 
       success: false,
       error: 'Erro interno do servidor',
@@ -66,7 +67,7 @@ export async function PUT(request: NextRequest) {
 
     const settings = await request.json() as GeolocationSettingsMap
 
-    console.log('[GEOLOCATION_SETTINGS] Atualizando configurações:', Object.keys(settings))
+    frontendLogger.info('Atualizando configurações de geolocalização', { keys: Object.keys(settings) })
 
     // Validações específicas
     const validations: Record<string, (val: string) => boolean> = {
@@ -113,12 +114,12 @@ export async function PUT(request: NextRequest) {
       if (!error) updatedCount++
     }
 
-    console.log('[GEOLOCATION_SETTINGS] Configurações atualizadas:', updatedCount)
+    frontendLogger.info('[GEOLOCATION_SETTINGS] Configurações atualizadas:', { updatedCount })
 
     // Se mudou coordenadas da pizzaria, limpar cache de distâncias
     if (settings.pizzaria_latitude || settings.pizzaria_longitude) {
       await supabase.from('geocoded_addresses').update({ distance_km: null, delivery_zone_id: null, last_verified: new Date(Date.now() - 365*24*60*60*1000).toISOString() }).not('distance_km', 'is', null)
-      console.log('[GEOLOCATION_SETTINGS] Cache de distâncias limpo devido à mudança de coordenadas')
+      frontendLogger.info('Cache de distâncias limpo devido à mudança de coordenadas')
     }
 
     return NextResponse.json({ 
@@ -128,7 +129,7 @@ export async function PUT(request: NextRequest) {
     })
 
   } catch (error: any) {
-    console.error('[GEOLOCATION_SETTINGS] Erro ao atualizar configurações:', error)
+    frontendLogger.error('Erro ao atualizar configurações de geolocalização', { error: error.message, stack: error.stack })
     return NextResponse.json({ 
       success: false,
       error: 'Erro interno do servidor',

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServerClient } from '@/lib/supabase'
+import { frontendLogger } from '@/lib/frontend-logger'
 
 // PATCH - Marcar notificação como lida
 export async function PATCH(
@@ -40,10 +41,10 @@ export async function PATCH(
     })
 
   } catch (error: any) {
-    console.error('Erro ao marcar notificação como lida:', error)
+    frontendLogger.error('Erro ao marcar notificação como lida', { error: error.message, stack: error.stack })
     return NextResponse.json(
       { error: 'Erro interno do servidor' },
       { status: 500 }
     )
   }
-} 
+}

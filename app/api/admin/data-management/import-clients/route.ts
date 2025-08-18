@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServerClient } from '@/lib/supabase'
+import { frontendLogger } from '@/lib/frontend-logger'
 import * as XLSX from 'xlsx'
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('[IMPORT_CLIENTS] Iniciando importação de clientes...')
+    frontendLogger.info('Iniciando importação de clientes', 'api')
 
     const formData = await request.formData()
     const file = formData.get('file') as File
@@ -32,7 +33,10 @@ export async function POST(request: NextRequest) {
     const worksheet = workbook.Sheets[sheetName]
     const data = XLSX.utils.sheet_to_json(worksheet) as any[]
 
-    console.log(`[IMPORT_CLIENTS] ${data.length} registros encontrados no arquivo`)
+    frontendLogger.info('Registros encontrados no arquivo', 'api', {
+      totalRecords: data.length,
+      fileName: file.name
+    })
 
     let successCount = 0
     const errors: string[] = []
@@ -126,12 +130,20 @@ export async function POST(request: NextRequest) {
         successCount++
 
       } catch (error) {
-        console.error(`[IMPORT_CLIENTS] Erro na linha ${rowNum}:`, error)
+        frontendLogger.error('Erro ao processar linha na importação', 'api', {
+          rowNumber: rowNum,
+          error: error instanceof Error ? error.message : 'Erro desconhecido',
+          stack: error instanceof Error ? error.stack : undefined
+        })
         errors.push(`Linha ${rowNum}: Erro ao processar dados - ${error instanceof Error ? error.message : 'Erro desconhecido'}`)
       }
     }
 
-    console.log(`[IMPORT_CLIENTS] Importação concluída: ${successCount} sucessos, ${errors.length} erros`)
+    frontendLogger.info('Importação de clientes concluída', 'api', {
+      successCount,
+      errorCount: errors.length,
+      fileName: file.name
+    })
     
     return NextResponse.json({ 
       success: successCount, 
@@ -140,7 +152,10 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('[IMPORT_CLIENTS] Erro geral na importação:', error)
+    frontendLogger.error('Erro geral na importação de clientes', 'api', {
+      error: error instanceof Error ? error.message : 'Erro desconhecido',
+      stack: error instanceof Error ? error.stack : undefined
+    })
     return NextResponse.json({ 
       error: 'Erro ao processar arquivo de importação' 
     }, { status: 500 })

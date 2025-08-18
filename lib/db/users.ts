@@ -3,6 +3,7 @@
  */
 
 import { getSupabaseServerClient, supabaseAdmin } from '../supabase'
+import { UserProfile } from '../types/user'
 
 export interface UserProfile {
   id: string
@@ -46,7 +47,7 @@ export async function createUserProfile(userData: {
   password_hash: string
   phone?: string
 }): Promise<UserProfile | null> {
-  const supabase = getSupabaseServerClient()
+  // Usar cliente administrativo para contornar RLS durante criação de usuário
   const insert = {
     email: userData.email.toLowerCase(),
     full_name: userData.full_name,
@@ -54,7 +55,7 @@ export async function createUserProfile(userData: {
     password_hash: userData.password_hash,
     phone: userData.phone ?? null,
   }
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from('profiles')
     .insert(insert)
     .select('id, email, full_name, role, password_hash, phone, created_at, updated_at')

@@ -2,6 +2,8 @@ import { NextResponse } from "next/server"
 import { writeFile, mkdir } from "fs/promises"
 import { join } from "path"
 import { existsSync } from "fs"
+import { addCorsHeaders } from '@/lib/auth-utils'
+import { frontendLogger } from '@/lib/frontend-logger'
 
 export async function POST(request: Request) {
   try {
@@ -9,17 +11,17 @@ export async function POST(request: Request) {
     const file = formData.get("file") as File | null
 
     if (!file) {
-      return NextResponse.json({ error: "Nenhum arquivo enviado" }, { status: 400 })
+      return addCorsHeaders(NextResponse.json({ error: "Nenhum arquivo enviado" }, { status: 400 }))
     }
 
     // Validar tipo do arquivo
     if (!file.type.startsWith("image/")) {
-      return NextResponse.json({ error: "Apenas imagens são permitidas" }, { status: 400 })
+      return addCorsHeaders(NextResponse.json({ error: "Apenas imagens são permitidas" }, { status: 400 }))
     }
 
     // Validar tamanho do arquivo (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
-      return NextResponse.json({ error: "Arquivo muito grande (máximo 5MB)" }, { status: 400 })
+      return addCorsHeaders(NextResponse.json({ error: "Arquivo muito grande (máximo 5MB)" }, { status: 400 }))
     }
 
     // Gerar nome único para o arquivo
@@ -33,10 +35,10 @@ export async function POST(request: Request) {
     try {
       if (!existsSync(uploadDir)) {
         await mkdir(uploadDir, { recursive: true })
-        console.log("Diretório de uploads criado:", uploadDir)
+        frontendLogger.info("Diretório de uploads criado", { uploadDir })
       }
     } catch (error) {
-      console.error("Erro ao criar diretório:", error)
+      frontendLogger.error("Erro ao criar diretório:", error)
     }
 
     try {
@@ -45,27 +47,43 @@ export async function POST(request: Request) {
       const filePath = join(uploadDir, fileName)
       
       await writeFile(filePath, buffer)
-      console.log("Arquivo salvo em:", filePath)
-    } catch (error) {
-      console.error("Erro ao salvar arquivo:", error)
-      return NextResponse.json({ error: "Erro ao salvar arquivo", details: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 })
+      frontendLogger.info("Arquivo salvo com sucesso", { 
+        fileName, 
+        size: file.size, 
+        type: file.type 
+      })
+    } catch (error: any) {
+      frontendLogger.error('Erro ao salvar arquivo', 'api', {
+        error: error.message,
+        stack: error.stack,
+        fileName,
+        fileSize: file.size,
+        fileType: file.type
+      })
+      return addCorsHeaders(NextResponse.json({ 
+        error: "Erro ao salvar arquivo", 
+        details: error instanceof Error ? error.message : 'Unknown error' 
+      }, { status: 500 }))
     }
 
     // Retornar URL da imagem
     const imageUrl = `/uploads/${fileName}`
-    console.log("URL da imagem gerada:", imageUrl)
+    frontendLogger.info("Upload concluído com sucesso", { imageUrl, fileName })
     
-    return NextResponse.json({ 
+    return addCorsHeaders(NextResponse.json({ 
       url: imageUrl,
       fileName: fileName,
       size: file.size,
       type: file.type
+    }))
+  } catch (error: any) {
+    frontendLogger.error('Erro no upload', 'api', {
+      error: error.message,
+      stack: error.stack
     })
-  } catch (error) {
-    console.error("Erro no upload:", error)
-    return NextResponse.json({ 
+    return addCorsHeaders(NextResponse.json({ 
       error: "Erro interno do servidor",
       details: error instanceof Error ? error.message : 'Unknown error'
-    }, { status: 500 })
+    }, { status: 500 }))
   }
 }

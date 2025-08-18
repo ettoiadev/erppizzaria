@@ -1,15 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServerClient } from '@/lib/supabase'
-import { withAdminAuth } from '@/lib/auth-middleware'
 import { frontendLogger } from '@/lib/frontend-logger'
+import { validateAdminAuth, createAuthErrorResponse, addCorsHeaders, createOptionsHandler } from '@/lib/auth-utils'
 
 export async function POST(request: NextRequest) {
-  return withAdminAuth(request, async (req, admin) => {
-    try {
-      console.log("[GEOLOCATION_SETUP] POST request iniciado")
-      console.log(`[GEOLOCATION_SETUP] POST: Acesso autorizado para admin: ${admin.email}`)
+  // Validar autenticação de admin
+  const authResult = await validateAdminAuth(request)
+  if (!authResult.success) {
+    return createAuthErrorResponse(authResult.error, authResult.status)
+  }
+  
+  const admin = authResult.user
 
-      console.log('🚀 Iniciando setup de geolocalização...')
+  try {
+    frontendLogger.info('Requisição de setup de geolocalização iniciada', 'api')
+    frontendLogger.info('Acesso autorizado para admin no setup de geolocalização', 'api', {
+      adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2')
+    })
+
+      frontendLogger.info('Iniciando setup de geolocalização', 'api', {
+        adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2')
+      })
 
       // Estruturas/tabelas/índices são gerenciados pelas migrações do Supabase (skip criação via API)
       const supabase = getSupabaseServerClient()
@@ -26,13 +37,16 @@ export async function POST(request: NextRequest) {
         const columns = sample && sample.length > 0 ? Object.keys(sample[0]) : []
         
         if (!columns.includes('setting_type') || !columns.includes('description')) {
-          console.log('⚠️ Colunas setting_type ou description não existem na tabela admin_settings')
-          console.log('⚠️ Use migrations do Supabase para adicionar estas colunas')
+          frontendLogger.info('Colunas setting_type ou description não existem na tabela admin_settings', 'api')
+          frontendLogger.info('Use migrations do Supabase para adicionar estas colunas', 'api')
         } else {
-          console.log('✅ Colunas setting_type e description já existem na admin_settings')
+          frontendLogger.info('Colunas setting_type e description já existem na admin_settings', 'api')
         }
       } catch (error) {
-        console.log('⚠️ Erro ao verificar colunas:', error)
+        frontendLogger.error('Erro ao verificar colunas', 'api', {
+          error: error.message,
+          stack: error.stack
+        })
       }
 
       // 6. Inserir configurações de geolocalização
@@ -52,7 +66,7 @@ export async function POST(request: NextRequest) {
           .from('admin_settings')
           .upsert({ setting_key: key, setting_value: value, setting_type: type, description: desc, updated_at: new Date().toISOString() }, { onConflict: 'setting_key' })
       }
-      console.log('✅ Configurações de geolocalização inseridas')
+      frontendLogger.info('Configurações de geolocalização inseridas', 'api')
 
       // 7. Inserir zonas de entrega padrão
       const defaultZones = [
@@ -72,9 +86,9 @@ export async function POST(request: NextRequest) {
             .from('delivery_zones')
             .insert({ name, min_distance_km: minDist, max_distance_km: maxDist, delivery_fee: fee, estimated_time_minutes: time, color_hex: color, description: desc })
         }
-        console.log('✅ Zonas de entrega padrão inseridas')
+        frontendLogger.info('Zonas de entrega padrão inseridas', 'api')
       } else {
-        console.log('⚠️ Zonas já existem, pulando inserção')
+        frontendLogger.info('Zonas já existem, pulando inserção', 'api')
       }
 
       // 8. Verificar setup
@@ -93,7 +107,7 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      console.log('🎉 Setup concluído:', setupResult)
+      frontendLogger.info('Setup concluído', 'api', setupResult)
 
       frontendLogger.info('Setup de geolocalização concluído', 'api', {
           adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
@@ -101,26 +115,32 @@ export async function POST(request: NextRequest) {
           settingsCreated: setupResult.details.settings_created
         });
 
-      return NextResponse.json(setupResult)
+      const response = NextResponse.json(setupResult)
+      return addCorsHeaders(response)
 
-    } catch (error: any) {
-      console.error('❌ Erro no setup de geolocalização:', error)
-      
-      frontendLogger.logError('Erro no setup de geolocalização', {
-        error: error.message,
-        adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
-        stack: error.stack
-      }, error, 'api')
-      
-      return NextResponse.json({
-        success: false,
-        error: 'Erro no setup de geolocalização',
-        details: {
-          message: error.message,
-          code: error.code,
-          hint: error.hint
-        }
-      }, { status: 500 })
-    }
-  })
+  } catch (error: any) {
+    frontendLogger.error('Erro no setup de geolocalização', { error: error.message, stack: error.stack })
+    
+    frontendLogger.logError('Erro no setup de geolocalização', {
+      error: error.message,
+      adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+      stack: error.stack
+    }, error, 'api')
+    
+    const response = NextResponse.json({
+      success: false,
+      error: 'Erro no setup de geolocalização',
+      details: {
+        message: error.message,
+        code: error.code,
+        hint: error.hint
+      }
+    }, { status: 500 })
+    return addCorsHeaders(response)
+  }
+}
+
+// Handler para requisições OPTIONS (CORS)
+export async function OPTIONS() {
+  return createOptionsHandler()
 }

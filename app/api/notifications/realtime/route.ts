@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { emitRealtimeEvent } from '@/lib/realtime';
 import { REALTIME_CHANNEL } from '@/lib/realtime';
+import { frontendLogger } from '@/lib/frontend-logger';
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,7 +20,11 @@ export async function POST(request: NextRequest) {
     
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    console.error('Erro ao enviar notificação realtime:', error);
+    frontendLogger.error('Erro ao enviar notificação realtime', 'api', {
+      error: error.message,
+      stack: error.stack,
+      notificationType: notification?.type
+    });
     return NextResponse.json(
       { success: false, error: error.message },
       { status: 500 }

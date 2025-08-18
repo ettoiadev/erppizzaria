@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { searchCustomersOptimized } from '@/lib/db-supabase-optimized'
+import { frontendLogger } from '@/lib/frontend-logger'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,7 +11,11 @@ export async function GET(request: NextRequest) {
     const codeSearch = searchParams.get('code')?.trim() || ''
     const limit = Math.min(parseInt(searchParams.get('limit') || '10'), 50) // Máximo 50
 
-    console.log(`[CUSTOMER_SEARCH_OPTIMIZED] Termo: "${searchTerm}", Código: "${codeSearch}", Limite: ${limit}`)
+    frontendLogger.info('Busca otimizada de clientes iniciada', 'api', {
+      searchTerm,
+      codeSearch,
+      limit
+    })
 
     // Se não há termo de busca nem código, retornar vazio
     if (!searchTerm && !codeSearch) {
@@ -31,7 +36,11 @@ export async function GET(request: NextRequest) {
       limit
     })
 
-    console.log(`[CUSTOMER_SEARCH_OPTIMIZED] Encontrados ${customers.length} clientes`)
+    frontendLogger.info('Clientes encontrados na busca otimizada', 'api', {
+      count: customers.length,
+      searchTerm,
+      codeSearch
+    })
 
     return NextResponse.json({ 
       customers,
@@ -46,7 +55,13 @@ export async function GET(request: NextRequest) {
     })
 
   } catch (error: any) {
-    console.error('[CUSTOMER_SEARCH_OPTIMIZED] Erro na busca:', error)
+    frontendLogger.error('Erro na busca otimizada de clientes', 'api', {
+      error: error.message,
+      stack: error.stack,
+      searchTerm,
+      codeSearch,
+      limit
+    })
     return NextResponse.json({
       error: 'Erro interno do servidor',
       message: error.message || 'Falha na busca de clientes',

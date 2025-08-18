@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getSupabaseServerClient } from "@/lib/supabase"
 import { verifyToken } from "@/lib/auth"
 import { JwtPayload } from "jsonwebtoken"
+import { frontendLogger } from '@/lib/frontend-logger'
 
 // Force dynamic rendering for this route
 export const dynamic = 'force-dynamic'
@@ -20,7 +21,10 @@ export async function GET() {
       .limit(1)
     
     if (error) {
-      console.error('Error fetching about_content:', error)
+      frontendLogger.error('Erro ao buscar conteúdo sobre', 'api', {
+        error: error.message,
+        stack: error.stack
+      })
     }
 
     if (!rows || rows.length === 0) {
@@ -158,7 +162,10 @@ export async function PUT(request: Request) {
         return NextResponse.json({ content: created })
       }
     } catch (dbError) {
-      console.error('Database error:', dbError)
+      frontendLogger.error('Erro no banco de dados ao atualizar conteúdo sobre', 'api', {
+        error: (dbError as any)?.message,
+        stack: (dbError as any)?.stack
+      })
       throw dbError
     }
   } catch (error) {

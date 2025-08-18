@@ -1,20 +1,50 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getSupabaseServerClient } from '@/lib/supabase'
+import { addCorsHeaders, createOptionsHandler } from '@/lib/auth-utils'
+import { frontendLogger } from '@/lib/frontend-logger'
+import { userRegistrationSchema } from '@/lib/validation-schemas'
+import { z } from 'zod'
 
 export const dynamic = 'force-dynamic'
+
+// Schema para validação de parâmetros de busca
+const customerSearchSchema = z.object({
+  q: z.string().optional().transform(val => val?.trim() || ''),
+  code: z.string().optional().transform(val => val?.trim() || ''),
+  limit: z.string().optional().transform(val => {
+    const num = parseInt(val || '10')
+    return isNaN(num) ? 10 : Math.min(Math.max(num, 1), 50)
+  })
+})
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const searchTerm = searchParams.get('q')?.trim() || ''
-    const codeSearch = searchParams.get('code')?.trim() || ''
-    const limit = parseInt(searchParams.get('limit') || '10')
+    
+    // Validar parâmetros de busca
+    const validationResult = customerSearchSchema.safeParse({
+      q: searchParams.get('q'),
+      code: searchParams.get('code'),
+      limit: searchParams.get('limit')
+    })
+    
+    if (!validationResult.success) {
+      frontendLogger.warn('Parâmetros de busca inválidos', { errors: validationResult.error.errors })
+      const response = NextResponse.json({
+        error: "Parâmetros de busca inválidos",
+        details: validationResult.error.errors
+      }, { status: 400 })
+      return addCorsHeaders(response)
+    }
+    
+    const { q: searchTerm, code: codeSearch, limit } = validationResult.data
 
-    console.log(`[CUSTOMER_SEARCH] Termo de busca: "${searchTerm}", Código: "${codeSearch}", Limite: ${limit}`)
+    frontendLogger.info('Busca de clientes iniciada', { searchTerm, codeSearch, limit })
 
     // Se não há termo de busca nem código, retornar vazio
     if (!searchTerm && !codeSearch) {
-      return NextResponse.json({ customers: [] })
+      const response = NextResponse.json({ customers: [] })
+      return addCorsHeaders(response)
     }
 
     // Função para normalizar strings (remover acentos, converter para minúsculas)
@@ -29,7 +59,7 @@ export async function GET(request: NextRequest) {
     const normalizedSearchTerm = normalizeString(searchTerm)
     const phoneOnlyNumbers = searchTerm.replace(/\D/g, '') // Apenas números do telefone
 
-    console.log(`[CUSTOMER_SEARCH] Termo normalizado: "${normalizedSearchTerm}", Telefone: "${phoneOnlyNumbers}", Código: "${codeSearch}"`)
+    frontendLogger.info('Parâmetros de busca processados', { normalizedSearchTerm, phoneOnlyNumbers, codeSearch })
 
     const supabase = getSupabaseServerClient()
     const { data: profiles, error } = await supabase
@@ -38,7 +68,7 @@ export async function GET(request: NextRequest) {
       .eq('role', 'customer')
       .order('created_at', { ascending: false })
     if (error) throw error
-    console.log(`[CUSTOMER_SEARCH] Total de perfis encontrados: ${profiles.length}`)
+    frontendLogger.info('Perfis carregados do banco', { totalProfiles: profiles.length })
 
     // Filtrar e processar clientes no frontend
     const matchingCustomers = []
@@ -124,72 +154,93 @@ export async function GET(request: NextRequest) {
           }
         }
       } catch (error) {
-        console.warn(`[CUSTOMER_SEARCH] Erro ao processar cliente ${profile.id}:`, error)
+          frontendLogger.warn('Erro ao processar cliente', { profileId: profile.id, error })
+        }
       }
+
+      frontendLogger.info('Busca de clientes concluída', { 
+        totalFound: matchingCustomers.length,
+        searchTerm,
+        codeSearch 
+      })
+
+      const response = NextResponse.json({
+        customers: matchingCustomers,
+        total: matchingCustomers.length,
+        searchTerm: searchTerm
+      })
+      return addCorsHeaders(response)
+
+    } catch (error: any) {
+      frontendLogger.error('Erro na busca de clientes:', error)
+      const response = NextResponse.json({
+        error: "Erro interno do servidor",
+        message: "Não foi possível realizar a busca",
+        customers: [] 
+      }, { status: 500 })
+      return addCorsHeaders(response)
     }
-
-    console.log(`[CUSTOMER_SEARCH] Retornando ${matchingCustomers.length} clientes encontrados`)
-
-    return NextResponse.json({
-      customers: matchingCustomers,
-      total: matchingCustomers.length,
-      searchTerm: searchTerm
-    })
-
-  } catch (error: any) {
-    console.error("[CUSTOMER_SEARCH] Erro na busca:", error)
-    return NextResponse.json({
-      error: "Erro interno do servidor",
-      message: "Não foi possível realizar a busca",
-      customers: [] 
-    }, { status: 500 })
   }
-}
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
-    const { name, phone, email, address } = body
-
-    console.log("[CUSTOMER_SEARCH] Criando novo cliente:", { name, phone, email })
-
-    // Validações
-    if (!name?.trim()) {
-      return NextResponse.json({ 
-        error: "Nome é obrigatório" 
+    let body
+    try {
+      body = await request.json()
+    } catch (error) {
+      const response = NextResponse.json({
+        error: "JSON inválido"
       }, { status: 400 })
+      return addCorsHeaders(response)
     }
 
-    if (!phone?.trim()) {
-      return NextResponse.json({ 
-        error: "Telefone é obrigatório" 
+    frontendLogger.info('Criando novo cliente', { 
+      name: body.name, 
+      phone: body.phone, 
+      email: body.email 
+    })
+
+    // Validar e sanitizar dados usando Zod
+    const validationResult = userRegistrationSchema.safeParse({
+      ...body,
+      role: 'customer' // Forçar role customer
+    })
+    
+    if (!validationResult.success) {
+      frontendLogger.warn('Dados inválidos para criação de cliente', { 
+        errors: validationResult.error.errors 
+      })
+      const response = NextResponse.json({
+        error: "Dados inválidos",
+        details: validationResult.error.errors
       }, { status: 400 })
+      return addCorsHeaders(response)
     }
 
-    // Limpar telefone (apenas números)
-    const cleanPhone = phone.replace(/\D/g, '')
-    if (cleanPhone.length < 10) {
-      return NextResponse.json({ 
-        error: "Telefone deve ter pelo menos 10 dígitos" 
-      }, { status: 400 })
-    }
+    const validatedData = validationResult.data
+    const { name, phone, email, address } = validatedData
 
     const supabase = getSupabaseServerClient()
     const { data: existingByPhone } = await supabase.from('profiles').select('id').eq('phone', phone).eq('role', 'customer').limit(1)
     if ((existingByPhone || []).length > 0) {
-      return NextResponse.json({ 
+      frontendLogger.warn('Tentativa de criar cliente com telefone duplicado', { phone })
+      const response = NextResponse.json({ 
         error: "Já existe um cliente cadastrado com este telefone" 
       }, { status: 400 })
+      return addCorsHeaders(response)
     }
 
     // Gerar email se não fornecido
+    const cleanPhone = phone.replace(/\D/g, '')
     const customerEmail = email?.trim() || `cliente_${cleanPhone}@temp.williamdiskpizza.com`
 
     const { data: existingByEmail } = await supabase.from('profiles').select('id').eq('email', customerEmail).limit(1)
     if ((existingByEmail || []).length > 0) {
-      return NextResponse.json({ 
+      frontendLogger.warn('Tentativa de criar cliente com email duplicado', { email: customerEmail })
+      const response = NextResponse.json({ 
         error: "Este e-mail já está cadastrado" 
       }, { status: 400 })
+      return addCorsHeaders(response)
     }
 
     const { data: newCustomer, error: insertErr } = await supabase
@@ -199,7 +250,10 @@ export async function POST(request: NextRequest) {
       .single()
     if (insertErr) throw insertErr
 
-    console.log("[CUSTOMER_SEARCH] Cliente criado:", newCustomer)
+    frontendLogger.info('Cliente criado com sucesso', { 
+      customerId: newCustomer.id,
+      customerCode: newCustomer.customer_code 
+    })
 
     // Se endereço foi fornecido, criar endereço
     if (address?.street && address?.number) {
@@ -217,7 +271,7 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       message: "Cliente criado com sucesso",
       customer: {
@@ -232,13 +286,17 @@ export async function POST(request: NextRequest) {
         createdAt: newCustomer.created_at
       }
     })
+    return addCorsHeaders(response)
 
   } catch (error: any) {
-    console.error("[CUSTOMER_SEARCH] Erro ao criar cliente:", error)
-    return NextResponse.json({
+    frontendLogger.error('Erro ao criar cliente:', error)
+    const response = NextResponse.json({
       error: "Erro interno do servidor",
       message: "Não foi possível criar o cliente",
       details: error.message
     }, { status: 500 })
+    return addCorsHeaders(response)
   }
 }
+
+export const OPTIONS = createOptionsHandler()

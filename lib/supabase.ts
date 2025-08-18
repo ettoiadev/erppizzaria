@@ -63,10 +63,11 @@ const supabaseClient: SupabaseClient = createClient(supabaseUrl, supabaseKey, {
 })
 
 // Cliente administrativo para operações que precisam contornar RLS
-// NOTA: Temporariamente usando anon key até obtermos a service_role key
+// Usar service_role key se disponível, senão usar anon key
+const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || supabaseKey
 const supabaseAdminClient: SupabaseClient = createClient(
   supabaseUrl, 
-  supabaseKey, // Usando anon key temporariamente
+  serviceRoleKey,
   {
     auth: { autoRefreshToken: false, persistSession: false },
   }

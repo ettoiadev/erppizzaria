@@ -1,5 +1,28 @@
 import { NextResponse } from "next/server"
 import { listAddresses, createAddress } from "@/lib/db-supabase"
+import { addCorsHeaders, createOptionsHandler } from '@/lib/auth-utils'
+import { frontendLogger } from '@/lib/frontend-logger'
+import { z } from 'zod'
+
+// Schema para validação de endereços
+const addressSchema = z.object({
+  customer_id: z.string().min(1, "ID do cliente é obrigatório"),
+  name: z.string().min(1, "Nome do endereço é obrigatório").trim(),
+  street: z.string().min(1, "Rua/Logradouro é obrigatório").trim(),
+  number: z.string().min(1, "Número é obrigatório").trim(),
+  complement: z.string().optional().transform(val => val?.trim() || ''),
+  neighborhood: z.string().min(1, "Bairro é obrigatório").trim(),
+  city: z.string().min(1, "Cidade é obrigatória").trim(),
+  state: z.string().length(2, "Estado deve ter 2 caracteres (UF)").toUpperCase(),
+  zip_code: z.string().min(1, "CEP é obrigatório").transform(val => {
+    const cleaned = val.replace(/\D/g, '')
+    if (cleaned.length !== 8) {
+      throw new Error("CEP deve ter 8 dígitos")
+    }
+    return cleaned
+  }),
+  is_default: z.boolean().optional().default(false)
+})
 
 // GET - Listar endereços do usuário
 export async function GET(request: Request) {
@@ -7,58 +30,58 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get("userId")
 
+    frontendLogger.info('Buscando endereços do usuário', { userId })
+
     if (!userId) {
-      return NextResponse.json({ error: "UserId não fornecido" }, { status: 400 })
+      const response = NextResponse.json({ error: "UserId não fornecido" }, { status: 400 })
+      return addCorsHeaders(response)
     }
 
     const addresses = await listAddresses(userId)
-    return NextResponse.json({ addresses })
+    frontendLogger.info('Endereços encontrados', { userId, count: addresses.length })
+    
+    const response = NextResponse.json({ addresses })
+    return addCorsHeaders(response)
   } catch (error) {
-    console.error("Erro ao buscar endereços:", error)
-    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
+    frontendLogger.error("Erro ao buscar endereços:", error)
+    const response = NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
+    return addCorsHeaders(response)
   }
 }
 
 // POST - Adicionar novo endereço
 export async function POST(request: Request) {
   try {
-    const body = await request.json()
-    const { customer_id, name, street, number, complement, neighborhood, city, state, zip_code, is_default } = body
+    let body
+    try {
+      body = await request.json()
+    } catch (error) {
+      const response = NextResponse.json({
+        error: "JSON inválido"
+      }, { status: 400 })
+      return addCorsHeaders(response)
+    }
 
-    console.log("POST /api/addresses - Dados recebidos:", body)
+    frontendLogger.info('Criando novo endereço', { 
+      customerId: body.customer_id,
+      name: body.name 
+    })
 
-    // Validações detalhadas dos campos obrigatórios
-    if (!customer_id) {
-      return NextResponse.json({ error: "ID do cliente é obrigatório" }, { status: 400 })
+    // Validar e sanitizar dados usando Zod
+    const validationResult = addressSchema.safeParse(body)
+    if (!validationResult.success) {
+      frontendLogger.warn('Dados inválidos para criação de endereço', { 
+        errors: validationResult.error.errors 
+      })
+      const response = NextResponse.json({
+        error: "Dados inválidos",
+        details: validationResult.error.errors
+      }, { status: 400 })
+      return addCorsHeaders(response)
     }
-    if (!name || !name.trim()) {
-      return NextResponse.json({ error: "Nome do endereço é obrigatório" }, { status: 400 })
-    }
-    if (!zip_code || !zip_code.trim()) {
-      return NextResponse.json({ error: "CEP é obrigatório" }, { status: 400 })
-    }
-    const zipCodeNumbers = zip_code.replace(/\D/g, "")
-    if (zipCodeNumbers.length !== 8) {
-      return NextResponse.json({ error: "CEP deve ter 8 dígitos" }, { status: 400 })
-    }
-    if (!street || !street.trim()) {
-      return NextResponse.json({ error: "Rua/Logradouro é obrigatório" }, { status: 400 })
-    }
-    if (!number || !number.trim()) {
-      return NextResponse.json({ error: "Número é obrigatório" }, { status: 400 })
-    }
-    if (!neighborhood || !neighborhood.trim()) {
-      return NextResponse.json({ error: "Bairro é obrigatório" }, { status: 400 })
-    }
-    if (!city || !city.trim()) {
-      return NextResponse.json({ error: "Cidade é obrigatória" }, { status: 400 })
-    }
-    if (!state || !state.trim()) {
-      return NextResponse.json({ error: "Estado é obrigatório" }, { status: 400 })
-    }
-    if (state.length !== 2) {
-      return NextResponse.json({ error: "Estado deve ter 2 caracteres (UF)" }, { status: 400 })
-    }
+
+    const validatedData = validationResult.data
+    const { customer_id, name, street, number, complement, neighborhood, city, state, zip_code, is_default } = validatedData
 
     const address = await createAddress({
       user_id: customer_id,
@@ -72,10 +95,19 @@ export async function POST(request: Request) {
       zip_code,
       is_default: is_default || false,
     })
-    console.log("POST /api/addresses - Endereço criado:", address)
-    return NextResponse.json({ address })
+    
+    frontendLogger.info('Endereço criado com sucesso', { 
+      addressId: address.id,
+      customerId: customer_id 
+    })
+    
+    const response = NextResponse.json({ address })
+    return addCorsHeaders(response)
   } catch (error) {
-    console.error("Erro ao criar endereço:", error)
-    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
+    frontendLogger.error("Erro ao criar endereço:", error)
+    const response = NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
+    return addCorsHeaders(response)
   }
 }
+
+export const OPTIONS = createOptionsHandler()

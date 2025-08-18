@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server"
 import { getSupabaseServerClient } from "@/lib/supabase"
+import { frontendLogger } from '@/lib/frontend-logger'
 
 // GET - Buscar dados de um usuário específico
 export async function GET(request: Request, { params }: { params: { id: string } }) {
   try {
-    console.log("GET /api/users - Buscando usuário:", params.id)
+    frontendLogger.info('Busca de usuário por ID', 'api', { userId: params.id })
 
     const supabase = getSupabaseServerClient()
     const { data: user, error } = await supabase
@@ -19,7 +20,10 @@ export async function GET(request: Request, { params }: { params: { id: string }
     }
 
     const userData = user
-    console.log("Dados do usuário encontrados:", user)
+    frontendLogger.info('Dados do usuário encontrados', 'api', {
+      userId: user.id,
+      userEmail: user.email?.replace(/(.{2}).*(@.*)/, '$1***$2')
+    })
 
     return NextResponse.json({ 
       user: {
@@ -32,7 +36,11 @@ export async function GET(request: Request, { params }: { params: { id: string }
       }
     })
   } catch (error) {
-    console.error("Erro ao buscar usuário:", error)
+    frontendLogger.error('Erro ao buscar usuário', 'api', {
+      userId: params.id,
+      error: (error as any)?.message,
+      stack: (error as any)?.stack
+    })
     return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
   }
 }
@@ -40,7 +48,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
 // PUT - Atualizar dados de um usuário
 export async function PUT(request: Request, { params }: { params: { id: string } }) {
   try {
-    console.log("PUT /api/users - Atualizando usuário:", params.id)
+    frontendLogger.info('Atualização de usuário por ID', 'api', { userId: params.id })
 
     const body = await request.json()
     const { name, email, phone } = body
@@ -69,7 +77,12 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     // Limpar telefone para salvar apenas números no banco
     const cleanPhone = phone.replace(/\D/g, "")
     
-    console.log("Dados a serem atualizados:", { name, email, phone: phone, cleanPhone })
+    frontendLogger.info('Dados a serem atualizados', 'api', {
+      userId: params.id,
+      name,
+      email: email?.replace(/(.{2}).*(@.*)/, '$1***$2'),
+      hasPhone: !!phone
+    })
 
     const supabase = getSupabaseServerClient()
     const { data: existing, error: checkErr } = await supabase
@@ -90,7 +103,11 @@ export async function PUT(request: Request, { params }: { params: { id: string }
       .single()
     if (updErr) throw updErr
 
-    console.log("Usuário atualizado com sucesso:", params.id)
+    frontendLogger.info('Usuário atualizado com sucesso', 'api', {
+      userId: params.id,
+      updatedName: updated.full_name,
+      updatedEmail: updated.email?.replace(/(.{2}).*(@.*)/, '$1***$2')
+    })
 
     return NextResponse.json({ 
       message: "Dados atualizados com sucesso",
@@ -102,7 +119,11 @@ export async function PUT(request: Request, { params }: { params: { id: string }
       }
     })
   } catch (error) {
-    console.error("Erro ao atualizar usuário:", error)
+    frontendLogger.error('Erro ao atualizar usuário', 'api', {
+      userId: params.id,
+      error: (error as any)?.message,
+      stack: (error as any)?.stack
+    })
     return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
   }
 }

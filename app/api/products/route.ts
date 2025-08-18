@@ -1,33 +1,57 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getProductsActive, createProduct } from '@/lib/db-supabase'
-import { withValidation } from '@/lib/validation-middleware'
-import { withDatabaseErrorHandling } from '@/lib/database-error-handler'
-import { withPresetRateLimit } from '@/lib/rate-limit-middleware'
-import { withPresetSanitization } from '@/lib/sanitization-middleware'
-import { withErrorMonitoring } from '@/lib/error-monitoring'
-import { withApiLogging } from '@/lib/api-logger-middleware'
+import { addCorsHeaders, createOptionsHandler } from '@/lib/auth-utils'
+import { frontendLogger } from '@/lib/frontend-logger'
+import { validateAdminAuth, createAuthErrorResponse } from '@/lib/auth-utils'
 import { productSchema } from '@/lib/validation-schemas'
 
 // Force dynamic rendering for this route
 export const dynamic = 'force-dynamic'
 
-// Handler GET para buscar produtos (sem middlewares)
-async function getProductsHandler(request: NextRequest): Promise<NextResponse> {
+// Handler GET para buscar produtos
+export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
+    frontendLogger.info('Buscando produtos ativos')
     const processedProducts = await getProductsActive()
-    return NextResponse.json(processedProducts)
+    frontendLogger.info(`Encontrados ${processedProducts.length} produtos`)
+    return addCorsHeaders(NextResponse.json(processedProducts))
   } catch (error: any) {
-    // O middleware de database error handling vai capturar e tratar este erro
-    throw error
+    frontendLogger.error('Erro ao buscar produtos:', error)
+    return addCorsHeaders(NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 }))
   }
 }
 
-// Handler POST para criar produto (sem middlewares)
-async function createProductHandler(
-  request: NextRequest,
-  validatedData: any
-): Promise<NextResponse> {
+// Handler POST para criar produto
+export async function POST(request: NextRequest): Promise<NextResponse> {
+  // Validar autenticação de admin
+  const authResult = await validateAdminAuth(request)
+  if (!authResult.isValid) {
+    return createAuthErrorResponse(authResult.error!)
+  }
+
   try {
+    frontendLogger.info('Criando novo produto')
+    
+    // Parse do JSON
+    let body
+    try {
+      body = await request.json()
+    } catch (error) {
+      frontendLogger.error('Erro ao fazer parse do JSON:', error)
+      return addCorsHeaders(NextResponse.json({ error: "JSON inválido" }, { status: 400 }))
+    }
+
+    // Validação usando Zod
+    const validationResult = productSchema.safeParse(body)
+    if (!validationResult.success) {
+      frontendLogger.error('Dados de produto inválidos:', validationResult.error)
+      return addCorsHeaders(NextResponse.json({ 
+        error: "Dados inválidos", 
+        details: validationResult.error.errors 
+      }, { status: 400 }))
+    }
+
+    const validatedData = validationResult.data
     const { name, description, price, categoryId, category_id, image, available = true, showImage = true, sizes, toppings } = validatedData
 
     // Garantir compatibilidade entre categoryId e category_id
@@ -43,59 +67,14 @@ async function createProductHandler(
       sizes: sizes || [],
       toppings: toppings || [],
     })
-    return NextResponse.json({ product: normalizedProduct })
-  } catch (error) {
-    // O middleware de database error handling vai capturar e tratar este erro
-    throw error
+    
+    frontendLogger.info(`Produto criado com sucesso: ${normalizedProduct.id}`)
+    return addCorsHeaders(NextResponse.json({ product: normalizedProduct }))
+  } catch (error: any) {
+    frontendLogger.error('Erro ao criar produto:', error)
+    return addCorsHeaders(NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 }))
   }
 }
 
-// Aplicar middlewares para GET (apenas logging e monitoramento)
-const enhancedGetHandler = withErrorMonitoring(
-  withApiLogging(
-    withDatabaseErrorHandling(
-      getProductsHandler,
-      {
-        logErrors: true,
-        sanitizeErrors: process.env.NODE_ENV === 'production'
-      }
-    ),
-    {
-      logRequests: true,
-      logResponses: false, // Não logar resposta para GET (pode ser muito grande)
-      logErrors: true
-    }
-  )
-)
-
-// Aplicar todos os middlewares para POST
-const enhancedPostHandler = withErrorMonitoring(
-  withApiLogging(
-    withPresetRateLimit('public', {}, // Rate limiting geral
-      withPresetSanitization('adminContent', {}, // Sanitização para conteúdo administrativo
-        withValidation(productSchema, // Validação usando Zod
-          withDatabaseErrorHandling( // Tratamento de erros de banco
-            createProductHandler,
-            {
-              logErrors: true,
-              sanitizeErrors: process.env.NODE_ENV === 'production',
-              customErrorMessages: {
-                unique_violation: 'Produto com este nome já existe',
-                foreign_key_violation: 'Categoria inválida'
-              }
-            }
-          )
-        )
-      )
-    ),
-    {
-      logRequests: true,
-      logResponses: true,
-      logErrors: true
-    }
-  )
-)
-
-// Exportar as funções com middlewares
-export const GET = enhancedGetHandler
-export const POST = enhancedPostHandler
+// Handler OPTIONS para CORS
+export const OPTIONS = createOptionsHandler()

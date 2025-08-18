@@ -1,16 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCategories as getCategoriesSupabase, createCategory, updateCategorySortOrders } from '@/lib/db-supabase'
-import { withValidation } from '@/lib/validation-middleware'
-import { withDatabaseErrorHandling } from '@/lib/database-error-handler'
-import { withPresetRateLimit } from '@/lib/rate-limit-middleware'
-import { withPresetSanitization } from '@/lib/sanitization-middleware'
-import { withErrorMonitoring } from '@/lib/error-monitoring'
-import { withApiLogging } from '@/lib/api-logger-middleware'
+import { addCorsHeaders, createOptionsHandler } from '@/lib/auth-utils'
+import { frontendLogger } from '@/lib/frontend-logger'
+import { validateAdminAuth, createAuthErrorResponse } from '@/lib/auth-utils'
 import { categorySchema } from '@/lib/validation-schemas'
 
-// Handler GET para buscar categorias (sem middlewares)
-async function getCategoriesHandler(request: NextRequest): Promise<NextResponse> {
+// Handler GET para buscar categorias
+export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
+    frontendLogger.info('Buscando categorias')
     // Buscar categorias usando Supabase
     const categories = await getCategoriesSupabase(true) // true = incluir inativas também
     
@@ -24,19 +22,46 @@ async function getCategoriesHandler(request: NextRequest): Promise<NextResponse>
       active: category.active !== false
     }))
 
-    return NextResponse.json({ categories: normalizedCategories })
+    frontendLogger.info(`Encontradas ${normalizedCategories.length} categorias`)
+    return addCorsHeaders(NextResponse.json({ categories: normalizedCategories }))
   } catch (error: any) {
-    // O middleware de database error handling vai capturar e tratar este erro
-    throw error
+    frontendLogger.error('Erro ao buscar categorias:', error)
+    return addCorsHeaders(NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 }))
   }
 }
 
-// Handler POST para criar categoria (sem middlewares)
-async function createCategoryHandler(
-  request: NextRequest,
-  validatedData: any
-): Promise<NextResponse> {
+// Handler POST para criar categoria
+export async function POST(request: NextRequest): Promise<NextResponse> {
+  // Validar autenticação de admin
+  const authResult = await validateAdminAuth(request)
+  if (!authResult.isValid) {
+    return createAuthErrorResponse(authResult.error!)
+  }
+
   try {
+    frontendLogger.info('Criando nova categoria')
+    
+    // Parse do JSON
+    let body
+    try {
+      body = await request.json()
+    } catch (error) {
+      frontendLogger.error('Erro ao fazer parse do JSON:', error)
+      return addCorsHeaders(NextResponse.json({ error: "JSON inválido" }, { status: 400 }))
+    }
+
+    // Validação usando Zod
+    const validationResult = categorySchema.safeParse(body)
+    if (!validationResult.success) {
+      frontendLogger.error('Dados de categoria inválidos:', validationResult.error)
+      return addCorsHeaders(NextResponse.json({ 
+        error: "Dados inválidos", 
+        details: validationResult.error.errors 
+      }, { status: 400 }))
+    }
+
+    const validatedData = validationResult.data
+    
     // Criar categoria via Supabase (dados já validados)
     const insertedCategory = await createCategory({
       name: validatedData.name.trim(),
@@ -55,10 +80,11 @@ async function createCategoryHandler(
       active: insertedCategory.active !== false
     }
 
-    return NextResponse.json(normalizedCategory)
+    frontendLogger.info(`Categoria criada com sucesso: ${normalizedCategory.id}`)
+    return addCorsHeaders(NextResponse.json({ category: normalizedCategory }))
   } catch (error: any) {
-    // O middleware de database error handling vai capturar e tratar este erro
-    throw error
+    frontendLogger.error('Erro ao criar categoria:', error)
+    return addCorsHeaders(NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 }))
   }
 }
 
@@ -72,96 +98,47 @@ const categoryOrdersSchema = z.object({
   }))
 })
 
-// Handler PUT para atualizar ordem das categorias (sem middlewares)
-async function updateCategoryOrdersHandler(
-  request: NextRequest,
-  validatedData: any
-): Promise<NextResponse> {
-  try {
-    // Atualizar ordens via Supabase (dados já validados)
-    await updateCategorySortOrders(validatedData.categoryOrders)
+// Handler PUT para atualizar ordem das categorias
+export async function PUT(request: NextRequest): Promise<NextResponse> {
+  // Validar autenticação de admin
+  const authResult = await validateAdminAuth(request)
+  if (!authResult.isValid) {
+    return createAuthErrorResponse(authResult.error!)
+  }
 
-    return NextResponse.json({ message: 'Ordem das categorias atualizada com sucesso' })
+  try {
+    frontendLogger.info('Atualizando ordem das categorias')
+    
+    // Parse do JSON
+    let body
+    try {
+      body = await request.json()
+    } catch (error) {
+      frontendLogger.error('Erro ao fazer parse do JSON:', error)
+      return addCorsHeaders(NextResponse.json({ error: "JSON inválido" }, { status: 400 }))
+    }
+
+    // Validação usando Zod
+    const validationResult = categoryOrdersSchema.safeParse(body)
+    if (!validationResult.success) {
+      frontendLogger.error('Dados de ordem de categorias inválidos:', validationResult.error)
+      return addCorsHeaders(NextResponse.json({ 
+        error: "Dados inválidos", 
+        details: validationResult.error.errors 
+      }, { status: 400 }))
+    }
+
+    const validatedData = validationResult.data
+    
+    // Atualizar ordem das categorias via Supabase (dados já validados)
+    await updateCategorySortOrders(validatedData.categoryOrders)
+    
+    frontendLogger.info('Ordem das categorias atualizada com sucesso')
+    return addCorsHeaders(NextResponse.json({ message: 'Ordem das categorias atualizada com sucesso' }))
   } catch (error: any) {
-    // O middleware de database error handling vai capturar e tratar este erro
-    throw error
+    frontendLogger.error('Erro ao atualizar ordem das categorias:', error)
+    return addCorsHeaders(NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 }))
   }
 }
 
-// Aplicar middlewares para GET (apenas logging e monitoramento)
-const enhancedGetHandler = withErrorMonitoring(
-  withApiLogging(
-    withDatabaseErrorHandling(
-      getCategoriesHandler,
-      {
-        logErrors: true,
-        sanitizeErrors: process.env.NODE_ENV === 'production'
-      }
-    ),
-    {
-      logRequests: true,
-      logResponses: false, // Não logar resposta para GET (pode ser muito grande)
-      logErrors: true
-    }
-  )
-)
-
-// Aplicar todos os middlewares para POST
-const enhancedPostHandler = withErrorMonitoring(
-  withApiLogging(
-    withPresetRateLimit('public', {}, // Rate limiting geral
-      withPresetSanitization('adminContent', {}, // Sanitização para conteúdo administrativo
-        withValidation(categorySchema, // Validação usando Zod
-          withDatabaseErrorHandling( // Tratamento de erros de banco
-            createCategoryHandler,
-            {
-              logErrors: true,
-              sanitizeErrors: process.env.NODE_ENV === 'production',
-              customErrorMessages: {
-                unique_violation: 'Categoria com este nome já existe',
-                foreign_key_violation: 'Dados de referência inválidos'
-              }
-            }
-          )
-        )
-      )
-    ),
-    {
-      logRequests: true,
-      logResponses: true,
-      logErrors: true
-    }
-  )
-)
-
-// Aplicar todos os middlewares para PUT
-const enhancedPutHandler = withErrorMonitoring(
-  withApiLogging(
-    withPresetRateLimit('public', {}, // Rate limiting geral
-      withPresetSanitization('adminContent', {}, // Sanitização para conteúdo administrativo
-        withValidation(categoryOrdersSchema, // Validação usando Zod
-          withDatabaseErrorHandling( // Tratamento de erros de banco
-            updateCategoryOrdersHandler,
-            {
-              logErrors: true,
-              sanitizeErrors: process.env.NODE_ENV === 'production',
-              customErrorMessages: {
-                foreign_key_violation: 'Categoria não encontrada'
-              }
-            }
-          )
-        )
-      )
-    ),
-    {
-      logRequests: true,
-      logResponses: true,
-      logErrors: true
-    }
-  )
-)
-
-// Exportar as funções com middlewares
-export const GET = enhancedGetHandler
-export const POST = enhancedPostHandler
-export const PUT = enhancedPutHandler
+export const OPTIONS = createOptionsHandler()

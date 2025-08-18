@@ -1,19 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { listOrders, createOrder } from '@/lib/db-supabase'
-import { withValidation } from '@/lib/validation-middleware'
-import { withDatabaseErrorHandling } from '@/lib/database-error-handler'
-import { withPresetRateLimit } from '@/lib/rate-limit-middleware'
-import { withPresetSanitization } from '@/lib/sanitization-middleware'
-import { withErrorMonitoring } from '@/lib/error-monitoring'
-import { withApiLogging } from '@/lib/api-logger-middleware'
+import { addCorsHeaders, createOptionsHandler } from '@/lib/auth-utils'
+import { frontendLogger } from '@/lib/frontend-logger'
 import { orderSchema } from '@/lib/validation-schemas'
+import { checkRateLimit, addRateLimitHeaders } from '@/lib/simple-rate-limit'
 
 // Force dynamic rendering for this route
 export const dynamic = 'force-dynamic'
 
-// Handler GET para listar pedidos (sem middlewares)
-async function getOrdersHandler(request: NextRequest): Promise<NextResponse> {
+// Handler GET para listar pedidos
+export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
+    frontendLogger.info('Buscando lista de pedidos')
     const { searchParams } = new URL(request.url)
     const status = searchParams.get('status')
     const userId = searchParams.get('userId')
@@ -21,21 +19,47 @@ async function getOrdersHandler(request: NextRequest): Promise<NextResponse> {
     const offset = parseInt(searchParams.get('offset') || '0')
 
     const orders = await listOrders({ status, userId, limit, offset })
-    return NextResponse.json(orders)
+    frontendLogger.info(`Encontrados ${orders.length} pedidos`)
+    return addCorsHeaders(NextResponse.json(orders))
   } catch (error: any) {
-    // O middleware de database error handling vai capturar e tratar este erro
-    throw error
+    frontendLogger.error('Erro ao buscar pedidos:', error)
+    return addCorsHeaders(NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 }))
   }
 }
 
-// Handler POST para criar pedido (sem middlewares)
-async function createOrderHandler(
-  request: NextRequest,
-  validatedData: any
-): Promise<NextResponse> {
+// Handler POST para criar pedido
+export async function POST(request: NextRequest): Promise<NextResponse> {
+  // Verificar rate limiting
+  const rateLimitCheck = checkRateLimit(request, 'orders')
+  if (!rateLimitCheck.allowed) {
+    return addCorsHeaders(rateLimitCheck.response!)
+  }
+
   try {
+    frontendLogger.info('Criando novo pedido')
+    
+    // Parse do JSON
+    let body
+    try {
+      body = await request.json()
+    } catch (error) {
+      frontendLogger.error('Erro ao fazer parse do JSON:', error)
+      return addCorsHeaders(NextResponse.json({ error: "JSON inválido" }, { status: 400 }))
+    }
+
+    // Validação usando Zod
+    const validationResult = orderSchema.safeParse(body)
+    if (!validationResult.success) {
+      frontendLogger.error('Dados de pedido inválidos:', validationResult.error)
+      return addCorsHeaders(NextResponse.json({ 
+        error: "Dados inválidos", 
+        details: validationResult.error.errors 
+      }, { status: 400 }))
+    }
+
+    const validatedData = validationResult.data
   
-    // Mapear campos alternativos vindos do frontend (dados já validados)
+    // Mapear campos alternativos vindos do frontend
     const user_id = validatedData.user_id ?? validatedData.customerId ?? validatedData.userId
     const customer_name = validatedData.customer_name ?? validatedData.name ?? validatedData.customer_name_full
     const customer_phone = validatedData.customer_phone ?? validatedData.delivery_phone ?? validatedData.phone
@@ -52,7 +76,7 @@ async function createOrderHandler(
     const estimated_delivery_time = validatedData.estimated_delivery_time ?? null
     const items = Array.isArray(validatedData.items) ? validatedData.items : []
   
-    // Processar itens do pedido (dados já validados)
+    // Processar itens do pedido
     const itemsPayload = (items || []).map((item: any) => ({
       product_id: item.product_id ?? item.id ?? null,
       name: item.name ?? 'Produto',
@@ -82,63 +106,19 @@ async function createOrderHandler(
       items: itemsPayload,
     })
 
-    return NextResponse.json({
+    frontendLogger.info(`Pedido criado com sucesso: ${order.id}`)
+    const response = NextResponse.json({
       id: order.id,
       message: "Pedido criado com sucesso",
       order: { ...order, items }
     })
-  } catch (error) {
-    // O middleware de database error handling vai capturar e tratar este erro
-    throw error
+    addRateLimitHeaders(response, rateLimitCheck.remaining, rateLimitCheck.resetTime)
+    return addCorsHeaders(response)
+  } catch (error: any) {
+    frontendLogger.error('Erro ao criar pedido:', error)
+    return addCorsHeaders(NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 }))
   }
 }
 
-// Aplicar middlewares para GET (apenas logging e monitoramento)
-const enhancedGetHandler = withErrorMonitoring(
-  withApiLogging(
-    withDatabaseErrorHandling(
-      getOrdersHandler,
-      {
-        logErrors: true,
-        sanitizeErrors: process.env.NODE_ENV === 'production'
-      }
-    ),
-    {
-      logRequests: true,
-      logResponses: false, // Não logar resposta para GET (pode ser muito grande)
-      logErrors: true
-    }
-  )
-)
-
-// Aplicar todos os middlewares para POST
-const enhancedPostHandler = withErrorMonitoring(
-  withApiLogging(
-    withPresetRateLimit('critical', {}, // Rate limiting específico para pedidos
-      withPresetSanitization('userForm', {}, // Sanitização para formulários de usuário
-        withValidation(orderSchema, // Validação usando Zod
-          withDatabaseErrorHandling( // Tratamento de erros de banco
-            createOrderHandler,
-            {
-              logErrors: true,
-              sanitizeErrors: process.env.NODE_ENV === 'production',
-              customErrorMessages: {
-                unique_violation: 'Pedido duplicado',
-                foreign_key_violation: 'Dados de referência inválidos'
-              }
-            }
-          )
-        )
-      )
-    ),
-    {
-      logRequests: true,
-      logResponses: true,
-      logErrors: true
-    }
-  )
-)
-
-// Exportar as funções com middlewares
-export const GET = enhancedGetHandler
-export const POST = enhancedPostHandler
+// Handler OPTIONS para CORS
+export const OPTIONS = createOptionsHandler()

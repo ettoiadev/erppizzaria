@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServerClient } from '@/lib/supabase';
+import { frontendLogger } from '@/lib/frontend-logger';
 
 export async function GET(request: NextRequest) {
   try {
-    console.log('🔍 Verificando status completo do sistema...');
+    frontendLogger.info('Verificação de status completo do sistema iniciada', 'api');
 
     // 1. Verificar conexão com banco (Supabase)
     const supabase = getSupabaseServerClient();
@@ -150,7 +151,12 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro na verificação do sistema:', error);
+    frontendLogger.error('Erro na verificação do sistema', 'api', {
+      error: error.message,
+      stack: error.stack,
+      code: error.code,
+      hint: error.hint
+    });
 
     return NextResponse.json({
       success: false,

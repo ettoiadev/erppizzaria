@@ -1,22 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServerClient } from '@/lib/supabase';
+import { frontendLogger } from '@/lib/frontend-logger';
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('🔧 Corrigindo problemas do dashboard automaticamente...');
+    frontendLogger.info('Correção de problemas do dashboard iniciada', 'api');
 
     // 1. Criação de tabelas/índices: não via API Supabase. Operaremos apenas com dados.
 
     // Criar tabela orders se não existir
     const supabase = getSupabaseServerClient();
 
-    console.log('✅ Tabelas criadas');
+    frontendLogger.info('Tabelas criadas com sucesso', 'api');
 
     // 2. Criar índices para performance
-    console.log('📈 Índices: não aplicável via API');
+    frontendLogger.info('Índices: não aplicável via API Supabase', 'api');
 
     // 3. Inserir dados de exemplo
-    console.log('📊 Inserindo dados de exemplo...');
+    frontendLogger.info('Inserindo dados de exemplo', 'api');
 
     // Inserir categorias
     await supabase.from('categories').upsert([
@@ -95,7 +96,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    console.log('✅ Dados de exemplo inseridos');
+    frontendLogger.info('Dados de exemplo inseridos com sucesso', 'api');
 
     // 6. Verificar se tudo foi criado corretamente
     const [{ data: c1 }, { data: c2 }, { data: c3 }, { data: c4 }] = await Promise.all([
@@ -111,7 +112,9 @@ export async function POST(request: NextRequest) {
       products: (c4 as any)?.length || 0
     };
 
-    console.log('✅ CORREÇÃO COMPLETA!');
+    frontendLogger.info('Correção do dashboard completa', 'api', {
+      statistics: stats
+    });
 
     return NextResponse.json({
       success: true,
@@ -126,7 +129,12 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro na correção:', error);
+    frontendLogger.error('Erro na correção do dashboard', 'api', {
+      error: error.message,
+      stack: error.stack,
+      code: error.code,
+      hint: error.hint
+    });
 
     return NextResponse.json({
       success: false,
