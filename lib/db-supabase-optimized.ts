@@ -13,11 +13,11 @@ export interface UserProfile {
 }
 
 export interface Product {
-  id: number
+  id: string // UUID no Supabase
   name: string
   description?: string
   price: number
-  category_id?: number
+  category_id?: string // UUID no Supabase
   image?: string | null
   active: boolean
   has_sizes?: boolean
@@ -30,7 +30,7 @@ export interface Product {
 }
 
 export interface OrderItemInput {
-  product_id: number | null
+  product_id: string | null // UUID no Supabase
   name: string
   quantity: number
   unit_price: number | null
@@ -450,23 +450,41 @@ export async function searchCustomersOptimized(params: {
 // Re-exportar funções originais que não precisam de otimização
 export {
   getUserByEmail,
-  createUserProfile,
+  createUserProfile
+} from './db/users'
+
+export {
   createCategory,
-  updateCategorySortOrders,
-  createProduct,
+  updateCategorySortOrders
+} from './db/categories'
+
+export {
+  createProduct
+} from './db/products'
+
+export {
   createOrder,
   getOrderById,
   updateOrderStatus,
-  updatePaymentStatus,
+  updatePaymentStatus
+} from './db/orders'
+
+export {
   getCustomerById,
   updateCustomerAndAddress,
-  deleteCustomer,
+  deleteCustomer
+} from './db/customers'
+
+export {
   listAddresses,
   createAddress,
   getAddressById,
   updateAddress,
   deleteAddress,
-  getAdminSettings,
-  updateAdminSetting,
   saveCustomerAddress
-} from './db-supabase'
+} from './db/addresses'
+
+export {
+  getAdminSettings,
+  updateAdminSetting
+} from './db/settings'

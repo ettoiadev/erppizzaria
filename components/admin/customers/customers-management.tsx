@@ -60,12 +60,12 @@ export function CustomersManagement() {
         case "name":
           return a.name.localeCompare(b.name)
         case "orders":
-          return b.totalOrders - a.totalOrders
+          return (b.totalOrders || 0) - (a.totalOrders || 0)
         case "spent":
-          return b.totalSpent - a.totalSpent
+          return (b.totalSpent || 0) - (a.totalSpent || 0)
         case "recent":
         default:
-          return new Date(b.lastOrderAt || b.createdAt).getTime() - new Date(a.lastOrderAt || a.createdAt).getTime()
+          return new Date(b.lastOrderAt || b.createdAt || new Date()).getTime() - new Date(a.lastOrderAt || a.createdAt || new Date()).getTime()
       }
     })
 
@@ -281,7 +281,7 @@ export function CustomersManagement() {
                       </div>
                       <div className="flex items-center gap-2 md:col-span-2">
                         <Calendar className="w-4 h-4 flex-shrink-0" />
-                        <span>Cliente desde {new Date(customer.createdAt).toLocaleDateString("pt-BR")}</span>
+                        <span>Cliente desde {new Date(customer.createdAt || new Date()).toLocaleDateString("pt-BR")}</span>
                       </div>
                     </div>
                   </div>

@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs';
 import { sign, verify } from 'jsonwebtoken';
-import { getUserByEmail, createUserProfile, UserProfile } from './db-supabase';
+import { getUserByEmail, createUserProfile, UserProfile } from './db/users';
 import { appLogger } from './logging';
 
 // JWT_SECRET é obrigatório em produção

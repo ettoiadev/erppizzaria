@@ -244,9 +244,9 @@ export function useErrorHandling(options: UseErrorHandlingOptions = {}): UseErro
     clear_last_error: clearLastError,
     
     // Logging (snake_case)
-    log_info: logger.logInfo,
-    log_warning: logger.logWarning,
-    log_debug: logger.logDebug,
+    log_info: logger.info,
+    log_warning: logger.warn,
+    log_debug: logger.debug,
     
     // Frontend logger específico (snake_case)
     log_user_action: logger.logUserAction,
@@ -264,9 +264,9 @@ export function useErrorHandling(options: UseErrorHandlingOptions = {}): UseErro
     lastError,
     clearErrors,
     clearLastError,
-    logInfo,
-    logWarning,
-    logDebug,
+    logInfo: logger.info,
+    logWarning: logger.warn,
+    logDebug: logger.debug,
     logUserAction: logger.logUserAction,
     logPerformance: logger.logPerformance,
     setUserId: logger.setUserId,

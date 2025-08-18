@@ -24,9 +24,9 @@ export function DeliveryPersonModal({ deliveryPerson, isOpen, onClose, onSave }:
     name: deliveryPerson?.name || "",
     email: deliveryPerson?.email || "",
     phone: deliveryPerson?.phone || "",
-    vehicleType: deliveryPerson?.vehicleType || "motorcycle",
-    vehiclePlate: deliveryPerson?.vehiclePlate || "",
-    currentLocation: deliveryPerson?.currentLocation || "",
+    vehicleType: deliveryPerson?.vehicle_type || "motorcycle",
+    vehiclePlate: deliveryPerson?.vehicle_plate || "",
+    currentLocation: deliveryPerson?.current_location || "",
     status: deliveryPerson?.status || "available",
   })
 
@@ -196,17 +196,17 @@ export function DeliveryPersonModal({ deliveryPerson, isOpen, onClose, onSave }:
                 <div className="grid md:grid-cols-3 gap-4">
                   <div className="text-center p-4 bg-blue-50 rounded-lg">
                     <Package className="w-8 h-8 text-blue-600 mx-auto mb-2" />
-                    <div className="text-2xl font-bold text-blue-600">{deliveryPerson.totalDeliveries}</div>
+                    <div className="text-2xl font-bold text-blue-600">{deliveryPerson.total_deliveries}</div>
                     <div className="text-sm text-gray-600">Total de Entregas</div>
                   </div>
                   <div className="text-center p-4 bg-yellow-50 rounded-lg">
                     <Star className="w-8 h-8 text-yellow-600 mx-auto mb-2" />
-                    <div className="text-2xl font-bold text-yellow-600">⭐ {Number(deliveryPerson.averageRating || 0).toFixed(1)}</div>
+                    <div className="text-2xl font-bold text-yellow-600">⭐ {Number(deliveryPerson.average_rating || 0).toFixed(1)}</div>
                     <div className="text-sm text-gray-600">Avaliação Média</div>
                   </div>
                   <div className="text-center p-4 bg-green-50 rounded-lg">
                     <Clock className="w-8 h-8 text-green-600 mx-auto mb-2" />
-                    <div className="text-2xl font-bold text-green-600">{deliveryPerson.averageDeliveryTime}min</div>
+                    <div className="text-2xl font-bold text-green-600">{deliveryPerson.average_delivery_time}min</div>
                     <div className="text-sm text-gray-600">Tempo Médio</div>
                   </div>
                 </div>
@@ -216,7 +216,7 @@ export function DeliveryPersonModal({ deliveryPerson, isOpen, onClose, onSave }:
                     <MapPin className="w-5 h-5 text-gray-500" />
                     <div>
                       <div className="text-sm text-gray-600">Localização Atual</div>
-                      <div className="font-medium">{deliveryPerson.currentLocation}</div>
+                      <div className="font-medium">{deliveryPerson.current_location}</div>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
@@ -224,16 +224,16 @@ export function DeliveryPersonModal({ deliveryPerson, isOpen, onClose, onSave }:
                     <div>
                       <div className="text-sm text-gray-600">Cadastrado em</div>
                       <div className="font-medium">
-                        {formatDate(deliveryPerson.createdAt)}
+                        {formatDate(deliveryPerson.created_at)}
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {(deliveryPerson.currentOrders?.length ?? 0) > 0 && (
+                {(deliveryPerson.current_orders?.length ?? 0) > 0 && (
                   <div className="p-4 bg-yellow-50 rounded-lg">
                     <div className="text-sm text-yellow-800">
-                      <strong>Pedidos em andamento:</strong> {deliveryPerson.currentOrders?.join(", ") ?? ""}
+                      <strong>Pedidos em andamento:</strong> {deliveryPerson.current_orders?.join(", ") ?? ""}
                     </div>
                   </div>
                 )}

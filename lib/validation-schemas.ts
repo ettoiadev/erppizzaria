@@ -104,9 +104,8 @@ export const productSchema = z.object({
     .max(9999.99, 'Preço muito alto')
     .refine(val => Number.isFinite(val), 'Preço inválido'),
   
-  category_id: z.number()
-    .int('ID da categoria deve ser um número inteiro')
-    .positive('ID da categoria deve ser maior que 0'),
+  category_id: z.string()
+    .uuid('ID da categoria deve ser um UUID válido'),
   
   image_url: z.string()
     .url('Deve ser uma URL válida')
@@ -146,7 +145,7 @@ export const orderSchema = z.object({
     .min(1, 'ID do usuário é obrigatório'),
   
   items: z.array(z.object({
-    productId: z.number().int().positive('ID do produto deve ser maior que 0'),
+    productId: z.string().uuid('ID do produto deve ser um UUID válido'),
     quantity: z.number().int().min(1, 'Quantidade deve ser maior que 0'),
     price: z.number().positive('Preço deve ser maior que 0'),
     notes: z.string().max(200, 'Observações muito longas').optional()
@@ -230,9 +229,8 @@ export const favoriteSchema = z.object({
   userId: z.string()
     .min(1, 'ID do usuário é obrigatório'),
   
-  productId: z.number()
-    .int('ID do produto deve ser um número inteiro')
-    .positive('ID do produto deve ser maior que 0')
+  productId: z.string()
+    .uuid('ID do produto deve ser um UUID válido')
 })
 
 // Schema para notificações

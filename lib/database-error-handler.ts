@@ -307,7 +307,7 @@ export function generateOperationSpecificMessage(
   entity: string,
   dbError: DatabaseError
 ): string {
-  const operationMessages = {
+  const operationMessages: Record<string, Partial<Record<DatabaseErrorType, string>>> = {
     create: {
       [DatabaseErrorType.UNIQUE_VIOLATION]: `Não foi possível criar ${entity} - dados já existem`,
       [DatabaseErrorType.NOT_NULL_VIOLATION]: `Não foi possível criar ${entity} - campo obrigatório não preenchido`,

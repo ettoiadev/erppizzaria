@@ -20,7 +20,8 @@ export {
   getAddressById,
   updateAddress,
   deleteAddress,
-  saveCustomerAddress
+  saveCustomerAddress,
+  listAddresses
 } from './db/addresses'
 
 export {
@@ -29,21 +30,36 @@ export {
 } from './db/settings'
 
 export {
-  getUserByEmail
+  getUserByEmail,
+  createUserProfile
 } from './db/users'
 
 export {
+  getCategories,
+  createCategory,
+  updateCategorySortOrders
+} from './db/categories'
+
+export {
+  getCustomerById,
+  listCustomers,
+  updateCustomerAndAddress,
+  deleteCustomer
+} from './db/customers'
+
+export {
+  getProductsActive,
+  createProduct
+} from './db/products'
+
+export {
+  listOrders,
+  createOrder,
+  getOrderById,
   updateOrderStatus,
   updatePaymentStatus
 } from './db/orders'
 
-// Funções movidas para módulos específicos:
-// - Usuários: '@/lib/db/users'
-// - Produtos: '@/lib/db/products'  
-// - Categorias: '@/lib/db/categories'
-// - Pedidos: '@/lib/db/orders'
-// - Clientes: '@/lib/db/customers'
-// - Endereços: '@/lib/db/addresses'
-// - Configurações: '@/lib/db/settings'
-//
-// Use '@/lib/db' para importar todas as funções de uma vez
+// Funções utilitárias
+export { getSupabaseServerClient } from './supabase'
+export { query } from './db'

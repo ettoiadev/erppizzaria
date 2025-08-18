@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getOrders, createOrder } from '@/lib/db-supabase'
+import { listOrders, createOrder } from '@/lib/db-supabase'
 import { withValidation } from '@/lib/validation-middleware'
 import { withDatabaseErrorHandling } from '@/lib/database-error-handler'
 import { withPresetRateLimit } from '@/lib/rate-limit-middleware'
@@ -20,7 +20,7 @@ async function getOrdersHandler(request: NextRequest): Promise<NextResponse> {
     const limit = parseInt(searchParams.get('limit') || '50')
     const offset = parseInt(searchParams.get('offset') || '0')
 
-    const orders = await getOrders({ status, userId, limit, offset })
+    const orders = await listOrders({ status, userId, limit, offset })
     return NextResponse.json(orders)
   } catch (error: any) {
     // O middleware de database error handling vai capturar e tratar este erro

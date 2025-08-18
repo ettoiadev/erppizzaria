@@ -27,7 +27,7 @@ interface SanitizationConfig {
 }
 
 // Padrões maliciosos conhecidos
-const MALICIOUS_PATTERNS = {
+const MALICIOUS_PATTERNS: Partial<Record<SanitizationType, RegExp[]>> = {
   [SanitizationType.SQL]: [
     /('|(\-\-)|(;)|(\||\|)|(\*|\*))/i,
     /(union|select|insert|delete|update|drop|create|alter|exec|execute)/i,
@@ -379,7 +379,7 @@ export const SANITIZATION_PRESETS = {
     strictMode: true,
     logSuspiciousActivity: true
   }
-} as const
+}
 
 /**
  * Middleware com configuração pré-definida
@@ -392,12 +392,18 @@ export function withPresetSanitization<T extends any[]>(
   customConfig: Partial<SanitizationConfig> = {},
   handler: (...args: T) => Promise<NextResponse>
 ) {
-  const baseConfig = SANITIZATION_PRESETS[preset]
-  const finalConfig = {
+  const baseConfig = SANITIZATION_PRESETS[preset] as SanitizationConfig
+  const finalConfig: SanitizationConfig = {
     ...baseConfig,
     ...customConfig,
-    fields: { ...baseConfig.fields, ...customConfig.fields },
-    maxLength: { ...baseConfig.maxLength, ...customConfig.maxLength }
+    fields: { 
+      ...(baseConfig.fields || {}), 
+      ...(customConfig.fields || {}) 
+    },
+    maxLength: { 
+      ...(baseConfig.maxLength || {}), 
+      ...(customConfig.maxLength || {}) 
+    }
   }
   
   return withSanitization(finalConfig, handler)

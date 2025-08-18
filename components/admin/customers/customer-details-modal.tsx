@@ -39,12 +39,12 @@ export function CustomerDetailsModal({ customer, isOpen, onClose }: CustomerDeta
     }
   }
 
-  const averageOrderValue = customer.totalOrders > 0 ? customer.totalSpent / customer.totalOrders : 0
+  const averageOrderValue = (customer.totalOrders || 0) > 0 ? (customer.totalSpent || 0) / (customer.totalOrders || 1) : 0
 
   // Calcular dias desde última atividade
   const calculateDaysSinceLastActivity = () => {
     const now = new Date()
-    const createdAt = new Date(customer.createdAt)
+    const createdAt = new Date(customer.createdAt || new Date())
     const lastOrderDate = customer.lastOrderAt ? new Date(customer.lastOrderAt) : createdAt
     
     // Usar a data mais recente entre criação da conta e último pedido
@@ -60,7 +60,7 @@ export function CustomerDetailsModal({ customer, isOpen, onClose }: CustomerDeta
     if (customer.status === "vip") {
       return "Cliente VIP com alta frequência de pedidos e valor elevado."
     } else if (customer.status === "active") {
-      if (customer.totalOrders > 0) {
+      if ((customer.totalOrders || 0) > 0) {
         return "Cliente ativo com pedidos regulares."
       } else {
         return `Cliente cadastrado há ${daysSinceLastActivity} dias. Ainda não fez pedidos.`
@@ -118,7 +118,7 @@ export function CustomerDetailsModal({ customer, isOpen, onClose }: CustomerDeta
                 <Calendar className="w-5 h-5 text-gray-500" />
                 <div>
                   <div className="text-sm text-gray-600">Cliente desde</div>
-                  <div className="font-medium">{new Date(customer.createdAt).toLocaleDateString("pt-BR")}</div>
+                  <div className="font-medium">{new Date(customer.createdAt || new Date()).toLocaleDateString("pt-BR")}</div>
                 </div>
               </div>
               {customer.lastOrderAt && (
@@ -141,7 +141,7 @@ export function CustomerDetailsModal({ customer, isOpen, onClose }: CustomerDeta
             <div className="grid md:grid-cols-3 gap-4">
               <div className="text-center p-4 bg-blue-50 rounded-lg">
                 <ShoppingBag className="w-8 h-8 text-blue-600 mx-auto mb-2" />
-                <div className="text-2xl font-bold text-blue-600">{customer.totalOrders}</div>
+                <div className="text-2xl font-bold text-blue-600">{customer.totalOrders || 0}</div>
                 <div className="text-sm text-gray-600">Total de Pedidos</div>
               </div>
               <div className="text-center p-4 bg-green-50 rounded-lg">
@@ -158,13 +158,13 @@ export function CustomerDetailsModal({ customer, isOpen, onClose }: CustomerDeta
           </div>
 
           {/* Favorite Items */}
-          {customer.favoriteItems.length > 0 && (
+          {(customer.favoriteItems || []).length > 0 && (
             <>
               <Separator />
               <div>
                 <h3 className="text-lg font-semibold mb-3">Itens Favoritos</h3>
                 <div className="flex flex-wrap gap-2">
-                  {customer.favoriteItems.map((item, index) => (
+                  {(customer.favoriteItems || []).map((item, index) => (
                     <Badge key={index} variant="secondary">
                       {item}
                     </Badge>

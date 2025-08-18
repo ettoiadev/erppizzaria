@@ -94,7 +94,7 @@ export function DeleteCustomerModal({ customer, isOpen, onClose, onSuccess }: De
           </div>
 
           {/* Aviso sobre pedidos */}
-          {customer.totalOrders > 0 && (
+          {(customer.totalOrders || 0) > 0 && (
             <div className="bg-red-50 border border-red-200 p-3 rounded-lg">
               <div className="flex items-center gap-2 text-red-800">
                 <ShoppingBag className="w-4 h-4" />
@@ -148,7 +148,7 @@ export function DeleteCustomerModal({ customer, isOpen, onClose, onSuccess }: De
             
             <Button
               onClick={handleDelete}
-              disabled={loading || (customer.totalOrders > 0 && !confirmDeletion)}
+              disabled={loading || ((customer.totalOrders || 0) > 0 && !confirmDeletion)}
               variant="destructive"
               className="min-w-[120px]"
             >
@@ -160,13 +160,13 @@ export function DeleteCustomerModal({ customer, isOpen, onClose, onSuccess }: De
               ) : (
                 <>
                   <Trash2 className="w-4 h-4 mr-2" />
-                  {customer.totalOrders > 0 ? "Anonimizar" : "Excluir"}
+                  {(customer.totalOrders || 0) > 0 ? "Anonimizar" : "Excluir"}
                 </>
               )}
             </Button>
           </div>
 
-          {customer.totalOrders > 0 && !confirmDeletion && (
+          {(customer.totalOrders || 0) > 0 && !confirmDeletion && (
             <p className="text-xs text-red-500 text-center">
               Marque a confirmação acima para habilitar a anonimização
             </p>

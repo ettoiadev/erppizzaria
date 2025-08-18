@@ -112,7 +112,9 @@ export function createAppError(
     },
     originalError: error instanceof Error ? error : undefined,
     timestamp: new Date().toISOString(),
-    requestId
+    requestId,
+    name: error?.name || error?.constructor?.name || 'AppError',
+    stack: error?.stack
   }
   
   return appError

@@ -16,18 +16,16 @@ export {
 
 export {
   withRateLimit,
-  withPresetRateLimit,
   withUserRateLimit,
   withAdaptiveRateLimit,
   checkRateLimit,
   RATE_LIMIT_CONFIGS
 } from './rate-limit-middleware'
 
-export type { RateLimitConfig } from './rate-limit-middleware'
+// export type { RateLimitConfig } from './rate-limit-middleware'
 
 export {
   withSanitization,
-  withPresetSanitization,
   sanitizeData,
   SanitizationType,
   SANITIZATION_PRESETS
@@ -68,5 +66,5 @@ import { withSanitization, SANITIZATION_PRESETS } from './sanitization-middlewar
 export const withPresetRateLimit = (handler: any) => 
   withRateLimit(RATE_LIMIT_CONFIGS.public, handler)
 
-export const withPresetSanitization = (handler: any) => 
-  withSanitization(SANITIZATION_PRESETS.userForm, handler)
+export const withPresetSanitization = (handler: any) =>
+  withSanitization(SANITIZATION_PRESETS.userForm as any, handler)

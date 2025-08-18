@@ -63,16 +63,16 @@ export function DeliveryManagement() {
       name: driver.name,
       email: driver.email,
       phone: driver.phone,
-      vehicleType: driver.vehicle_type,
-      vehiclePlate: driver.vehicle_plate,
+      vehicle_type: driver.vehicle_type,
+      vehicle_plate: driver.vehicle_plate,
       status: driver.status,
-      currentLocation: driver.current_location,
-      totalDeliveries: driver.total_deliveries,
-      averageRating: driver.average_rating,
-      averageDeliveryTime: driver.average_delivery_time,
-      createdAt: driver.created_at,
-      lastActiveAt: driver.last_active_at,
-      currentOrders: driver.currentOrders
+      current_location: driver.current_location,
+      total_deliveries: driver.total_deliveries,
+      average_rating: driver.average_rating,
+      average_delivery_time: driver.average_delivery_time,
+      created_at: driver.created_at,
+      last_active_at: driver.last_active_at,
+      current_orders: driver.currentOrders
     }
   }
 

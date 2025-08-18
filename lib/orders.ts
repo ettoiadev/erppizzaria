@@ -126,8 +126,8 @@ export async function getOrders(filters: {
   end_date?: Date;
   include_archived?: boolean;
 }): Promise<Order[]> {
-  // Importar a função do db-supabase para manter compatibilidade
-  const { listOrders } = require('./db-supabase');
+  // Importar a função do módulo correto
+  const { listOrders } = await import('./db/orders');
   
   try {
     // Adaptar os filtros para o formato esperado pelo listOrders
@@ -179,8 +179,8 @@ export async function getOrders(filters: {
 // Atualizar status do pedido
 export async function updateOrderStatus(orderId: string, status: string, notes?: string | null): Promise<Order | null> {
   try {
-    // Usar a implementação do Supabase
-    const { updateOrderStatus } = await import('./db-supabase');
+    // Usar a implementação do módulo correto
+    const { updateOrderStatus } = await import('./db/orders');
     const order = await updateOrderStatus(orderId, status, notes);
     return order as Order;
   } catch (error) {
@@ -195,13 +195,12 @@ export async function updateOrderStatus(orderId: string, status: string, notes?:
 // Atualizar status de pagamento
 export async function updatePaymentStatus(orderId: string, paymentStatus: string): Promise<Order | null> {
   try {
-    // Usar a implementação do Supabase
-    const { updatePaymentStatus } = await import('./db-supabase');
+    // Usar a implementação do módulo correto
+    const { updatePaymentStatus } = await import('./db/orders');
     const order = await updatePaymentStatus(orderId, paymentStatus);
     return order as Order;
   } catch (error) {
     appLogger.error('api', 'Erro ao atualizar status de pagamento', error instanceof Error ? error : new Error(String(error)), {
-      order_id: orderId,
       payment_status: paymentStatus
     });
     throw error;
