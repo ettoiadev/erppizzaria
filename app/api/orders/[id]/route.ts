@@ -55,10 +55,9 @@ export async function GET(
     const response = NextResponse.json(order)
     return addCorsHeaders(response)
   } catch (error: any) {
-    frontendLogger.error('Erro ao buscar pedido', 'api', {
-      error: error.message,
+    frontendLogger.logError('Erro ao buscar pedido', {
       orderId: params.id
-    });
+    }, error, 'api');
     const response = NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
     return addCorsHeaders(response)
   }
@@ -69,16 +68,19 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   // Validar autenticação de admin
-  const authResult = await validateAdminAuth(request)
+  const authResult = await validateAdminAuth(request)    
   if (!authResult.success) {
-    return createAuthErrorResponse(authResult.error, authResult.status)
+    return createAuthErrorResponse(authResult.error || 'Acesso negado', 401)
   }
   
   const admin = authResult.user
+  if (!admin) {
+    return createAuthErrorResponse('Usuário não encontrado', 401)
+  }
 
   try {
     frontendLogger.info('Iniciando atualização de pedido', 'api', {
-      adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+      adminEmail: admin?.email?.replace(/(.{2}).*(@.*)/, '$1***$2') || 'unknown',
       orderId: params.id
     });
 
@@ -88,7 +90,7 @@ export async function PUT(
       body = await request.json()
     } catch (error) {
       frontendLogger.warn('JSON inválido na atualização de pedido', 'api', {
-        adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+        adminEmail: admin?.email?.replace(/(.{2}).*(@.*)/, '$1***$2') || 'unknown',
         orderId: params.id
       });
       const response = NextResponse.json({ error: "JSON inválido" }, { status: 400 })
@@ -99,7 +101,7 @@ export async function PUT(
     const validationResult = orderUpdateSchema.safeParse(body)
     if (!validationResult.success) {
       frontendLogger.warn('Dados inválidos na atualização de pedido', 'api', {
-        adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+        adminEmail: admin?.email?.replace(/(.{2}).*(@.*)/, '$1***$2') || 'unknown',
         orderId: params.id,
         errors: validationResult.error.errors
       });
@@ -116,7 +118,7 @@ export async function PUT(
     const hasUpdates = Object.keys(validatedData).length > 0
     if (!hasUpdates) {
       frontendLogger.warn('Nenhum campo válido para atualização', 'api', {
-        adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+        adminEmail: admin?.email?.replace(/(.{2}).*(@.*)/, '$1***$2') || 'unknown',
         orderId: params.id
       });
       const response = NextResponse.json({ error: "Nenhum campo para atualizar" }, { status: 400 })
@@ -144,7 +146,7 @@ export async function PUT(
     if (error) {
       if (error.code === 'PGRST116') {
         frontendLogger.warn('Pedido não encontrado para atualização', 'api', {
-          adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+          adminEmail: admin?.email?.replace(/(.{2}).*(@.*)/, '$1***$2') || 'unknown',
           orderId: params.id
         });
         const response = NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 })
@@ -154,7 +156,7 @@ export async function PUT(
     }
     
     frontendLogger.info('Pedido atualizado com sucesso', 'api', {
-      adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+      adminEmail: admin?.email?.replace(/(.{2}).*(@.*)/, '$1***$2') || 'unknown',
       orderId: params.id,
       updatedFields: Object.keys(validatedData)
     });
@@ -162,11 +164,10 @@ export async function PUT(
     const response = NextResponse.json({ message: "Pedido atualizado com sucesso", order: data })
     return addCorsHeaders(response)
   } catch (error: any) {
-    frontendLogger.error('Erro ao atualizar pedido', 'api', {
-      error: error.message,
-      adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+    frontendLogger.logError('Erro ao atualizar pedido', {
+      adminEmail: admin?.email?.replace(/(.{2}).*(@.*)/, '$1***$2') || 'unknown',
       orderId: params.id
-    });
+    }, error, 'api');
     const response = NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
     return addCorsHeaders(response)
   }
@@ -179,14 +180,17 @@ export async function DELETE(
   // Validar autenticação de admin
   const authResult = await validateAdminAuth(request)
   if (!authResult.success) {
-    return createAuthErrorResponse(authResult.error, authResult.status)
+    return createAuthErrorResponse(authResult.error || 'Acesso negado', 401)
   }
   
   const admin = authResult.user
+  if (!admin) {
+    return createAuthErrorResponse('Usuário não encontrado', 401)
+  }
 
   try {
     frontendLogger.info('Iniciando exclusão de pedido', 'api', {
-      adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+      adminEmail: admin?.email?.replace(/(.{2}).*(@.*)/, '$1***$2') || 'unknown',
       orderId: params.id
     });
 
@@ -202,7 +206,7 @@ export async function DELETE(
 
     if (fetchError || !existingOrder) {
       frontendLogger.warn('Pedido não encontrado para exclusão', 'api', {
-        adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+        adminEmail: admin?.email?.replace(/(.{2}).*(@.*)/, '$1***$2') || 'unknown',
         orderId: params.id
       });
       const response = NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 })
@@ -212,7 +216,7 @@ export async function DELETE(
     // Verificar se o pedido pode ser excluído (apenas RECEIVED ou CANCELLED)
     if (!['RECEIVED', 'CANCELLED'].includes(existingOrder.status)) {
       frontendLogger.warn('Tentativa de exclusão de pedido com status inválido', 'api', {
-        adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+        adminEmail: admin?.email?.replace(/(.{2}).*(@.*)/, '$1***$2') || 'unknown',
         orderId: params.id,
         currentStatus: existingOrder.status
       });
@@ -233,7 +237,7 @@ export async function DELETE(
     }
 
     frontendLogger.info('Pedido excluído com sucesso', 'api', {
-      adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+      adminEmail: admin?.email?.replace(/(.{2}).*(@.*)/, '$1***$2') || 'unknown',
       orderId: params.id,
       previousStatus: existingOrder.status
     });
@@ -241,11 +245,10 @@ export async function DELETE(
     const response = NextResponse.json({ message: "Pedido excluído com sucesso" })
     return addCorsHeaders(response)
   } catch (error: any) {
-    frontendLogger.error('Erro ao excluir pedido', 'api', {
-      error: error.message,
-      adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+    frontendLogger.logError('Erro ao excluir pedido', {
+      adminEmail: admin?.email?.replace(/(.{2}).*(@.*)/, '$1***$2') || 'unknown',
       orderId: params.id
-    });
+    }, error, 'api');
     const response = NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
     return addCorsHeaders(response)
   }

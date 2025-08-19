@@ -5,11 +5,12 @@ import { frontendLogger } from '@/lib/frontend-logger'
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url)
+  const searchTerm = searchParams.get('q')?.trim() || ''
+  const codeSearch = searchParams.get('code')?.trim() || ''
+  const limit = Math.min(parseInt(searchParams.get('limit') || '10'), 50) // Máximo 50
+
   try {
-    const { searchParams } = new URL(request.url)
-    const searchTerm = searchParams.get('q')?.trim() || ''
-    const codeSearch = searchParams.get('code')?.trim() || ''
-    const limit = Math.min(parseInt(searchParams.get('limit') || '10'), 50) // Máximo 50
 
     frontendLogger.info('Busca otimizada de clientes iniciada', 'api', {
       searchTerm,
@@ -55,13 +56,15 @@ export async function GET(request: NextRequest) {
     })
 
   } catch (error: any) {
-    frontendLogger.error('Erro na busca otimizada de clientes', 'api', {
-      error: error.message,
-      stack: error.stack,
-      searchTerm,
-      codeSearch,
-      limit
-    })
+    const errorMessage = error?.message || 'Erro desconhecido'
+    const stack = error?.stack
+    
+    frontendLogger.logError(
+      'Erro na busca otimizada de clientes',
+      { errorMessage, stack, searchTerm, codeSearch, limit },
+      error instanceof Error ? error : undefined,
+      'api'
+    )
     return NextResponse.json({
       error: 'Erro interno do servidor',
       message: error.message || 'Falha na busca de clientes',

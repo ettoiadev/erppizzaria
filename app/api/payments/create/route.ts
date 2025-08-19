@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    frontendLogger.info('Processando pagamento', {
+    frontendLogger.info('Processando pagamento', 'api', {
       order_id,
       amount,
       payment_method,
@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!paymentResult.success) {
-      frontendLogger.error('Falha ao criar pagamento', { error: paymentResult.error })
+      frontendLogger.logError('Falha ao criar pagamento', { error: paymentResult.error }, new Error(paymentResult.error), 'api')
       return NextResponse.json(
         { error: paymentResult.error || "Erro ao processar pagamento" },
         { status: 500 }
@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
       .update({ payment_status: 'PENDING', updated_at: new Date().toISOString() })
       .eq('id', order_id)
 
-    frontendLogger.info('Pagamento criado com sucesso', { payment_id: paymentResult.payment_id })
+    frontendLogger.info('Pagamento criado com sucesso', 'api', { payment_id: paymentResult.payment_id })
 
     return NextResponse.json({
       success: true,
@@ -120,7 +120,7 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error: any) {
-    frontendLogger.error('Erro ao processar pagamento', { error: error.message, stack: error.stack })
+    frontendLogger.logError('Erro ao processar pagamento', { error: error.message, stack: error.stack }, error as Error, 'api')
     return NextResponse.json(
       { error: "Erro interno do servidor" },
       { status: 500 }
@@ -186,7 +186,7 @@ export async function GET(request: NextRequest) {
     }
 
   } catch (error: any) {
-    frontendLogger.error('Erro ao verificar pagamento', { error: error.message, stack: error.stack })
+    frontendLogger.logError('Erro ao verificar pagamento', { error: error.message, stack: error.stack }, error as Error, 'api')
     return NextResponse.json(
       { error: "Erro interno do servidor" },
       { status: 500 }

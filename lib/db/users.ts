@@ -3,7 +3,6 @@
  */
 
 import { getSupabaseServerClient, supabaseAdmin } from '../supabase'
-import { UserProfile } from '../types/user'
 
 export interface UserProfile {
   id: string

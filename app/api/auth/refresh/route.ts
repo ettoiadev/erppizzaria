@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { refreshAccessToken } from '@/lib/refresh-token'
-import { createAuthResponse, clearAuthResponse } from '@/lib/auth-middleware'
+import { createAuthResponse, clearAuthResponse } from '@/lib/auth-utils'
 import { frontendLogger } from '@/lib/frontend-logger'
 
 export const dynamic = 'force-dynamic'
@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
       return clearAuthResponse({
         success: false,
         error: 'Refresh token não encontrado'
-      }, 401)
+      })
     }
 
     // Tentar renovar o token
@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
       return clearAuthResponse({
         success: false,
         error: 'Token inválido ou expirado'
-      }, 401)
+      })
     }
 
     frontendLogger.info('Token renovado com sucesso', 'auth', {
@@ -50,9 +50,12 @@ export async function POST(request: NextRequest) {
       expiresIn: newTokenPair.expiresIn
     })
 
-    return createAuthResponse(newTokenPair.accessToken, newTokenPair.refreshToken, {
+    return createAuthResponse({
       success: true,
       expiresIn: newTokenPair.expiresIn
+    }, {
+      accessToken: newTokenPair.accessToken,
+      refreshToken: newTokenPair.refreshToken
     })
 
   } catch (error: any) {

@@ -129,12 +129,11 @@ export async function POST(request: NextRequest) {
 
         successCount++
 
-      } catch (error) {
-        frontendLogger.error('Erro ao processar linha na importação', 'api', {
+      } catch (error: any) {
+        frontendLogger.logError('Erro ao processar linha na importação', {
           rowNumber: rowNum,
-          error: error instanceof Error ? error.message : 'Erro desconhecido',
-          stack: error instanceof Error ? error.stack : undefined
-        })
+          error: error instanceof Error ? error.message : 'Erro desconhecido'
+        }, error instanceof Error ? error : new Error(String(error)), 'api')
         errors.push(`Linha ${rowNum}: Erro ao processar dados - ${error instanceof Error ? error.message : 'Erro desconhecido'}`)
       }
     }
@@ -151,11 +150,10 @@ export async function POST(request: NextRequest) {
       message: `${successCount} clientes importados com sucesso${errors.length > 0 ? `. ${errors.length} erros encontrados.` : '.'}`
     })
 
-  } catch (error) {
-    frontendLogger.error('Erro geral na importação de clientes', 'api', {
-      error: error instanceof Error ? error.message : 'Erro desconhecido',
-      stack: error instanceof Error ? error.stack : undefined
-    })
+  } catch (error: any) {
+    frontendLogger.logError('Erro geral na importação de clientes', {
+      error: error instanceof Error ? error.message : 'Erro desconhecido'
+    }, error instanceof Error ? error : new Error(String(error)), 'api')
     return NextResponse.json({ 
       error: 'Erro ao processar arquivo de importação' 
     }, { status: 500 })

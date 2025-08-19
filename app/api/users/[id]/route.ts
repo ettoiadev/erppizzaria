@@ -35,12 +35,14 @@ export async function GET(request: Request, { params }: { params: { id: string }
         role: userData.role
       }
     })
-  } catch (error) {
-    frontendLogger.error('Erro ao buscar usuário', 'api', {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorStack = error instanceof Error ? error.stack : undefined
+    frontendLogger.logError('Erro ao buscar usuário', {
       userId: params.id,
-      error: (error as any)?.message,
-      stack: (error as any)?.stack
-    })
+      errorMessage,
+      stack: errorStack
+    }, error instanceof Error ? error : undefined, 'api')
     return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
   }
 }
@@ -118,12 +120,14 @@ export async function PUT(request: Request, { params }: { params: { id: string }
         phone: updated.phone
       }
     })
-  } catch (error) {
-    frontendLogger.error('Erro ao atualizar usuário', 'api', {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorStack = error instanceof Error ? error.stack : undefined
+    frontendLogger.logError('Erro ao atualizar usuário', {
       userId: params.id,
-      error: (error as any)?.message,
-      stack: (error as any)?.stack
-    })
+      errorMessage,
+      stack: errorStack
+    }, error instanceof Error ? error : undefined, 'api')
     return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
   }
 }

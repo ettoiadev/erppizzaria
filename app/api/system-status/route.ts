@@ -151,12 +151,12 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error: any) {
-    frontendLogger.error('Erro na verificação do sistema', 'api', {
-      error: error.message,
-      stack: error.stack,
-      code: error.code,
-      hint: error.hint
-    });
+  frontendLogger.logError('Erro na verificação do sistema', {
+          error: error.message,
+          stack: error.stack,
+          code: error.code,
+          hint: error.hint
+        });
 
     return NextResponse.json({
       success: false,

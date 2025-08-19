@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     })
     
     if (!validationResult.success) {
-      frontendLogger.warn('Parâmetros de busca inválidos', { errors: validationResult.error.errors })
+      frontendLogger.warn('Parâmetros de busca inválidos', 'api', { errors: validationResult.error.errors })
       const response = NextResponse.json({
         error: "Parâmetros de busca inválidos",
         details: validationResult.error.errors
@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
     
     const { q: searchTerm, code: codeSearch, limit } = validationResult.data
 
-    frontendLogger.info('Busca de clientes iniciada', { searchTerm, codeSearch, limit })
+    frontendLogger.info('Busca de clientes iniciada', 'api', { searchTerm, codeSearch, limit })
 
     // Se não há termo de busca nem código, retornar vazio
     if (!searchTerm && !codeSearch) {
@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
     const normalizedSearchTerm = normalizeString(searchTerm)
     const phoneOnlyNumbers = searchTerm.replace(/\D/g, '') // Apenas números do telefone
 
-    frontendLogger.info('Parâmetros de busca processados', { normalizedSearchTerm, phoneOnlyNumbers, codeSearch })
+    frontendLogger.info('Parâmetros de busca processados', 'api', { normalizedSearchTerm, phoneOnlyNumbers, codeSearch })
 
     const supabase = getSupabaseServerClient()
     const { data: profiles, error } = await supabase
@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
       .eq('role', 'customer')
       .order('created_at', { ascending: false })
     if (error) throw error
-    frontendLogger.info('Perfis carregados do banco', { totalProfiles: profiles.length })
+    frontendLogger.info('Perfis carregados do banco', 'api', { totalProfiles: profiles.length })
 
     // Filtrar e processar clientes no frontend
     const matchingCustomers = []
@@ -154,14 +154,14 @@ export async function GET(request: NextRequest) {
           }
         }
       } catch (error) {
-          frontendLogger.warn('Erro ao processar cliente', { profileId: profile.id, error })
+          frontendLogger.warn('Erro ao processar cliente', 'api', { profileId: profile.id, error })
         }
       }
 
-      frontendLogger.info('Busca de clientes concluída', { 
+      frontendLogger.info('Busca de clientes concluída', 'api', {
         totalFound: matchingCustomers.length,
         searchTerm,
-        codeSearch 
+        codeSearch
       })
 
       const response = NextResponse.json({
@@ -172,7 +172,12 @@ export async function GET(request: NextRequest) {
       return addCorsHeaders(response)
 
     } catch (error: any) {
-      frontendLogger.error('Erro na busca de clientes:', error)
+      frontendLogger.logError(
+        'Erro na busca de clientes',
+        error instanceof Error ? error.stack : undefined,
+        error instanceof Error ? error : undefined,
+        'api'
+      )
       const response = NextResponse.json({
         error: "Erro interno do servidor",
         message: "Não foi possível realizar a busca",
@@ -194,10 +199,10 @@ export async function POST(request: NextRequest) {
       return addCorsHeaders(response)
     }
 
-    frontendLogger.info('Criando novo cliente', { 
-      name: body.name, 
-      phone: body.phone, 
-      email: body.email 
+    frontendLogger.info('Criando novo cliente', 'api', {
+      name: body.name,
+      phone: body.phone,
+      email: body.email
     })
 
     // Validar e sanitizar dados usando Zod
@@ -207,8 +212,8 @@ export async function POST(request: NextRequest) {
     })
     
     if (!validationResult.success) {
-      frontendLogger.warn('Dados inválidos para criação de cliente', { 
-        errors: validationResult.error.errors 
+      frontendLogger.warn('Dados inválidos para criação de cliente', 'api', {
+        errors: validationResult.error.errors
       })
       const response = NextResponse.json({
         error: "Dados inválidos",
@@ -218,12 +223,12 @@ export async function POST(request: NextRequest) {
     }
 
     const validatedData = validationResult.data
-    const { name, phone, email, address } = validatedData
+    const { full_name: name, phone, email } = validatedData
 
     const supabase = getSupabaseServerClient()
     const { data: existingByPhone } = await supabase.from('profiles').select('id').eq('phone', phone).eq('role', 'customer').limit(1)
     if ((existingByPhone || []).length > 0) {
-      frontendLogger.warn('Tentativa de criar cliente com telefone duplicado', { phone })
+      frontendLogger.warn('Tentativa de criar cliente com telefone duplicado', 'api', { phone })
       const response = NextResponse.json({ 
         error: "Já existe um cliente cadastrado com este telefone" 
       }, { status: 400 })
@@ -231,12 +236,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Gerar email se não fornecido
-    const cleanPhone = phone.replace(/\D/g, '')
+    const cleanPhone = phone?.replace(/\D/g, '') || ''
     const customerEmail = email?.trim() || `cliente_${cleanPhone}@temp.williamdiskpizza.com`
 
     const { data: existingByEmail } = await supabase.from('profiles').select('id').eq('email', customerEmail).limit(1)
     if ((existingByEmail || []).length > 0) {
-      frontendLogger.warn('Tentativa de criar cliente com email duplicado', { email: customerEmail })
+      frontendLogger.warn('Tentativa de criar cliente com email duplicado', 'api', { email: customerEmail })
       const response = NextResponse.json({ 
         error: "Este e-mail já está cadastrado" 
       }, { status: 400 })
@@ -250,26 +255,12 @@ export async function POST(request: NextRequest) {
       .single()
     if (insertErr) throw insertErr
 
-    frontendLogger.info('Cliente criado com sucesso', { 
+    frontendLogger.info('Cliente criado com sucesso', 'api', {
       customerId: newCustomer.id,
-      customerCode: newCustomer.customer_code 
+      customerCode: newCustomer.customer_code
     })
 
-    // Se endereço foi fornecido, criar endereço
-    if (address?.street && address?.number) {
-      await supabase.from('customer_addresses').insert({
-        user_id: newCustomer.id,
-        street: address.street,
-        number: address.number,
-        complement: address.complement || '',
-        neighborhood: address.neighborhood || 'Centro',
-        city: address.city || 'Cidade',
-        state: address.state || 'SP',
-        zip_code: address.zipCode || '00000-000',
-        label: 'Principal',
-        is_default: true,
-      })
-    }
+    // Endereço será criado posteriormente se necessário
 
     const response = NextResponse.json({
       success: true,
@@ -280,7 +271,7 @@ export async function POST(request: NextRequest) {
         name: newCustomer.full_name,
         phone: newCustomer.phone,
         email: newCustomer.email,
-        address: address ? `${address.street}, ${address.number}` : 'Endereço não cadastrado',
+        address: 'Endereço não cadastrado',
         totalOrders: 0,
         totalSpent: 0,
         createdAt: newCustomer.created_at
@@ -289,7 +280,11 @@ export async function POST(request: NextRequest) {
     return addCorsHeaders(response)
 
   } catch (error: any) {
-    frontendLogger.error('Erro ao criar cliente:', error)
+    frontendLogger.logError('Erro ao criar cliente', 'api', {
+      message: error?.message || 'Erro desconhecido',
+      stack: error?.stack,
+      name: error?.name || 'Error'
+    })
     const response = NextResponse.json({
       error: "Erro interno do servidor",
       message: "Não foi possível criar o cliente",

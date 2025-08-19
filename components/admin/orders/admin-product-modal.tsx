@@ -33,7 +33,7 @@ export function AdminProductModal({ product, isOpen, onClose, onAddToCart }: Adm
   const [availablePizzas, setAvailablePizzas] = useState<Product[]>([])
   const [activeToppingsTab, setActiveToppingsTab] = useState<'first' | 'second'>('first')
 
-  const isPizza = product.category?.toLowerCase().includes('pizza')
+  const isPizza = product.category_name?.toLowerCase().includes('pizza')
 
   useEffect(() => {
     if (product.sizes && product.sizes.length > 0) {

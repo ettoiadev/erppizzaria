@@ -44,12 +44,15 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error: any) {
-    frontendLogger.error('Erro ao criar admin_settings', 'api', {
-      error: error.message,
-      stack: error.stack,
-      code: error.code,
-      hint: error.hint
-    });
+    const errorMessage = error?.message || 'Erro desconhecido'
+    const stack = error?.stack
+    
+    frontendLogger.logError('Erro ao criar admin_settings', {
+      errorMessage,
+      stack,
+      code: error?.code,
+      hint: error?.hint
+    }, error instanceof Error ? error : undefined, 'api')
 
     return NextResponse.json({
       success: false,

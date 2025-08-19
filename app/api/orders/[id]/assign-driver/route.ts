@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getSupabaseServerClient } from '@/lib/supabase'
-import { frontendLogger } from '@/lib/logger'
+import { frontendLogger } from '@/lib/frontend-logger'
 import { validateAdminAuth, createAuthErrorResponse, addCorsHeaders } from '@/lib/auth-utils'
 import { z } from 'zod'
 
@@ -14,12 +14,15 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   // Validar autenticação de admin
-  const authResult = await validateAdminAuth(request)
+  const authResult = await validateAdminAuth(request)    
   if (!authResult.success) {
-    return createAuthErrorResponse(authResult.error, authResult.status)
+    return createAuthErrorResponse(authResult.error || 'Acesso negado', 401)
   }
   
   const admin = authResult.user
+  if (!admin) {
+    return createAuthErrorResponse('Usuário não encontrado', 401)
+  }
 
   try {
     const orderId = params.id
@@ -178,21 +181,19 @@ export async function PATCH(
       return addCorsHeaders(response)
 
     } catch (transactionError) {
-      frontendLogger.error('Erro na operação de atribuição de entregador', 'api', {
+      frontendLogger.logError('Erro na operação de atribuição de entregador', {
         adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
         orderId,
-        driverId,
-        error: transactionError
-      });
+        driverId
+      }, transactionError as Error, 'api');
       throw transactionError;
     }
 
   } catch (error: any) {
-    frontendLogger.error('Erro ao atribuir entregador', 'api', {
+    frontendLogger.logError('Erro ao atribuir entregador', {
       adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
-      orderId: params.id,
-      error: error.message
-    });
+      orderId: params.id
+    }, error, 'api');
     
     const response = NextResponse.json({
       error: "Erro interno do servidor",

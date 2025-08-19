@@ -30,7 +30,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get("userId")
 
-    frontendLogger.info('Buscando endereços do usuário', { userId })
+    frontendLogger.info('Buscando endereços do usuário', 'api', { userId })
 
     if (!userId) {
       const response = NextResponse.json({ error: "UserId não fornecido" }, { status: 400 })
@@ -38,12 +38,12 @@ export async function GET(request: Request) {
     }
 
     const addresses = await listAddresses(userId)
-    frontendLogger.info('Endereços encontrados', { userId, count: addresses.length })
+    frontendLogger.info('Endereços encontrados', 'api', { userId, count: addresses.length })
     
     const response = NextResponse.json({ addresses })
     return addCorsHeaders(response)
   } catch (error) {
-    frontendLogger.error("Erro ao buscar endereços:", error)
+    frontendLogger.logError("Erro ao buscar endereços", { error: (error as any)?.message, stack: (error as any)?.stack })
     const response = NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
     return addCorsHeaders(response)
   }
@@ -62,16 +62,16 @@ export async function POST(request: Request) {
       return addCorsHeaders(response)
     }
 
-    frontendLogger.info('Criando novo endereço', { 
+    frontendLogger.info('Criando novo endereço', 'api', {
       customerId: body.customer_id,
-      name: body.name 
+      name: body.name
     })
 
     // Validar e sanitizar dados usando Zod
     const validationResult = addressSchema.safeParse(body)
     if (!validationResult.success) {
-      frontendLogger.warn('Dados inválidos para criação de endereço', { 
-        errors: validationResult.error.errors 
+      frontendLogger.warn('Dados inválidos para criação de endereço', 'api', {
+        errors: validationResult.error.errors
       })
       const response = NextResponse.json({
         error: "Dados inválidos",
@@ -96,15 +96,15 @@ export async function POST(request: Request) {
       is_default: is_default || false,
     })
     
-    frontendLogger.info('Endereço criado com sucesso', { 
+    frontendLogger.info('Endereço criado com sucesso', 'api', {
       addressId: address.id,
-      customerId: customer_id 
+      customerId: customer_id
     })
     
     const response = NextResponse.json({ address })
     return addCorsHeaders(response)
   } catch (error) {
-    frontendLogger.error("Erro ao criar endereço:", error)
+    frontendLogger.logError("Erro ao criar endereço", { error: (error as any)?.message, stack: (error as any)?.stack })
     const response = NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
     return addCorsHeaders(response)
   }

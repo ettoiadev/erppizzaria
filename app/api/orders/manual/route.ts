@@ -114,13 +114,11 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error: any) {
-    frontendLogger.error('=== ERRO COMPLETO NO POST /api/orders/manual ===', 'api', {
+    frontendLogger.logError('Erro completo no POST /api/orders/manual', {
       type: error.constructor.name,
-      error: error.message,
-      stack: error.stack,
       code: error.code,
       details: error.details
-    })
+    }, error, 'api')
 
     return NextResponse.json({
       success: false,

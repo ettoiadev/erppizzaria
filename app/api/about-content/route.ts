@@ -21,10 +21,10 @@ export async function GET() {
       .limit(1)
     
     if (error) {
-      frontendLogger.error('Erro ao buscar conteúdo sobre', 'api', {
+      frontendLogger.logError('Erro ao buscar conteúdo sobre', {
         error: error.message,
         stack: error.stack
-      })
+      }, error, 'api')
     }
 
     if (!rows || rows.length === 0) {
@@ -162,7 +162,7 @@ export async function PUT(request: Request) {
         return NextResponse.json({ content: created })
       }
     } catch (dbError) {
-      frontendLogger.error('Erro no banco de dados ao atualizar conteúdo sobre', 'api', {
+      frontendLogger.logError('Erro no banco de dados ao atualizar conteúdo sobre', {
         error: (dbError as any)?.message,
         stack: (dbError as any)?.stack
       })

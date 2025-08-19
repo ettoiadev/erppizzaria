@@ -20,11 +20,7 @@ export async function POST(request: NextRequest) {
     
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    frontendLogger.error('Erro ao enviar notificação realtime', 'api', {
-      error: error.message,
-      stack: error.stack,
-      notificationType: notification?.type
-    });
+    frontendLogger.logError('Erro ao enviar notificação realtime', 'api', error);
     return NextResponse.json(
       { success: false, error: error.message },
       { status: 500 }

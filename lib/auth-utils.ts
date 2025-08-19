@@ -172,3 +172,53 @@ export function createOptionsHandler(origin?: string) {
     })
   }
 }
+
+/**
+ * Cria uma resposta de autenticação com tokens
+ */
+export function createAuthResponse(data: any, tokens?: { accessToken: string, refreshToken: string }): NextResponse {
+  const response = NextResponse.json(data)
+  
+  if (tokens) {
+    // Definir cookies seguros para os tokens
+    response.cookies.set('accessToken', tokens.accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 60 * 60 * 24 * 7 // 7 dias
+    })
+    
+    response.cookies.set('refreshToken', tokens.refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 60 * 60 * 24 * 30 // 30 dias
+    })
+  }
+  
+  return addCorsHeaders(response)
+}
+
+/**
+ * Limpa os tokens de autenticação dos cookies
+ */
+export function clearAuthResponse(data: any): NextResponse {
+  const response = NextResponse.json(data)
+  
+  // Limpar cookies de autenticação
+  response.cookies.set('accessToken', '', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: 0
+  })
+  
+  response.cookies.set('refreshToken', '', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: 0
+  })
+  
+  return addCorsHeaders(response)
+}

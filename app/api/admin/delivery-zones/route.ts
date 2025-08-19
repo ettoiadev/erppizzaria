@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
       stats: stats[String(zone.id)] || { cached_addresses: 0, deliverable_addresses: 0 }
     }))
 
-    frontendLogger.info('Zonas de entrega encontradas', { count: zonesWithStats.length })
+    frontendLogger.info('Zonas de entrega encontradas', 'api', { count: zonesWithStats.length })
 
     return NextResponse.json({ 
       success: true,
@@ -70,7 +70,7 @@ export async function GET(request: NextRequest) {
     })
 
   } catch (error: any) {
-    frontendLogger.error('Erro ao buscar zonas de entrega', { error: error.message, stack: error.stack })
+    frontendLogger.logError('Erro ao buscar zonas de entrega', { error: error.message, stack: error.stack })
     return NextResponse.json({ 
       success: false,
       error: 'Erro interno do servidor',
@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
       active = true
     } = await request.json()
 
-    frontendLogger.info('Criando nova zona de entrega', { name, min_distance_km, max_distance_km })
+    frontendLogger.info('Criando nova zona de entrega', 'api', { name, min_distance_km, max_distance_km })
 
     // Validações
     if (!name || name.trim().length === 0) {
@@ -161,7 +161,7 @@ export async function POST(request: NextRequest) {
       .single()
     if (error) throw error
 
-    frontendLogger.info('Zona de entrega criada com sucesso', { zoneId: newZone.id, name: newZone.name })
+    frontendLogger.info('Zona de entrega criada com sucesso', 'api', { zoneId: newZone.id, name: newZone.name })
 
     return NextResponse.json({ 
       success: true,
@@ -170,7 +170,7 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error: any) {
-    frontendLogger.error('Erro ao criar zona de entrega', { error: error.message, stack: error.stack })
+    frontendLogger.logError('Erro ao criar zona de entrega', { error: error.message, stack: error.stack })
     return NextResponse.json({ 
       success: false,
       error: 'Erro interno do servidor',

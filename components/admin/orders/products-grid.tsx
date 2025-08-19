@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Plus } from "lucide-react"
-import { Product } from "@/types/manual-order"
+import { Product } from "../pdv/types"
 
 interface ProductsGridProps {
   products: Product[]

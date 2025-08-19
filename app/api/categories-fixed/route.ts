@@ -17,7 +17,7 @@ export async function GET() {
       hasSortOrderField = columns.includes('sort_order')
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
-      frontendLogger.warn('Erro ao verificar estrutura da tabela:', { message })
+      frontendLogger.warn('Erro ao verificar estrutura da tabela:', 'api', { message })
     }
 
     // Construir query dinamicamente baseada nos campos disponíveis
@@ -68,11 +68,12 @@ export async function GET() {
 
     return NextResponse.json({ categories: normalizedCategories })
   } catch (error) {
-    frontendLogger.error('Erro ao buscar categorias:', {
-      message: error.message,
-      stack: error.stack,
-      error
-    })
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorStack = error instanceof Error ? error.stack : undefined
+    frontendLogger.logError('Erro ao buscar categorias:', {
+      message: errorMessage,
+      stack: errorStack
+    }, error instanceof Error ? error : undefined, 'api')
     return NextResponse.json(
       { error: 'Erro interno ao buscar categorias' },
       { status: 500 }
@@ -150,11 +151,12 @@ export async function POST(request: Request) {
 
     return NextResponse.json(normalizedCategory)
   } catch (error) {
-    frontendLogger.error('Erro ao criar categoria:', {
-      message: error.message,
-      stack: error.stack,
-      error
-    })
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorStack = error instanceof Error ? error.stack : undefined
+    frontendLogger.logError('Erro ao criar categoria:', {
+      message: errorMessage,
+      stack: errorStack
+    }, error instanceof Error ? error : undefined, 'api')
     return NextResponse.json(
       { error: 'Erro interno ao criar categoria' },
       { status: 500 }
@@ -207,11 +209,12 @@ export async function PUT(request: Request) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    frontendLogger.error('Erro ao atualizar ordem das categorias:', {
-      message: error.message,
-      stack: error.stack,
-      error
-    })
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorStack = error instanceof Error ? error.stack : undefined
+    frontendLogger.logError('Erro ao atualizar ordem das categorias:', {
+      message: errorMessage,
+      stack: errorStack
+    }, error instanceof Error ? error : undefined, 'api')
     return NextResponse.json(
       { error: 'Erro interno ao atualizar ordem das categorias' },
       { status: 500 }

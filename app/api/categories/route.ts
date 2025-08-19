@@ -24,8 +24,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     frontendLogger.info(`Encontradas ${normalizedCategories.length} categorias`)
     return addCorsHeaders(NextResponse.json({ categories: normalizedCategories }))
-  } catch (error: any) {
-    frontendLogger.error('Erro ao buscar categorias:', error)
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    frontendLogger.logError('Erro ao buscar categorias', {
+       errorMessage
+     }, error instanceof Error ? error : undefined, 'api')
     return addCorsHeaders(NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 }))
   }
 }
@@ -34,8 +37,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 export async function POST(request: NextRequest): Promise<NextResponse> {
   // Validar autenticação de admin
   const authResult = await validateAdminAuth(request)
-  if (!authResult.isValid) {
-    return createAuthErrorResponse(authResult.error!)
+  if (!authResult.success) {
+    return createAuthErrorResponse(authResult.error || 'Acesso negado', 401)
   }
 
   try {
@@ -45,15 +48,20 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     let body
     try {
       body = await request.json()
-    } catch (error) {
-      frontendLogger.error('Erro ao fazer parse do JSON:', error)
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      frontendLogger.logError('Erro ao fazer parse do JSON', {
+         errorMessage
+       }, error instanceof Error ? error : undefined, 'api')
       return addCorsHeaders(NextResponse.json({ error: "JSON inválido" }, { status: 400 }))
     }
 
     // Validação usando Zod
     const validationResult = categorySchema.safeParse(body)
     if (!validationResult.success) {
-      frontendLogger.error('Dados de categoria inválidos:', validationResult.error)
+      frontendLogger.logError('Dados de categoria inválidos', {
+         validationErrors: validationResult.error.errors
+       }, undefined, 'api')
       return addCorsHeaders(NextResponse.json({ 
         error: "Dados inválidos", 
         details: validationResult.error.errors 
@@ -66,8 +74,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const insertedCategory = await createCategory({
       name: validatedData.name.trim(),
       description: validatedData.description || null,
-      image: validatedData.image || null,
-      sort_order: validatedData.sort_order || 0,
+      sort_order: validatedData.display_order || 0,
     })
     
     // Normalizar resposta para manter consistência
@@ -82,8 +89,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     frontendLogger.info(`Categoria criada com sucesso: ${normalizedCategory.id}`)
     return addCorsHeaders(NextResponse.json({ category: normalizedCategory }))
-  } catch (error: any) {
-    frontendLogger.error('Erro ao criar categoria:', error)
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    frontendLogger.logError('Erro ao criar categoria', {
+       errorMessage
+     }, error instanceof Error ? error : undefined, 'api')
     return addCorsHeaders(NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 }))
   }
 }
@@ -102,8 +112,8 @@ const categoryOrdersSchema = z.object({
 export async function PUT(request: NextRequest): Promise<NextResponse> {
   // Validar autenticação de admin
   const authResult = await validateAdminAuth(request)
-  if (!authResult.isValid) {
-    return createAuthErrorResponse(authResult.error!)
+  if (!authResult.success) {
+    return createAuthErrorResponse(authResult.error || 'Acesso negado', 401)
   }
 
   try {
@@ -113,15 +123,20 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
     let body
     try {
       body = await request.json()
-    } catch (error) {
-      frontendLogger.error('Erro ao fazer parse do JSON:', error)
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      frontendLogger.logError('Erro ao fazer parse do JSON', {
+         errorMessage
+       }, error instanceof Error ? error : undefined, 'api')
       return addCorsHeaders(NextResponse.json({ error: "JSON inválido" }, { status: 400 }))
     }
 
     // Validação usando Zod
     const validationResult = categoryOrdersSchema.safeParse(body)
     if (!validationResult.success) {
-      frontendLogger.error('Dados de ordem de categorias inválidos:', validationResult.error)
+      frontendLogger.logError('Dados de categoria inválidos', {
+         validationErrors: validationResult.error.errors
+       }, undefined, 'api')
       return addCorsHeaders(NextResponse.json({ 
         error: "Dados inválidos", 
         details: validationResult.error.errors 
@@ -135,8 +150,11 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
     
     frontendLogger.info('Ordem das categorias atualizada com sucesso')
     return addCorsHeaders(NextResponse.json({ message: 'Ordem das categorias atualizada com sucesso' }))
-  } catch (error: any) {
-    frontendLogger.error('Erro ao atualizar ordem das categorias:', error)
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    frontendLogger.logError('Erro ao atualizar categoria', {
+       errorMessage
+     }, error instanceof Error ? error : undefined, 'api')
     return addCorsHeaders(NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 }))
   }
 }

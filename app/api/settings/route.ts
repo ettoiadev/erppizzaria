@@ -73,11 +73,11 @@ export async function GET() {
       success: true 
     })
   } catch (error) {
-    frontendLogger.error('Erro ao buscar configurações públicas:', {
-      message: error.message,
-      stack: error.stack,
-      error
-    })
+    const errorObj = error instanceof Error ? error : new Error(String(error))
+    frontendLogger.logError('Erro ao buscar configurações públicas:', {
+      message: errorObj.message,
+      stack: errorObj.stack
+    }, errorObj, 'api')
     return NextResponse.json(
       { 
         error: 'Erro interno ao buscar configurações',

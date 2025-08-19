@@ -6,6 +6,7 @@ import { getSupabaseServerClient } from '@/lib/supabase'
 import { appLogger } from '@/lib/logging'
 import { checkRateLimit, addRateLimitHeaders } from '@/lib/simple-rate-limit'
 import { validateInput, createValidationErrorResponse } from '@/lib/input-validation'
+import { addCorsHeaders } from '@/lib/auth-utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -121,7 +122,7 @@ export async function POST(request: NextRequest) {
     response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, Origin')
 
     // Adicionar headers de rate limit
-    addRateLimitHeaders(response, rateLimitCheck.remaining, rateLimitCheck.resetTime)
+    addRateLimitHeaders(response, request, 'auth')
 
     return response
 
@@ -134,7 +135,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function OPTIONS(request: NextRequest) {
+export function OPTIONS(request: NextRequest) {
   const origin = request.headers.get('origin')
   
   if (origin === 'https://erppizzaria-tau.vercel.app') {

@@ -79,10 +79,10 @@ export async function GET(
     const response = NextResponse.json({ product: normalizedProduct });
     return addCorsHeaders(response);
   } catch (error: any) {
-    frontendLogger.error('Erro ao buscar produto', 'api', { 
-      productId: params.id, 
-      error: error.message 
-    });
+    frontendLogger.logError('Erro ao buscar produto', {
+      productId: params.id,
+      error: error.message
+    }, error, 'api');
     const response = NextResponse.json(
       { error: "Erro interno do servidor" },
       { status: 500 }
@@ -99,7 +99,7 @@ export async function PUT(
   // Validar autenticação de admin
   const authResult = await validateAdminAuth(request)
   if (!authResult.success) {
-    return createAuthErrorResponse(authResult.error, authResult.status)
+    return createAuthErrorResponse(authResult.error || 'Acesso negado', 401)
   }
   
   const admin = authResult.user
@@ -107,7 +107,7 @@ export async function PUT(
   try {
     frontendLogger.info('PUT request iniciado para produto', 'api', { 
       productId: params.id,
-      adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2')
+      adminEmail: admin?.email?.replace(/(.{2}).*(@.*)/, '$1***$2') || 'unknown'
     });
 
     // Validação e sanitização dos dados de entrada
@@ -130,7 +130,7 @@ export async function PUT(
       frontendLogger.warn('Dados inválidos para atualização de produto', 'api', { 
         productId: params.id,
         error: errorMessage,
-        adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2')
+        adminEmail: admin?.email?.replace(/(.{2}).*(@.*)/, '$1***$2') || 'unknown'
       });
       const response = NextResponse.json(
         { error: errorMessage },
@@ -198,7 +198,7 @@ export async function PUT(
     };
 
     frontendLogger.info('Produto atualizado com sucesso', 'api', {
-      adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+      adminEmail: admin?.email?.replace(/(.{2}).*(@.*)/, '$1***$2') || 'unknown',
       productId: params.id,
       productName: name.trim()
     });
@@ -206,11 +206,11 @@ export async function PUT(
     const response = NextResponse.json({ product: normalizedProduct });
     return addCorsHeaders(response);
   } catch (error: any) {
-    frontendLogger.error('Erro ao atualizar produto', 'api', {
+    frontendLogger.logError('Erro ao atualizar produto', {
       error: error.message,
-      adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
-      productId: params.id
-    });
+      adminEmail: admin?.email?.replace(/(.{2}).*(@.*)/, '$1***$2') || 'unknown',
+        productId: params.id
+      }, error, 'api');
     const response = NextResponse.json(
       { error: "Erro interno do servidor" },
       { status: 500 }
@@ -229,7 +229,7 @@ export async function PATCH(
   // Validar autenticação de admin
   const authResult = await validateAdminAuth(request);
   if (!authResult.success) {
-    return createAuthErrorResponse(authResult.error, authResult.status);
+    return createAuthErrorResponse(authResult.error || 'Acesso negado', 401);
   }
   
   const admin = authResult.user;
@@ -237,7 +237,7 @@ export async function PATCH(
   try {
     frontendLogger.info('PATCH request iniciado para produto', 'api', { 
       productId: params.id,
-      adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2')
+      adminEmail: admin?.email?.replace(/(.{2}).*(@.*)/, '$1***$2') || 'unknown'
     });
 
     // Validação e sanitização dos dados de entrada
@@ -260,8 +260,8 @@ export async function PATCH(
       frontendLogger.warn('Dados inválidos para atualização parcial de produto', 'api', { 
         productId: params.id,
         error: errorMessage,
-        adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2')
-      });
+        adminEmail: admin?.email?.replace(/(.{2}).*(@.*)/, '$1***$2') || 'unknown'
+    });
       const response = NextResponse.json(
         { error: errorMessage },
         { status: 400 }
@@ -345,7 +345,7 @@ export async function PATCH(
     };
 
     frontendLogger.info('Produto atualizado parcialmente com sucesso', 'api', {
-      adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+      adminEmail: admin?.email?.replace(/(.{2}).*(@.*)/, '$1***$2') || 'unknown',
       productId: params.id,
       fieldsUpdated: Object.keys(updates).filter(key => key !== 'updated_at')
     });
@@ -353,11 +353,11 @@ export async function PATCH(
     const response = NextResponse.json({ product: normalizedProduct });
     return addCorsHeaders(response);
   } catch (error: any) {
-    frontendLogger.error('Erro ao atualizar produto parcialmente', 'api', {
+    frontendLogger.logError('Erro ao atualizar produto parcialmente', {
       error: error.message,
-      adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+      adminEmail: admin?.email?.replace(/(.{2}).*(@.*)/, '$1***$2') || 'unknown',
       productId: params.id
-    });
+    }, error, 'api');
     const response = NextResponse.json(
       { error: "Erro interno do servidor" },
       { status: 500 }
@@ -371,16 +371,17 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  // Validar autenticação de admin
+  const authResult = await validateAdminAuth(request);
+  if (!authResult.success) {
+    return createAuthErrorResponse(authResult.error || 'Acesso negado', 401);
+  }
+  const admin = authResult.user;
+
   try {
-    // Validar autenticação de admin
-    const authResult = await validateAdminAuth(request);
-    if (!authResult.success) {
-      return createAuthErrorResponse(authResult.error);
-    }
-    const admin = authResult.admin;
 
     frontendLogger.info('Requisição DELETE para produto iniciada', 'api', {
-      adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+      adminEmail: admin?.email?.replace(/(.{2}).*(@.*)/, '$1***$2') || 'unknown',
       productId: params.id
     });
     
@@ -389,7 +390,7 @@ export async function DELETE(
     if (existErr) throw existErr;
     if (!existing) {
       frontendLogger.warn('Produto não encontrado para exclusão', 'api', {
-        adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+        adminEmail: admin?.email?.replace(/(.{2}).*(@.*)/, '$1***$2') || 'unknown',
         productId: params.id
       });
       const response = NextResponse.json(
@@ -406,7 +407,7 @@ export async function DELETE(
     if (error) throw error;
 
     frontendLogger.info('Produto excluído com sucesso', 'api', {
-      adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+      adminEmail: admin?.email?.replace(/(.{2}).*(@.*)/, '$1***$2') || 'unknown',
       productId: params.id,
       productName: existing.name
     });
@@ -417,11 +418,11 @@ export async function DELETE(
     });
     return addCorsHeaders(response);
   } catch (error: any) {
-    frontendLogger.error('Erro ao excluir produto', 'api', {
+    frontendLogger.logError('Erro ao excluir produto', {
       error: error.message,
       adminEmail: admin?.email?.replace(/(.{2}).*(@.*)/, '$1***$2') || 'unknown',
       productId: params.id
-    });
+    }, error, 'api');
 
     const response = NextResponse.json(
       { error: "Erro interno do servidor" },

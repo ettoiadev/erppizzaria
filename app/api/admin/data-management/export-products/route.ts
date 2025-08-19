@@ -62,11 +62,10 @@ export async function GET(request: NextRequest) {
       }
     })
 
-  } catch (error) {
-    frontendLogger.error('Erro ao exportar produtos para Excel', 'api', {
-      error: error.message,
-      stack: error.stack
-    })
+  } catch (error: any) {
+    frontendLogger.logError('Erro ao exportar produtos para Excel', {
+      error: error.message
+    }, error, 'api')
     return NextResponse.json({ 
       error: 'Erro ao exportar produtos para Excel' 
     }, { status: 500 })

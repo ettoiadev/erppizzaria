@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     const settings: GeolocationSettingsMap = {}
     ;(rows || []).forEach((row: any) => { settings[row.setting_key] = row.setting_value })
 
-    frontendLogger.info('Configurações de geolocalização encontradas', { count: Object.keys(settings).length })
+    frontendLogger.info('Configurações de geolocalização encontradas', 'api', { count: Object.keys(settings).length })
 
     return NextResponse.json({ 
       success: true,
@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
     })
 
   } catch (error: any) {
-    frontendLogger.error('Erro ao buscar configurações de geolocalização', { error: error.message, stack: error.stack })
+    frontendLogger.logError('Erro ao buscar configurações de geolocalização', { error: error.message, stack: error.stack }, error, 'api')
     return NextResponse.json({ 
       success: false,
       error: 'Erro interno do servidor',
@@ -67,7 +67,7 @@ export async function PUT(request: NextRequest) {
 
     const settings = await request.json() as GeolocationSettingsMap
 
-    frontendLogger.info('Atualizando configurações de geolocalização', { keys: Object.keys(settings) })
+    frontendLogger.info('Atualizando configurações de geolocalização', 'api', { keys: Object.keys(settings) })
 
     // Validações específicas
     const validations: Record<string, (val: string) => boolean> = {
@@ -114,7 +114,7 @@ export async function PUT(request: NextRequest) {
       if (!error) updatedCount++
     }
 
-    frontendLogger.info('[GEOLOCATION_SETTINGS] Configurações atualizadas:', { updatedCount })
+    frontendLogger.info('[GEOLOCATION_SETTINGS] Configurações atualizadas:', 'api', { updatedCount })
 
     // Se mudou coordenadas da pizzaria, limpar cache de distâncias
     if (settings.pizzaria_latitude || settings.pizzaria_longitude) {
@@ -129,7 +129,7 @@ export async function PUT(request: NextRequest) {
     })
 
   } catch (error: any) {
-    frontendLogger.error('Erro ao atualizar configurações de geolocalização', { error: error.message, stack: error.stack })
+    frontendLogger.logError('Erro ao atualizar configurações de geolocalização', { error: error.message, stack: error.stack }, error, 'api')
     return NextResponse.json({ 
       success: false,
       error: 'Erro interno do servidor',

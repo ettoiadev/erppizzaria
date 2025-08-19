@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useToast } from '@/hooks/use-toast'
-import type { CartItem, Customer, OrderType, PaymentMethod } from '@/types/manual-order'
+import type { CartItem, Customer, OrderType, PaymentMethod } from '@/components/admin/pdv/types'
 
 interface UseOrderSubmissionProps {
   customerName: string

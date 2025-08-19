@@ -41,7 +41,7 @@ export async function PATCH(
     })
 
   } catch (error: any) {
-    frontendLogger.error('Erro ao marcar notificação como lida', { error: error.message, stack: error.stack })
+    frontendLogger.logError('Erro ao marcar notificação como lida', 'api', error)
     return NextResponse.json(
       { error: 'Erro interno do servidor' },
       { status: 500 }

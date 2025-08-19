@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
         frontendLogger.info('Conexão Supabase funcionando');
       }
     } catch (error) {
-      frontendLogger.error('Falha na conexão Supabase');
+      frontendLogger.logError('Falha na conexão Supabase', {}, error instanceof Error ? error : new Error('Erro desconhecido'), 'api');
       auditResults.recommendations.push('Verificar SUPABASE_URL/SUPABASE_KEY');
     }
 
@@ -222,7 +222,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error: any) {
-    frontendLogger.error('Erro na auditoria completa', { error: error.message, stack: error.stack });
+    frontendLogger.logError('Erro na auditoria completa', { error: error.message }, error, 'api');
 
     return NextResponse.json({
       success: false,
@@ -340,7 +340,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error: any) {
-    frontendLogger.error('Erro nas correções automáticas', { error: error.message, stack: error.stack });
+    frontendLogger.logError('Erro nas correções automáticas', { error: error.message }, error, 'api');
 
     return NextResponse.json({
       success: false,

@@ -14,7 +14,15 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     frontendLogger.info(`Encontrados ${customers.length} clientes`)
     return addCorsHeaders(NextResponse.json({ customers, total: customers.length }))
   } catch (error: any) {
-    frontendLogger.error('Erro ao buscar clientes:', error)
+    const errorMessage = error?.message || 'Erro desconhecido'
+    const stack = error?.stack
+    
+    frontendLogger.logError(
+      'Erro ao buscar clientes',
+      { errorMessage, stack },
+      error instanceof Error ? error : undefined,
+      'api'
+    )
     return addCorsHeaders(NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 }))
   }
 }

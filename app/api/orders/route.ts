@@ -19,10 +19,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const offset = parseInt(searchParams.get('offset') || '0')
 
     const orders = await listOrders({ status, userId, limit, offset })
-    frontendLogger.info(`Encontrados ${orders.length} pedidos`)
+    frontendLogger.info(`Encontrados ${orders.orders.length} pedidos`)
     return addCorsHeaders(NextResponse.json(orders))
   } catch (error: any) {
-    frontendLogger.error('Erro ao buscar pedidos:', error)
+    frontendLogger.logError('Erro ao buscar pedidos', {}, error, 'api')
     return addCorsHeaders(NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 }))
   }
 }
@@ -43,14 +43,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     try {
       body = await request.json()
     } catch (error) {
-      frontendLogger.error('Erro ao fazer parse do JSON:', error)
+      frontendLogger.logError('Erro ao fazer parse do JSON:', {}, error as Error, 'api')
       return addCorsHeaders(NextResponse.json({ error: "JSON inválido" }, { status: 400 }))
     }
 
     // Validação usando Zod
     const validationResult = orderSchema.safeParse(body)
     if (!validationResult.success) {
-      frontendLogger.error('Dados de pedido inválidos:', validationResult.error)
+      frontendLogger.logError('Dados de pedido inválidos:', {}, validationResult.error as Error, 'api')
       return addCorsHeaders(NextResponse.json({ 
         error: "Dados inválidos", 
         details: validationResult.error.errors 
@@ -59,22 +59,23 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const validatedData = validationResult.data
   
-    // Mapear campos alternativos vindos do frontend
-    const user_id = validatedData.user_id ?? validatedData.customerId ?? validatedData.userId
-    const customer_name = validatedData.customer_name ?? validatedData.name ?? validatedData.customer_name_full
-    const customer_phone = validatedData.customer_phone ?? validatedData.delivery_phone ?? validatedData.phone
-    const customer_address = validatedData.customer_address ?? validatedData.delivery_address ?? validatedData.address
-    const payment_method = validatedData.payment_method ?? validatedData.paymentMethod
+    // Mapear campos do schema validado
+    const user_id = validatedData.userId
+    const payment_method = validatedData.paymentMethod || 'cash' // Valor padrão
     const total = validatedData.total
-    const subtotal = validatedData.subtotal ?? 0
-    const delivery_fee = validatedData.delivery_fee ?? 0
-    const discount = validatedData.discount ?? 0
-    const status = validatedData.status ?? 'RECEIVED'
-    const payment_status = validatedData.payment_status ?? 'PENDING'
-    const delivery_type = validatedData.delivery_type ?? 'delivery'
-    const notes = validatedData.notes ?? validatedData.delivery_instructions ?? null
-    const estimated_delivery_time = validatedData.estimated_delivery_time ?? null
+    const notes = validatedData.notes ?? null
     const items = Array.isArray(validatedData.items) ? validatedData.items : []
+    const deliveryAddress = validatedData.deliveryAddress
+    const couponCode = validatedData.couponCode
+    
+    // Valores padrão para campos não presentes no schema
+    const subtotal = 0
+    const delivery_fee = 0
+    const discount = 0
+    const status = 'RECEIVED'
+    const payment_status = 'PENDING'
+    const delivery_type = 'delivery'
+    const estimated_delivery_time = null
   
     // Processar itens do pedido
     const itemsPayload = (items || []).map((item: any) => ({
@@ -91,9 +92,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   
     const order = await createOrder({
       user_id,
-      customer_name,
-      customer_phone,
-      customer_address,
+      customer_name: 'Cliente', // Valor padrão
+      customer_phone: '', // Valor padrão
+      customer_address: deliveryAddress ? `${deliveryAddress.street}, ${deliveryAddress.city}, ${deliveryAddress.zipCode}${deliveryAddress.complement ? `, ${deliveryAddress.complement}` : ''}` : '', // Converter objeto para string
       total,
       subtotal,
       delivery_fee,
@@ -112,10 +113,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       message: "Pedido criado com sucesso",
       order: { ...order, items }
     })
-    addRateLimitHeaders(response, rateLimitCheck.remaining, rateLimitCheck.resetTime)
+    addRateLimitHeaders(response, request, 'orders')
     return addCorsHeaders(response)
   } catch (error: any) {
-    frontendLogger.error('Erro ao criar pedido:', error)
+    frontendLogger.logError('Erro ao criar pedido', { error }, error as Error, 'api')
     return addCorsHeaders(NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 }))
   }
 }

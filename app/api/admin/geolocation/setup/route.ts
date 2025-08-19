@@ -7,10 +7,14 @@ export async function POST(request: NextRequest) {
   // Validar autenticação de admin
   const authResult = await validateAdminAuth(request)
   if (!authResult.success) {
-    return createAuthErrorResponse(authResult.error, authResult.status)
+    return createAuthErrorResponse(authResult.error || 'Erro de autenticação')
   }
   
   const admin = authResult.user
+  
+  if (!admin) {
+    return createAuthErrorResponse('Usuário não encontrado')
+  }
 
   try {
     frontendLogger.info('Requisição de setup de geolocalização iniciada', 'api')
@@ -43,10 +47,11 @@ export async function POST(request: NextRequest) {
           frontendLogger.info('Colunas setting_type e description já existem na admin_settings', 'api')
         }
       } catch (error) {
-        frontendLogger.error('Erro ao verificar colunas', 'api', {
-          error: error.message,
-          stack: error.stack
-        })
+        const err = error as Error
+        frontendLogger.logError('Erro ao verificar colunas', {
+          error: err.message,
+          stack: err.stack
+        }, err, 'api')
       }
 
       // 6. Inserir configurações de geolocalização
@@ -119,8 +124,6 @@ export async function POST(request: NextRequest) {
       return addCorsHeaders(response)
 
   } catch (error: any) {
-    frontendLogger.error('Erro no setup de geolocalização', { error: error.message, stack: error.stack })
-    
     frontendLogger.logError('Erro no setup de geolocalização', {
       error: error.message,
       adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
@@ -141,6 +144,4 @@ export async function POST(request: NextRequest) {
 }
 
 // Handler para requisições OPTIONS (CORS)
-export async function OPTIONS() {
-  return createOptionsHandler()
-}
+export const OPTIONS = createOptionsHandler()

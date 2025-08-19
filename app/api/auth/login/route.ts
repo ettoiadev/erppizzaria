@@ -29,7 +29,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const body = await request.json()
     const validationResult = await validateAndSanitizeData(body, userLoginSchema)
     if (!validationResult.success) {
-      return createValidationErrorResponse(validationResult.errors)
+      return createValidationErrorResponse(validationResult.error || 'Dados inválidos')
     }
 
     const validatedData = validationResult.data as { email: string; password: string }
@@ -218,6 +218,4 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 }
 
 // Handler para requisições OPTIONS (CORS)
-export async function OPTIONS() {
-  return createOptionsHandler()
-}
+export const OPTIONS = createOptionsHandler()

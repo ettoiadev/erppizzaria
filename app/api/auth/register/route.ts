@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
     
     // Adicionar cabeçalhos de rate limit apenas se a resposta for de sucesso (status 200/201)
     if (result.status === 200 || result.status === 201) {
-      addRateLimitHeaders(result, rateLimitCheck.remaining, rateLimitCheck.resetTime)
+      addRateLimitHeaders(result, request, 'auth')
     }
     
     return result
@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
       frontendLogger.warn('Tentativa de registro com email duplicado', 'api', {
         errorCode: error.code,
         constraint: error.constraint
-      }, undefined)
+      })
       const response = NextResponse.json({ error: "Este email já está em uso" }, { status: 400 })
       addCorsHeaders(response)
       return response

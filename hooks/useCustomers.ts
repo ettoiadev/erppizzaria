@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"
 import { useToast } from "@/hooks/use-toast"
-import { Customer } from "@/types/manual-order"
+import { Customer } from "@/components/admin/pdv/types"
 
 export function useCustomers() {
   const [customers, setCustomers] = useState<Customer[]>([])

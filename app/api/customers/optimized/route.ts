@@ -26,10 +26,15 @@ export async function GET(request: NextRequest) {
     })
 
   } catch (error: any) {
-    frontendLogger.error('Erro na busca otimizada de clientes', 'api', {
-      error: error.message,
-      stack: error.stack
-    })
+    const errorMessage = error?.message || 'Erro desconhecido'
+    const stack = error?.stack
+    
+    frontendLogger.logError(
+      'Erro na busca otimizada de clientes',
+      { errorMessage, stack },
+      error instanceof Error ? error : undefined,
+      'api'
+    )
     return NextResponse.json({
       error: "Erro interno do servidor",
       message: "Não foi possível carregar a lista de clientes",

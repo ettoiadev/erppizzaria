@@ -4,9 +4,11 @@ import { frontendLogger } from '@/lib/frontend-logger'
 
 // POST - Enviar mensagem de contato
 export async function POST(request: Request) {
+  let name, email, subject, message
+  
   try {
     const body = await request.json()
-    const { name, email, subject, message } = body
+    ;({ name, email, subject, message } = body)
 
     // Validar dados
     if (!name?.trim() || !email?.trim() || !message?.trim()) {
@@ -41,13 +43,16 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ message: "Mensagem enviada com sucesso", contact: data })
   } catch (error) {
-    frontendLogger.error('Erro ao enviar mensagem de contato', 'api', {
-      error: error.message,
-      stack: error.stack,
+    const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido'
+    const stack = error instanceof Error ? error.stack : undefined
+    
+    frontendLogger.logError('Erro ao enviar mensagem de contato', {
+      errorMessage,
+      stack,
       name,
       email,
       subject: subject || 'Contato via site'
-    })
+    }, error instanceof Error ? error : undefined, 'api')
     return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
   }
 }

@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     }))
 
   } catch (error: any) {
-    frontendLogger.error('Erro ao buscar produtos otimizados:', error)
+    frontendLogger.logError('Erro ao buscar produtos otimizados:', 'api', error)
     return addCorsHeaders(NextResponse.json({
       error: "Erro interno do servidor",
       message: error.message || "Não foi possível carregar os produtos",

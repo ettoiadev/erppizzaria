@@ -31,20 +31,20 @@ const addressPatchSchema = z.object({
 // GET - Buscar um endereço específico
 export async function GET(request: Request, { params }: { params: { id: string } }) {
   try {
-    frontendLogger.info('Buscando endereço por ID', { addressId: params.id })
+    frontendLogger.info('Buscando endereço por ID', 'api', { addressId: params.id })
 
     const address = await getAddressById(params.id)
     if (!address) {
-      frontendLogger.warn('Endereço não encontrado', { addressId: params.id })
+      frontendLogger.warn('Endereço não encontrado', 'api', { addressId: params.id })
       const response = NextResponse.json({ error: "Endereço não encontrado" }, { status: 404 })
       return addCorsHeaders(response)
     }
     
-    frontendLogger.info('Endereço encontrado', { addressId: params.id })
+    frontendLogger.info('Endereço encontrado', 'api', { addressId: params.id })
     const response = NextResponse.json({ address })
     return addCorsHeaders(response)
   } catch (error) {
-    frontendLogger.error("Erro ao buscar endereço:", error)
+    frontendLogger.logError("Erro ao buscar endereço", { error: (error as any)?.message, stack: (error as any)?.stack })
     const response = NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
     return addCorsHeaders(response)
   }
@@ -63,17 +63,17 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       return addCorsHeaders(response)
     }
 
-    frontendLogger.info('Atualizando endereço parcialmente', { 
+    frontendLogger.info('Atualizando endereço parcialmente', 'api', { 
       addressId: params.id,
-      data: body 
+      data: body
     })
 
     // Validar dados usando Zod
     const validationResult = addressPatchSchema.safeParse(body)
     if (!validationResult.success) {
-      frontendLogger.warn('Dados inválidos para atualização parcial de endereço', { 
+      frontendLogger.warn('Dados inválidos para atualização parcial de endereço', 'api', { 
         addressId: params.id,
-        errors: validationResult.error.errors 
+        errors: validationResult.error.errors
       })
       const response = NextResponse.json({
         error: "Dados inválidos",
@@ -85,14 +85,14 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     const validatedData = validationResult.data
     const address = await updateAddress(params.id, validatedData)
     
-    frontendLogger.info('Endereço atualizado parcialmente com sucesso', { 
-      addressId: params.id 
+    frontendLogger.info('Endereço atualizado parcialmente com sucesso', 'api', { 
+      addressId: params.id
     })
     
     const response = NextResponse.json({ address })
     return addCorsHeaders(response)
   } catch (error: any) {
-    frontendLogger.error('Erro ao atualizar endereço', 'api', {
+    frontendLogger.logError('Erro ao atualizar endereço', {
       error: error.message,
       stack: error.stack,
       addressId: params.id
@@ -115,17 +115,17 @@ export async function PUT(request: Request, { params }: { params: { id: string }
       return addCorsHeaders(response)
     }
 
-    frontendLogger.info('Atualizando endereço completo', { 
+    frontendLogger.info('Atualizando endereço completo', 'api', {
       addressId: params.id,
-      data: body 
+      data: body
     })
 
     // Validar e sanitizar dados usando Zod
     const validationResult = addressUpdateSchema.safeParse(body)
     if (!validationResult.success) {
-      frontendLogger.warn('Dados inválidos para atualização de endereço', { 
+      frontendLogger.warn('Dados inválidos para atualização de endereço', 'api', { 
         addressId: params.id,
-        errors: validationResult.error.errors 
+        errors: validationResult.error.errors
       })
       const response = NextResponse.json({
         error: "Dados inválidos",
@@ -149,14 +149,14 @@ export async function PUT(request: Request, { params }: { params: { id: string }
       is_default: is_default || false 
     })
     
-    frontendLogger.info('Endereço atualizado com sucesso', { 
-      addressId: params.id 
+    frontendLogger.info('Endereço atualizado com sucesso', 'api', { 
+      addressId: params.id
     })
     
     const response = NextResponse.json({ address })
     return addCorsHeaders(response)
   } catch (error) {
-    frontendLogger.error("Erro ao atualizar endereço:", error)
+    frontendLogger.logError("Erro ao atualizar endereço", { error: (error as any)?.message, stack: (error as any)?.stack })
     const response = NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
     return addCorsHeaders(response)
   }
@@ -165,15 +165,15 @@ export async function PUT(request: Request, { params }: { params: { id: string }
 // DELETE - Excluir um endereço
 export async function DELETE(request: Request, { params }: { params: { id: string } }) {
   try {
-    frontendLogger.info('Excluindo endereço', { addressId: params.id })
+    frontendLogger.info('Excluindo endereço', 'api', { addressId: params.id })
 
     await deleteAddress(params.id)
     
-    frontendLogger.info('Endereço excluído com sucesso', { addressId: params.id })
+    frontendLogger.info('Endereço excluído com sucesso', 'api', { addressId: params.id })
     const response = NextResponse.json({ message: "Endereço excluído com sucesso" })
     return addCorsHeaders(response)
   } catch (error) {
-    frontendLogger.error("Erro ao excluir endereço:", error)
+    frontendLogger.logError("Erro ao excluir endereço", { error: (error as any)?.message, stack: (error as any)?.stack })
     const response = NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
     return addCorsHeaders(response)
   }

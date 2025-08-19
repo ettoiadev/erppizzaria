@@ -60,13 +60,13 @@ async function geocodeAddress(address: string, apiKey: string): Promise<{
       }
     }
 
-    frontendLogger.warn('Erro na API do Google Maps', { status: data.status, error: data.error_message })
+    frontendLogger.warn('Erro na API do Google Maps', 'api', { status: data.status, error: data.error_message })
     return null
   } catch (error: any) {
-    frontendLogger.error('Erro na geocodificação', 'api', {
-      error: error.message,
+    frontendLogger.logError('Erro na geocodificação', 'api', {
+      message: error.message,
       stack: error.stack,
-      address
+      name: error.name || 'Error'
     })
     return null
   }
@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
   try {
     const { address, latitude, longitude } = await request.json()
 
-    frontendLogger.info('Calculando entrega', { address, latitude, longitude })
+    frontendLogger.info('Calculando entrega', 'api', { address, latitude, longitude })
 
     if (!address && (!latitude || !longitude)) {
       return addCorsHeaders(NextResponse.json({ 
@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
       config[String(row.setting_key)] = String(row.setting_value)
     })
 
-    frontendLogger.info('Configurações de entrega carregadas', { configKeys: Object.keys(config) })
+    frontendLogger.info('Configurações de entrega carregadas', 'api', { configKeys: Object.keys(config) })
 
     // Se geolocalização está desabilitada, usar taxa padrão
     if (config.enable_geolocation_delivery !== 'true') {
@@ -128,7 +128,7 @@ export async function POST(request: NextRequest) {
 
     // Se não tiver coordenadas, buscar no cache ou geocodificar
     if (!targetLat || !targetLon) {
-      frontendLogger.info('Buscando coordenadas para endereço', { address })
+      frontendLogger.info('Buscando coordenadas para endereço', 'api', { address })
 
       // Buscar no cache primeiro
         const { data: cacheRows } = await supabase
@@ -145,7 +145,7 @@ export async function POST(request: NextRequest) {
         targetLon = parseFloat(cached.longitude)
         formattedAddress = cached.formatted_address || address
         
-        frontendLogger.info('Coordenadas encontradas no cache', { targetLat, targetLon })
+        frontendLogger.info('Coordenadas encontradas no cache', 'api', { targetLat, targetLon })
 
         // Se tem distância cached e ainda é válida, usar diretamente
         if (cached.distance_km && cached.delivery_zone_id) {
@@ -158,10 +158,10 @@ export async function POST(request: NextRequest) {
             if ((zoneRows || []).length > 0) {
               const zone = (zoneRows || [])[0]
             
-            frontendLogger.info('Resultado completo encontrado no cache', { 
-              distance: cached.distance_km, 
+            frontendLogger.info('Resultado completo encontrado no cache', 'api', {
+              distance: cached.distance_km,
               deliverable: cached.is_deliverable,
-              zone: zone.name 
+              zone: zone.name
             })
             
             return addCorsHeaders(NextResponse.json({
@@ -196,14 +196,14 @@ export async function POST(request: NextRequest) {
         targetLon = geocoded.longitude
         formattedAddress = geocoded.formatted_address
 
-        frontendLogger.info('Endereço geocodificado com sucesso', { targetLat, targetLon, formattedAddress })
+        frontendLogger.info('Endereço geocodificado com sucesso', 'api', { targetLat, targetLon, formattedAddress })
       }
     }
 
     // Calcular distância
     const distance = calculateDistance(pizzariaLat, pizzariaLon, targetLat, targetLon)
     
-    frontendLogger.info('Distância calculada', { distance: distance.toFixed(2) + ' km' })
+    frontendLogger.info('Distância calculada', 'api', { distance: distance.toFixed(2) + ' km' })
 
     // Verificar se está dentro do raio máximo
     if (distance > maxRadius) {
@@ -276,13 +276,13 @@ export async function POST(request: NextRequest) {
         }, { onConflict: 'address_text' })
     }
 
-    frontendLogger.info('Cálculo de entrega concluído', { 
-      deliveryFee, 
-      estimatedTime, 
-      zoneName, 
-      distance: distance.toFixed(2) + ' km',
-      method: zone ? 'zone_match' : 'fallback'
-    })
+    frontendLogger.info('Cálculo de entrega concluído', 'api', {
+       deliveryFee,
+       estimatedTime,
+       zoneName,
+       distance: distance.toFixed(2) + ' km',
+       method: zone ? 'zone_match' : 'fallback'
+     })
 
     return addCorsHeaders(NextResponse.json({
       deliverable: true,
@@ -298,7 +298,11 @@ export async function POST(request: NextRequest) {
     }))
 
   } catch (error: any) {
-    frontendLogger.error('Erro no cálculo de entrega:', error)
+    frontendLogger.logError('Erro no cálculo de entrega', 'api', {
+      message: error?.message || 'Erro desconhecido',
+      stack: error?.stack,
+      name: error?.name || 'Error'
+    })
     return addCorsHeaders(NextResponse.json({ 
       deliverable: false,
       error: 'Erro interno do servidor',

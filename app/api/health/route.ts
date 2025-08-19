@@ -23,7 +23,7 @@ export async function GET() {
       hasMercadoPagoToken: !!process.env.MERCADOPAGO_ACCESS_TOKEN
     };
     
-    frontendLogger.info('Environment check completed', envCheck);
+    frontendLogger.info('Environment check completed', 'api', envCheck);
     
     // Testar Supabase
     let supabaseTest: any = { configured: envCheck.hasSupabaseUrl && envCheck.hasSupabaseKey }
@@ -43,7 +43,7 @@ export async function GET() {
     }, { headers });
     
   } catch (error: any) {
-    frontendLogger.error('Health check failed:', error);
+    frontendLogger.logError('Health check failed', { error: error.message, stack: error.stack });
     
     return NextResponse.json({
       status: 'unhealthy',

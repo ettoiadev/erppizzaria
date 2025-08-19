@@ -70,11 +70,10 @@ export async function DELETE(request: NextRequest) {
     })
 
   } catch (error: any) {
-    frontendLogger.error('[DELETE_PRODUCTS] Erro ao deletar todos os produtos:', {
+    frontendLogger.logError('[DELETE_PRODUCTS] Erro ao deletar todos os produtos:', {
       message: error.message,
-      stack: error.stack,
-      error
-    })
+      stack: error.stack
+    }, error, 'api')
     return NextResponse.json({ 
       error: 'Erro ao excluir todos os produtos',
       details: error.message 

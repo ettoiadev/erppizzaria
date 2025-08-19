@@ -10,10 +10,13 @@ export async function PATCH(request: NextRequest) {
   // Validar autenticação de admin
   const authResult = await validateAdminAuth(request)
   if (!authResult.success) {
-    return createAuthErrorResponse(authResult.error, authResult.status)
+    return createAuthErrorResponse(authResult.error || 'Acesso negado', 401)
   }
   
   const admin = authResult.user
+  if (!admin) {
+    return createAuthErrorResponse('Usuário não autenticado', 401)
+  }
 
   try {
       frontendLogger.info("[ARCHIVE_ORDERS] PATCH request iniciado")
@@ -57,13 +60,7 @@ export async function PATCH(request: NextRequest) {
       return addCorsHeaders(response)
 
   } catch (error: any) {
-    frontendLogger.error('Erro ao arquivar pedidos:', {
-      message: error.message,
-      stack: error.stack,
-      error
-    })
     frontendLogger.logError('Erro ao arquivar pedidos por status', {
-        error: error.message,
         adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
         status: status
       }, error, 'api')
@@ -79,6 +76,4 @@ export async function PATCH(request: NextRequest) {
 }
 
 // Handler para requisições OPTIONS (CORS)
-export async function OPTIONS() {
-  return createOptionsHandler()
-}
+export const OPTIONS = createOptionsHandler()

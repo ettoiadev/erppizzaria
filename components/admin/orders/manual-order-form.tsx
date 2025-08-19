@@ -51,24 +51,26 @@ export function ManualOrderForm({ onSuccess }: ManualOrderFormProps) {
   } = useCart()
   const {
     customers,
-    selectedCustomer,
-    customerName,
-    customerPhone,
-    customerEmail,
+    loading: customersLoading,
+    loadCustomers,
     searchCustomers,
-    selectCustomer,
-    updateCustomerData,
-    addNewCustomer
+    addCustomer,
+    updateCustomer
   } = useCustomers()
 
   
   
   // Estados gerais
   const [orderType, setOrderType] = useState<"balcao" | "telefone">("balcao")
-  const [paymentMethod, setPaymentMethod] = useState("PIX")
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("PIX")
   const [notes, setNotes] = useState("")
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [isProductModalOpen, setIsProductModalOpen] = useState(false)
+  
+  // Estados do cliente
+  const [customerName, setCustomerName] = useState("")
+  const [customerPhone, setCustomerPhone] = useState("")
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
   
   // Refs para rolagem automática
   const productsRef = useRef<HTMLDivElement>(null)
@@ -76,7 +78,7 @@ export function ManualOrderForm({ onSuccess }: ManualOrderFormProps) {
   const submitRef = useRef<HTMLDivElement>(null)
   
   const { toast } = useToast()
-  const { submitOrder, isSubmitting } = useOrderSubmission({
+  const { submitOrder, loading: isSubmitting } = useOrderSubmission({
     customerName,
     customerPhone,
     selectedCustomer,
@@ -84,7 +86,7 @@ export function ManualOrderForm({ onSuccess }: ManualOrderFormProps) {
     cartItems,
     paymentMethod,
     notes,
-    calculateTotal,
+    calculateTotal: () => ({ subtotal: getCartTotal(), total: getCartTotal() }),
     clearCart,
     onSuccess
   })
@@ -115,8 +117,8 @@ export function ManualOrderForm({ onSuccess }: ManualOrderFormProps) {
   }, [paymentMethod, cartItems.length])
 
   // Função personalizada para lidar com seleção de cliente (inclui rolagem automática)
-  const handleCustomerSelect = (customer: Customer) => {
-    selectCustomer(customer)
+  const handleCustomerSelect = (customer: Customer | null) => {
+    setSelectedCustomer(customer)
     
     // Rolagem automática para seção de produtos após selecionar cliente
     setTimeout(() => {
@@ -149,13 +151,18 @@ export function ManualOrderForm({ onSuccess }: ManualOrderFormProps) {
   }
 
   const handleSubmitOrder = async () => {
-    const success = await submitOrder()
-
-    if (success) {
-      // Limpar formulário
+    try {
+      await submitOrder()
+      // Limpar formulário após sucesso
       setNotes("")
       setOrderType("balcao")
       setPaymentMethod("PIX")
+      setCustomerName("")
+      setCustomerPhone("")
+      setSelectedCustomer(null)
+    } catch (error) {
+      // O erro já é tratado no hook useOrderSubmission
+      console.error('Erro ao submeter pedido:', error)
     }
   }
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { updateOrderStatus, getOrderById } from '@/lib/db-supabase'
 import { emitRealtimeEvent, EVENT_ORDER_STATUS_UPDATED } from '@/lib/realtime'
-import { frontendLogger } from '@/lib/logger'
+import { frontendLogger } from '@/lib/frontend-logger'
 import { validateAdminAuth, createAuthErrorResponse, addCorsHeaders } from '@/lib/auth-utils'
 import { z } from 'zod'
 
@@ -18,10 +18,13 @@ export async function PATCH(
   // Validar autenticação de admin
   const authResult = await validateAdminAuth(request)
   if (!authResult.success) {
-    return createAuthErrorResponse(authResult.error, authResult.status)
+    return createAuthErrorResponse(authResult.error || 'Acesso negado', 401)
   }
   
   const admin = authResult.user
+  if (!admin) {
+    return createAuthErrorResponse('Usuário não encontrado', 401)
+  }
 
   try {
     const orderId = params.id
@@ -121,11 +124,10 @@ export async function PATCH(
     return addCorsHeaders(response)
 
   } catch (error: any) {
-    frontendLogger.error('Erro ao atualizar status do pedido', 'api', {
-      error: error.message,
+    frontendLogger.logError('Erro ao atualizar status do pedido', {
       adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
-      orderId
-    });
+      orderId: params.id
+    }, error, 'api');
     
     const response = NextResponse.json({
       error: "Erro interno do servidor",
@@ -144,10 +146,13 @@ export async function DELETE(
   // Validar autenticação de admin
   const authResult = await validateAdminAuth(request)
   if (!authResult.success) {
-    return createAuthErrorResponse(authResult.error, authResult.status)
+    return createAuthErrorResponse(authResult.error || 'Acesso negado', 401)
   }
   
   const admin = authResult.user
+  if (!admin) {
+    return createAuthErrorResponse('Usuário não encontrado', 401)
+  }
 
   try {
     frontendLogger.info('Iniciando cancelamento de pedido via DELETE', 'api', {
@@ -189,11 +194,10 @@ export async function DELETE(
     // Call the PATCH handler
     return await PATCH(patchRequest, { params })
   } catch (error: any) {
-    frontendLogger.error('Erro ao cancelar pedido via DELETE', 'api', {
-      error: error.message,
+    frontendLogger.logError('Erro ao cancelar pedido via DELETE', {
       adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
       orderId: params.id
-    });
+    }, error, 'api');
     
     const response = NextResponse.json({ 
       error: error.message || "Erro interno do servidor",

@@ -1,12 +1,11 @@
 // Exemplo de rota de API usando todos os middlewares de validação e tratamento de erros
 import { NextRequest, NextResponse } from 'next/server'
-import { withValidation } from '@/lib/validation-middleware'
+import { withValidation, withAuth } from '@/lib/validation-utils'
 import { withDatabaseErrorHandling } from '@/lib/database-error-handler'
 import { withPresetRateLimit } from '@/lib/rate-limit-middleware'
 import { withPresetSanitization } from '@/lib/sanitization-middleware'
 import { withErrorMonitoring } from '@/lib/error-monitoring'
 import { withApiLogging } from '@/lib/api-logger-middleware'
-import { withAuth } from '@/lib/auth-middleware'
 import { userRegistrationSchema, userLoginSchema } from '@/lib/validation-schemas'
 import { supabase } from '@/lib/supabase'
 
@@ -80,8 +79,8 @@ const enhancedHandler = withErrorMonitoring(
       )
     ),
     {
-      logRequests: true,
-      logResponses: true,
+      logRequest: true,
+      logResponse: true,
       logErrors: true
     }
   )
@@ -136,26 +135,29 @@ const getUsersQuerySchema = z.object({
 // Handler GET com middlewares
 const enhancedGetHandler = withErrorMonitoring(
   withApiLogging(
-    withPresetRateLimit('search', {}, // Rate limiting para buscas
-      withPresetSanitization('search', {}, // Sanitização para buscas
+    withPresetRateLimit('public', {}, // Rate limiting para buscas
+      withPresetSanitization('basic', {}, // Sanitização para buscas
         withDatabaseErrorHandling(
           handleGetUsers,
           { logErrors: true }
         )
       )
     ),
-    { logRequests: true, logResponses: false }
+    { logRequest: true, logResponse: false }
   )
 )
 
 // Handler para PUT - atualizar usuário
 async function handleUpdateUser(
   req: NextRequest,
-  validatedData: Partial<z.infer<typeof exampleSchema>>,
-  context: { params: { id: string } }
+  validatedData: Partial<z.infer<typeof exampleSchema>>
 ): Promise<NextResponse> {
+  // Extrair ID da URL
+  const url = new URL(req.url)
+  const pathSegments = url.pathname.split('/')
+  const id = pathSegments[pathSegments.length - 1]
   try {
-    const userId = context.params.id
+      const userId = id
     
     // Verificar se usuário existe
     const { data: existingUser, error: fetchError } = await supabase
@@ -220,7 +222,7 @@ const enhancedUpdateHandler = withErrorMonitoring(
         )
       )
     ),
-    { logRequests: true, logResponses: true }
+    { logRequest: true, logResponse: true }
   )
 )
 
@@ -279,7 +281,7 @@ const enhancedDeleteHandler = withErrorMonitoring(
         }
       )
     ),
-    { logRequests: true, logResponses: true }
+    { logRequest: true, logResponse: true }
   )
 )
 
@@ -293,7 +295,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest, context: { params: { id: string } }) {
-  return enhancedUpdateHandler(req, context)
+  return enhancedUpdateHandler(req)
 }
 
 export async function DELETE(req: NextRequest, context: { params: { id: string } }) {
@@ -305,18 +307,8 @@ export async function PATCH(req: NextRequest, context: { params: { id: string } 
   // Handler customizado para PATCH com configurações específicas
   const customHandler = withErrorMonitoring(
     withApiLogging(
-      withPresetRateLimit('public', {
-        maxRequests: 20, // Limite customizado
-        windowMs: 10 * 60 * 1000, // 10 minutos
-        message: 'Muitas atualizações. Aguarde 10 minutos.'
-      },
-        withPresetSanitization('userForm', {
-          strictMode: true, // Modo estrito para PATCH
-          maxLength: {
-            name: 50, // Limite menor para nome
-            email: 200
-          }
-        },
+      withPresetRateLimit('public', {},
+        withPresetSanitization('userForm', {},
           withValidation(z.object({ name: z.string().min(2).max(100) }), // Apenas nome pode ser atualizado via PATCH
             withDatabaseErrorHandling(
               async (req: NextRequest, validatedData: { name: string }) => {
@@ -343,8 +335,8 @@ export async function PATCH(req: NextRequest, context: { params: { id: string } 
         )
       ),
       {
-        logRequests: true,
-        logResponses: true
+        logRequest: true,
+        logResponse: true
       }
     )
   )

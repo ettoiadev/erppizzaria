@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from "next/server"
 import { getCustomerById, updateCustomerAndAddress, deleteCustomer } from '@/lib/db-supabase'
 import { addCorsHeaders, createOptionsHandler } from '@/lib/auth-utils'
 import { frontendLogger } from '@/lib/frontend-logger'
-import { userUpdateSchema } from '@/lib/validation-schemas'
+import { profileUpdateSchema } from '@/lib/validation-schemas'
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    frontendLogger.info('Buscando cliente por ID', { customerId: params.id })
+    frontendLogger.info('Buscando cliente por ID', 'api', { customerId: params.id })
     const customerId = params.id
 
     const customer = await getCustomerById(customerId)
@@ -21,7 +21,14 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     return addCorsHeaders(response)
 
   } catch (error: any) {
-    frontendLogger.error('Erro ao buscar cliente:', error)
+    const errorMessage = error?.message || 'Erro desconhecido'
+    const stack = error?.stack
+    
+    frontendLogger.logError('Erro ao buscar cliente', {
+      errorMessage,
+      stack,
+      customerId: params.id
+    }, error instanceof Error ? error : undefined, 'api')
     const response = NextResponse.json({
       error: "Erro interno do servidor"
     }, { status: 500 })
@@ -32,7 +39,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const customerId = params.id
-    frontendLogger.info('Atualizando cliente', { customerId })
+    frontendLogger.info('Atualizando cliente', 'api', { customerId })
     
     let body
     try {
@@ -45,9 +52,9 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     }
 
     // Validar e sanitizar dados usando Zod
-    const validationResult = userUpdateSchema.safeParse(body)
+    const validationResult = profileUpdateSchema.safeParse(body)
     if (!validationResult.success) {
-      frontendLogger.warn('Dados inválidos para atualização de cliente', { 
+      frontendLogger.warn('Dados inválidos para atualização de cliente', 'api', { 
         errors: validationResult.error.errors,
         customerId 
       })
@@ -59,14 +66,38 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     }
 
     const validatedData = validationResult.data
-    await updateCustomerAndAddress(customerId, validatedData)
     
-    frontendLogger.info('Cliente atualizado com sucesso', { customerId })
+    // Mapear dados validados para o formato esperado pela função
+    const updateData = {
+      name: validatedData.full_name || '',
+      email: '', // Email não pode ser alterado via esta API
+      phone: validatedData.phone || null,
+      address: undefined // Address não é suportado pelo profileUpdateSchema
+    }
+    
+    // Se não há dados para atualizar, retornar erro
+    if (!validatedData.full_name && !validatedData.phone) {
+      const response = NextResponse.json({
+        error: "Nenhum dado válido para atualização"
+      }, { status: 400 })
+      return addCorsHeaders(response)
+    }
+    
+    await updateCustomerAndAddress(customerId, updateData)
+    
+    frontendLogger.info('Cliente atualizado com sucesso', 'api', { customerId })
     const response = NextResponse.json({ success: true, message: "Cliente atualizado com sucesso" })
     return addCorsHeaders(response)
 
   } catch (error: any) {
-    frontendLogger.error('Erro ao atualizar cliente:', error)
+    const errorMessage = error?.message || 'Erro desconhecido'
+    const stack = error?.stack
+    
+    frontendLogger.logError('Erro ao atualizar cliente', {
+      errorMessage,
+      stack,
+      customerId: params.id
+    }, error instanceof Error ? error : undefined, 'api')
     const response = NextResponse.json({
       error: "Erro interno do servidor"
     }, { status: 500 })
@@ -77,16 +108,23 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const customerId = params.id
-    frontendLogger.info('Excluindo cliente', { customerId })
+    frontendLogger.info('Excluindo cliente', 'api', { customerId })
 
     await deleteCustomer(customerId)
     
-    frontendLogger.info('Cliente excluído com sucesso', { customerId })
+    frontendLogger.info('Cliente excluído com sucesso', 'api', { customerId })
     const response = NextResponse.json({ success: true, message: "Cliente excluído com sucesso" })
     return addCorsHeaders(response)
 
   } catch (error: any) {
-    frontendLogger.error('Erro ao excluir cliente:', error)
+    const errorMessage = error?.message || 'Erro desconhecido'
+    const stack = error?.stack
+    
+    frontendLogger.logError('Erro ao excluir cliente', {
+      errorMessage,
+      stack,
+      customerId: params.id
+    }, error instanceof Error ? error : undefined, 'api')
     const response = NextResponse.json({
       error: "Erro interno do servidor"
     }, { status: 500 })

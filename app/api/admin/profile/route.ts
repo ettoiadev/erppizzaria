@@ -4,9 +4,7 @@ import { getSupabaseServerClient } from "@/lib/supabase"
 import { frontendLogger } from "@/lib/frontend-logger"
 
 // Handler para requisições OPTIONS (CORS)
-export async function OPTIONS() {
-  return createOptionsHandler()
-}
+export const OPTIONS = createOptionsHandler()
 
 // Force dynamic rendering for this route
 export const dynamic = 'force-dynamic'
@@ -62,15 +60,11 @@ export async function GET(request: NextRequest) {
     return addCorsHeaders(response)
 
   } catch (error: any) {
-    frontendLogger.error('Erro ao buscar perfil admin', 'api', {
+    frontendLogger.logError('Erro ao buscar perfil admin', {
       error: error.message,
       stack: error.stack,
       adminId: admin.id
-    })
-    frontendLogger.error("Erro ao buscar perfil do admin", {
-      error: error.message,
-      adminId: admin.id
-    })
+    }, error, 'api')
 
     const response = NextResponse.json(
       { error: "Erro interno do servidor" },
@@ -78,7 +72,6 @@ export async function GET(request: NextRequest) {
     )
     return addCorsHeaders(response)
   }
-}
 }
 
 export async function PUT(request: NextRequest) {
@@ -137,7 +130,7 @@ export async function PUT(request: NextRequest) {
         adminEmail: updatedProfile.email?.replace(/(.{2}).*(@.*)/, '$1***$2')
       })
       frontendLogger.info('Perfil atualizado', 'api', {
-        adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+        adminEmail: admin?.email?.replace(/(.{2}).*(@.*)/, '$1***$2') || 'unknown',
         updatedFields: { full_name: !!full_name, phone: !!phone }
       })
       
@@ -149,15 +142,9 @@ export async function PUT(request: NextRequest) {
       })
       return addCorsHeaders(response)
     } catch (error: any) {
-    frontendLogger.error('Erro ao atualizar perfil admin', 'api', {
-      error: error.message,
-      stack: error.stack,
-      name: error.name,
-      adminEmail: admin.email?.replace(/(.{2}).*(@.*)/, '$1***$2')
-    })
     frontendLogger.logError('Erro ao atualizar perfil', {
       error: error.message,
-      adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+      adminEmail: admin?.email?.replace(/(.{2}).*(@.*)/, '$1***$2') || 'unknown',
       stack: error.stack
     }, error, 'api')
     
@@ -168,5 +155,4 @@ export async function PUT(request: NextRequest) {
     }, { status: 500 })
     return addCorsHeaders(response)
   }
-}
 }

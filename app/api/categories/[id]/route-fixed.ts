@@ -37,11 +37,13 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     })
     return NextResponse.json({ category: normalizedCategory })
   } catch (error) {
-    frontendLogger.error('Erro ao buscar categoria', 'api', {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorStack = error instanceof Error ? error.stack : undefined
+    frontendLogger.logError('Erro ao buscar categoria', {
       categoryId: params.id,
-      error: (error as any)?.message,
-      stack: (error as any)?.stack
-    })
+      message: errorMessage,
+      stack: errorStack
+    }, error instanceof Error ? error : undefined, 'api')
     return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
   }
 }
@@ -52,7 +54,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     
     // Validar se o ID foi fornecido
     if (!params.id || params.id.trim() === '') {
-      frontendLogger.error('ID da categoria não fornecido', 'api')
+      frontendLogger.warn('ID da categoria não fornecido', 'api')
       return NextResponse.json(
         { error: "ID da categoria é obrigatório" },
         { status: 400 }
@@ -65,10 +67,11 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       body = await request.json()
       frontendLogger.info('Body recebido para atualização', 'api', { categoryId: params.id })
     } catch (parseError) {
-      frontendLogger.error('Erro ao fazer parse do JSON', 'api', {
+      const errorMessage = parseError instanceof Error ? parseError.message : String(parseError)
+      frontendLogger.logError('Erro ao fazer parse do JSON', {
         categoryId: params.id,
-        error: (parseError as any)?.message
-      })
+        message: errorMessage
+      }, parseError instanceof Error ? parseError : undefined, 'api')
       return NextResponse.json(
         { error: "Dados JSON inválidos" },
         { status: 400 }
@@ -79,7 +82,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
     // Validação robusta dos dados
     if (!name || typeof name !== 'string' || !name.trim()) {
-      frontendLogger.error('Nome da categoria inválido', 'api', {
+      frontendLogger.warn('Nome da categoria inválido', 'api', {
         categoryId: params.id,
         providedName: name
       })
@@ -99,7 +102,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     if (exErr) throw exErr
 
     if (!existing) {
-      frontendLogger.error('Categoria não encontrada para update', 'api', {
+      frontendLogger.warn('Categoria não encontrada para update', 'api', {
         categoryId: params.id
       })
       return NextResponse.json(
@@ -151,11 +154,13 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     return NextResponse.json(normalizedCategory)
 
   } catch (error) {
-    frontendLogger.error('Erro completo ao atualizar categoria', 'api', {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorStack = error instanceof Error ? error.stack : undefined
+    frontendLogger.logError('Erro completo ao atualizar categoria', {
       categoryId: params?.id,
-      error: (error as any)?.message,
-      stack: (error as any)?.stack
-    })
+      message: errorMessage,
+      stack: errorStack
+    }, error instanceof Error ? error : undefined, 'api')
     
     // Retornar erro mais específico se possível
     if (typeof (error as any)?.message === 'string' && (error as any).message.includes('invalid input syntax')) {
@@ -224,11 +229,13 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
       success: true 
     })
   } catch (error) {
-    frontendLogger.error('Erro ao excluir categoria', 'api', {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorStack = error instanceof Error ? error.stack : undefined
+    frontendLogger.logError('Erro ao excluir categoria', {
       categoryId: params.id,
-      error: (error as any)?.message,
-      stack: (error as any)?.stack
-    })
+      message: errorMessage,
+      stack: errorStack
+    }, error instanceof Error ? error : undefined, 'api')
     return NextResponse.json({ 
       error: "Erro interno do servidor",
       details: process.env.NODE_ENV === 'development' ? (error as any)?.message : undefined 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verify } from 'jsonwebtoken'
 import { revokeRefreshToken, revokeAllUserTokens } from '@/lib/refresh-token'
-import { clearAuthResponse } from '@/lib/auth-middleware'
+import { clearAuthResponse } from '@/lib/auth-utils'
 import { frontendLogger } from '@/lib/frontend-logger'
 import { appLogger } from '@/lib/logging'
 

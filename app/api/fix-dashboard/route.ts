@@ -129,12 +129,12 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error: any) {
-    frontendLogger.error('Erro na correção do dashboard', 'api', {
-      error: error.message,
-      stack: error.stack,
-      code: error.code,
-      hint: error.hint
-    });
+  frontendLogger.logError('Erro na correção do dashboard', {
+          error: error.message,
+          stack: error.stack,
+          code: error.code,
+          hint: error.hint
+        });
 
     return NextResponse.json({
       success: false,

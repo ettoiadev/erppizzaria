@@ -16,10 +16,15 @@ export async function GET() {
       .or('active.is.null,active.eq.true')
     
     if (error) {
-      frontendLogger.error('Erro ao buscar códigos de clientes', 'api', {
-        error: error.message,
-        stack: error.stack
-      })
+      const errorMessage = error?.message || 'Erro desconhecido'
+      const stack = error?.stack
+      
+      frontendLogger.logError(
+        'Erro ao buscar códigos de clientes',
+        { errorMessage, stack },
+        error instanceof Error ? error : undefined,
+        'api'
+      )
       throw error
     }
 
@@ -51,10 +56,15 @@ export async function GET() {
     })
 
   } catch (error: any) {
-    frontendLogger.error('Erro ao buscar próximo código de cliente', 'api', {
-      error: error.message,
-      stack: error.stack
-    })
+    const errorMessage = error?.message || 'Erro desconhecido'
+    const stack = error?.stack
+    
+    frontendLogger.logError(
+      'Erro ao buscar próximo código de cliente',
+      { errorMessage, stack },
+      error instanceof Error ? error : undefined,
+      'api'
+    )
     return NextResponse.json({
       error: "Erro interno do servidor",
       details: error.message

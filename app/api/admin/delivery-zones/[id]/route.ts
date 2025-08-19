@@ -28,7 +28,7 @@ export async function GET(
       return NextResponse.json({ error: "ID de zona inválido" }, { status: 400 })
     }
 
-    frontendLogger.info('Buscando zona de entrega', { zone_id: params.id })
+    frontendLogger.info('Buscando zona de entrega', 'api', { zone_id: params.id })
 
     const supabase = getSupabaseServerClient()
     const { data: zone, error } = await supabase
@@ -72,7 +72,7 @@ export async function GET(
     })
 
   } catch (error: any) {
-    frontendLogger.error('Erro ao buscar zona de entrega', { error: error.message, stack: error.stack })
+    frontendLogger.logError('Erro ao buscar zona de entrega', { error: error.message }, error, 'api')
     return NextResponse.json({ 
       success: false,
       error: 'Erro interno do servidor',
@@ -115,7 +115,7 @@ export async function PUT(
       active
     } = await request.json()
 
-    frontendLogger.info('Atualizando zona de entrega', { zone_id: params.id })
+    frontendLogger.info('Atualizando zona de entrega', 'api', { zone_id: params.id })
 
     const supabase = getSupabaseServerClient()
     const { data: existing, error } = await supabase
@@ -206,10 +206,10 @@ export async function PUT(
         .from('geocoded_addresses')
         .update({ delivery_zone_id: null, last_verified: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString() })
         .eq('delivery_zone_id', params.id)
-      frontendLogger.info('Cache invalidado devido à mudança de distâncias', { zone_id: params.id })
+      frontendLogger.info('Cache invalidado devido à mudança de distâncias', 'api', { zone_id: params.id })
     }
 
-    frontendLogger.info('Zona de entrega atualizada com sucesso', { zone_id: params.id })
+    frontendLogger.info('Zona de entrega atualizada com sucesso', 'api', { zone_id: params.id })
 
     return NextResponse.json({ 
       success: true,
@@ -218,7 +218,7 @@ export async function PUT(
     })
 
   } catch (error: any) {
-    frontendLogger.error('Erro ao atualizar zona de entrega', { error: error.message, stack: error.stack })
+    frontendLogger.logError('Erro ao atualizar zona de entrega', { error: error.message, stack: error.stack }, error, 'api')
     return NextResponse.json({ 
       success: false,
       error: 'Erro interno do servidor',
@@ -250,7 +250,7 @@ export async function DELETE(
       return NextResponse.json({ error: "ID de zona inválido" }, { status: 400 })
     }
 
-    frontendLogger.info('Deletando zona de entrega', { zone_id: params.id })
+    frontendLogger.info('Deletando zona de entrega', 'api', { zone_id: params.id })
 
     const supabase = getSupabaseServerClient()
     const { data: existing, error } = await supabase
@@ -295,7 +295,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Erro ao deletar zona" }, { status: 500 })
     }
 
-    frontendLogger.info('Zona de entrega deletada com sucesso', { zone_id: params.id })
+    frontendLogger.info('Zona de entrega deletada com sucesso', 'api', { zone_id: params.id })
 
     return NextResponse.json({ 
       success: true,
@@ -304,7 +304,7 @@ export async function DELETE(
     })
 
   } catch (error: any) {
-    frontendLogger.error('Erro ao deletar zona de entrega', { error: error.message, stack: error.stack })
+    frontendLogger.logError('Erro ao deletar zona de entrega', { error: error.message, stack: error.stack }, error, 'api')
     return NextResponse.json({ 
       success: false,
       error: 'Erro interno do servidor',

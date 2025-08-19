@@ -16,7 +16,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     frontendLogger.info(`Encontrados ${processedProducts.length} produtos`)
     return addCorsHeaders(NextResponse.json(processedProducts))
   } catch (error: any) {
-    frontendLogger.error('Erro ao buscar produtos:', error)
+    frontendLogger.logError('Erro ao buscar produtos:', 'api', error)
     return addCorsHeaders(NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 }))
   }
 }
@@ -25,8 +25,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 export async function POST(request: NextRequest): Promise<NextResponse> {
   // Validar autenticação de admin
   const authResult = await validateAdminAuth(request)
-  if (!authResult.isValid) {
-    return createAuthErrorResponse(authResult.error!)
+  if (!authResult.success) {
+    return createAuthErrorResponse(authResult.error || 'Acesso negado', 401)
   }
 
   try {
@@ -37,14 +37,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     try {
       body = await request.json()
     } catch (error) {
-      frontendLogger.error('Erro ao fazer parse do JSON:', error)
+      frontendLogger.logError('Erro ao fazer parse do JSON:', {}, error as Error, 'api')
       return addCorsHeaders(NextResponse.json({ error: "JSON inválido" }, { status: 400 }))
     }
 
     // Validação usando Zod
     const validationResult = productSchema.safeParse(body)
     if (!validationResult.success) {
-      frontendLogger.error('Dados de produto inválidos:', validationResult.error)
+      frontendLogger.logError('Dados de produto inválidos:', 'api', validationResult.error)
       return addCorsHeaders(NextResponse.json({ 
         error: "Dados inválidos", 
         details: validationResult.error.errors 
@@ -52,26 +52,26 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     const validatedData = validationResult.data
-    const { name, description, price, categoryId, category_id, image, available = true, showImage = true, sizes, toppings } = validatedData
+    const { name, description, price, category_id, image_url, active = true, preparation_time } = validatedData
 
-    // Garantir compatibilidade entre categoryId e category_id
-    const finalCategoryId = categoryId || category_id
+    // Usar category_id diretamente do schema validado
+    const finalCategoryId = category_id
 
     const normalizedProduct = await createProduct({
       name: name.trim(),
-      description: description?.trim() || '',
+      description: description || '',
       price,
       category_id: finalCategoryId,
-      image: image || null,
-      available: available !== false,
-      sizes: sizes || [],
-      toppings: toppings || [],
+      image: image_url || null,
+      available: active !== false,
+      sizes: [],
+      toppings: [],
     })
     
     frontendLogger.info(`Produto criado com sucesso: ${normalizedProduct.id}`)
     return addCorsHeaders(NextResponse.json({ product: normalizedProduct }))
   } catch (error: any) {
-    frontendLogger.error('Erro ao criar produto:', error)
+    frontendLogger.logError('Erro ao criar produto:', 'api', error)
     return addCorsHeaders(NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 }))
   }
 }

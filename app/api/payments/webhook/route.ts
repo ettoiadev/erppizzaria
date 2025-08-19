@@ -67,10 +67,10 @@ async function processPaymentEvent(data: any) {
     .maybeSingle()
   if (error) throw error
   if (!order) {
-    frontendLogger.error(`❌ Pedido não encontrado: ${external_reference}`, {
+    frontendLogger.logError(`❌ Pedido não encontrado: ${external_reference}`, {
       external_reference,
       payment_id: id
-    })
+    }, undefined, 'api')
     return false
   }
   
@@ -96,7 +96,7 @@ async function processPaymentEvent(data: any) {
       break
       
     default:
-      frontendLogger.warn(`⚠️ Status desconhecido: ${status}`, {
+      frontendLogger.warn(`⚠️ Status desconhecido: ${status}`, 'api', {
         payment_id: id,
         status,
         external_reference
@@ -126,7 +126,7 @@ async function processPaymentEvent(data: any) {
         status,
       })
     } catch (e) {
-      frontendLogger.warn('⚠️ Falha ao emitir evento Realtime (payment_approved):', {
+      frontendLogger.warn('⚠️ Falha ao emitir evento Realtime (payment_approved):', 'api', {
         error: (e as Error)?.message,
         orderId: external_reference
       })
@@ -149,7 +149,7 @@ export async function POST(request: NextRequest) {
                      request.headers.get('x-signature') ||
                      request.headers.get('x-hub-signature')
     
-    frontendLogger.info('🔗 Webhook recebido:', {
+    frontendLogger.info('🔗 Webhook recebido:', 'api', {
       type: body.type,
       data_id: body.data?.id,
       signature: signature ? 'present' : 'missing'
@@ -157,10 +157,10 @@ export async function POST(request: NextRequest) {
     
     // Verificar assinatura
     if (!verifyWebhookSignature(body, signature)) {
-      frontendLogger.error('❌ Assinatura inválida do webhook', {
+      frontendLogger.logError('❌ Assinatura inválida do webhook', {
         signature: signature ? 'present' : 'missing',
         type: body.type
-      })
+      }, undefined, 'api')
       return NextResponse.json(
         { error: 'Invalid signature' },
         { status: 401 }
@@ -174,15 +174,15 @@ export async function POST(request: NextRequest) {
         break
         
       case 'mp-connect':
-        frontendLogger.info('🔗 Evento MP Connect:', body.data)
+        frontendLogger.info('🔗 Evento MP Connect:', 'api', body.data)
         break
         
       case 'subscription_preauthorization':
-        frontendLogger.info('🔗 Evento de pré-autorização:', body.data)
+        frontendLogger.info('🔗 Evento de pré-autorização:', 'api', body.data)
         break
         
       default:
-        frontendLogger.warn(`⚠️ Tipo de evento não processado: ${body.type}`, {
+        frontendLogger.warn(`⚠️ Tipo de evento não processado: ${body.type}`, 'api', {
           type: body.type,
           data: body.data
         })
@@ -191,11 +191,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true })
     
   } catch (error: any) {
-    frontendLogger.error('❌ Erro ao processar webhook:', {
+    frontendLogger.logError('❌ Erro ao processar webhook:', {
       message: error.message,
-      stack: error.stack,
-      error
-    })
+      stack: error.stack
+    }, error instanceof Error ? error : undefined, 'api')
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

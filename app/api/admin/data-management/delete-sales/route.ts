@@ -39,10 +39,10 @@ export async function DELETE(request: NextRequest) {
       const { data: ord } = await supabase.from('orders').select('id', { count: 'exact', head: true })
       const totalOrders = (ord as any)?.length || 0
 
-      frontendLogger.info('Encontrados itens e pedidos para deletar', { totalOrderItems, totalOrders })
+      frontendLogger.info('Encontrados itens e pedidos para deletar', 'api', { totalOrderItems, totalOrders })
 
       // 3. Deletar todos os itens de pedidos
-      frontendLogger.info('Deletando itens de pedidos')
+      frontendLogger.info('Deletando itens de pedidos', 'api')
       const { error: delOiErr } = await supabase.from('order_items').delete().neq('id', '00000000-0000-0000-0000-000000000000')
       if (delOiErr) throw delOiErr
       deletedOrderItems = totalOrderItems
@@ -58,7 +58,7 @@ export async function DELETE(request: NextRequest) {
       
       // Sem transação: operações simples e idempotentes em Supabase
 
-      frontendLogger.info('Exclusão de vendas concluída', { deletedOrderItems, deletedOrders })
+      frontendLogger.info('Exclusão de vendas concluída', 'api', { deletedOrderItems, deletedOrders })
 
       return NextResponse.json({
         success: true,
@@ -70,13 +70,13 @@ export async function DELETE(request: NextRequest) {
         }
       })
 
-    } catch (error) {
-      frontendLogger.error('Erro durante exclusão de vendas', { error: error.message, stack: error.stack })
+    } catch (error: any) {
+      frontendLogger.logError('Erro durante exclusão de vendas', { error: error.message }, error, 'api')
       throw error
     }
 
   } catch (error: any) {
-    frontendLogger.error('Erro ao deletar dados de vendas', { error: error.message, stack: error.stack })
+    frontendLogger.logError('Erro ao deletar dados de vendas', { error: error.message }, error, 'api')
     
     return NextResponse.json(
       { 

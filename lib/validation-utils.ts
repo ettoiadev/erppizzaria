@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { ZodSchema, ZodError } from 'zod'
 import DOMPurify from 'isomorphic-dompurify'
+import { validateAuthToken, validateAdminAuth } from './auth-utils'
 
 interface ValidationResult<T> {
   success: boolean
@@ -178,7 +179,65 @@ export async function validateAndSanitizeData<T>(
  */
 export function createValidationErrorResponse(error: string): NextResponse {
   return NextResponse.json(
-    { error, success: false },
+    { error: 'Dados inválidos', details: error },
     { status: 400 }
   )
+}
+
+/**
+ * Higher-order function para validação de dados com Zod
+ */
+export function withValidation<T>(
+  schema: ZodSchema<T>,
+  handler: (request: NextRequest, validatedData: T) => Promise<NextResponse>
+) {
+  return async (request: NextRequest): Promise<NextResponse> => {
+    const validationResult = await validateAndSanitizeData(request, schema)
+    
+    if (!validationResult.success) {
+      return createValidationErrorResponse(validationResult.error || 'Dados inválidos')
+    }
+    
+    return await handler(request, validationResult.data!)
+   }
+ }
+
+/**
+ * Higher-order function para autenticação básica
+ */
+export function withAuth(
+  handler: (request: NextRequest, user: any) => Promise<NextResponse>
+) {
+  return async (request: NextRequest): Promise<NextResponse> => {
+    const authResult = await validateAuthToken(request)
+    
+    if (!authResult.success || !authResult.user) {
+      return NextResponse.json(
+        { error: authResult.error || 'Acesso negado' },
+        { status: 401 }
+      )
+    }
+    
+    return await handler(request, authResult.user)
+  }
+}
+
+/**
+ * Higher-order function para autenticação de administrador
+ */
+export function withAdminAuth(
+  handler: (request: NextRequest, user: any) => Promise<NextResponse>
+) {
+  return async (request: NextRequest): Promise<NextResponse> => {
+    const authResult = await validateAdminAuth(request)
+    
+    if (!authResult.success || !authResult.user) {
+      return NextResponse.json(
+        { error: authResult.error || 'Acesso negado' },
+        { status: 401 }
+      )
+    }
+    
+    return await handler(request, authResult.user)
+  }
 }

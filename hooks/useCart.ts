@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { CartItem } from "@/types/manual-order"
+import { CartItem } from "@/components/admin/pdv/types"
 
 export function useCart() {
   const [cartItems, setCartItems] = useState<CartItem[]>([])
@@ -33,12 +33,7 @@ export function useCart() {
     return cartItems.reduce((total, item) => {
       let itemTotal = item.price * item.quantity
       
-      // Adicionar preço dos adicionais
-      if (item.additionals) {
-        itemTotal += item.additionals.reduce((addTotal, additional) => 
-          addTotal + (additional.price * item.quantity), 0
-        )
-      }
+      // Nota: Adicionais não estão implementados no tipo CartItem atual
       
       return total + itemTotal
     }, 0)

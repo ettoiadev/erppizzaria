@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Erro ao criar usuário administrador" }, { status: 500 })
     }
 
-    frontendLogger.info(`Admin user created successfully: ${user.id}`, {
+    frontendLogger.info(`Admin user created successfully: ${user.id}`, 'api', {
       adminId: user.id,
       email: user.email?.replace(/(.{2}).*(@.*)/, '$1***$2'), // Anonimizar email
       fullName: user.full_name
@@ -102,12 +102,15 @@ export async function POST(request: NextRequest) {
     })
     
     // Adicionar cabeçalhos de rate limit e CORS
-    addRateLimitHeaders(response, rateLimitCheck.remaining, rateLimitCheck.resetTime)
+    addRateLimitHeaders(response, request, 'auth')
     addCorsHeaders(response)
     
     return response
   } catch (error: any) {
-    frontendLogger.error("Admin registration API error:", error)
+    frontendLogger.logError("Admin registration API error", {
+      error: error.message,
+      stack: error.stack
+    }, error as Error, 'api')
     const response = NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
     addCorsHeaders(response)
     return response

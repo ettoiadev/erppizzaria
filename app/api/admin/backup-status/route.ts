@@ -66,8 +66,9 @@ export async function GET(request: NextRequest) {
           lastDatabaseBackup = databaseBackups[0]
         }
       } catch (error) {
-        frontendLogger.error('Erro ao ler backups de banco de dados', 'api', {
+        frontendLogger.logError('Erro ao ler backups de banco de dados', {
           error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
           backupDir
         })
       }
@@ -96,8 +97,9 @@ export async function GET(request: NextRequest) {
           lastFilesBackup = filesBackups[0]
         }
       } catch (error) {
-        frontendLogger.error('Erro ao ler backups de arquivos', 'api', {
+        frontendLogger.logError('Erro ao ler backups de arquivos', {
           error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
           filesBackupDir
         })
       }
@@ -120,8 +122,9 @@ export async function GET(request: NextRequest) {
       diskFree = parseInt(parts[3]) * 1024 // Em bytes
       diskUsage = ((diskTotal - diskFree) / diskTotal) * 100
     } catch (error) {
-      frontendLogger.error('Erro ao verificar espaço em disco', 'api', {
+      frontendLogger.logError('Erro ao verificar espaço em disco', {
         error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
         backupDir
       })
     }
@@ -166,7 +169,7 @@ export async function GET(request: NextRequest) {
     })
     
   } catch (error: any) {
-    frontendLogger.error('Erro ao obter status de backup', 'api', {
+    frontendLogger.logError('Erro ao obter status de backup', {
       error: error.message,
       stack: error.stack
     })

@@ -9,12 +9,16 @@ export const dynamic = 'force-dynamic'
 
 export async function PATCH(request: NextRequest) {
   // Validar autenticação de admin
-  const authResult = await validateAdminAuth(request)
+  const authResult = await validateAdminAuth(request)    
   if (!authResult.success) {
-    return createAuthErrorResponse(authResult.error, authResult.status)
+    return createAuthErrorResponse(authResult.error || 'Erro de autenticação')
   }
   
   const admin = authResult.user
+  
+  if (!admin) {
+    return createAuthErrorResponse('Usuário não encontrado')
+  }
 
   try {
 
@@ -42,7 +46,7 @@ export async function PATCH(request: NextRequest) {
       if (!user) {
         frontendLogger.warn('Tentativa de alteração de senha para usuário inexistente', 'api', {
           adminId: admin.id,
-          adminEmail: admin.email
+          adminEmail: admin?.email || 'unknown'
         })
         const response = NextResponse.json({ error: "Usuário não encontrado" }, { status: 404 })
         return addCorsHeaders(response)
@@ -52,7 +56,7 @@ export async function PATCH(request: NextRequest) {
 
       if (!isCurrentPasswordValid) {
         frontendLogger.warn('Tentativa de alteração de senha com senha atual incorreta', 'api', {
-          adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2')
+          adminEmail: admin?.email?.replace(/(.{2}).*(@.*)/, '$1***$2') || 'unknown'
         })
         const response = NextResponse.json({ error: "Senha atual incorreta" }, { status: 400 })
         return addCorsHeaders(response)
@@ -69,7 +73,7 @@ export async function PATCH(request: NextRequest) {
       if (updErr) throw updErr
 
       frontendLogger.info('Senha alterada com sucesso', 'api', {
-        adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+        adminEmail: admin?.email?.replace(/(.{2}).*(@.*)/, '$1***$2') || 'unknown',
         adminId: admin.id
       })
 
@@ -78,7 +82,7 @@ export async function PATCH(request: NextRequest) {
   } catch (error: any) {
     frontendLogger.logError('Erro ao alterar senha', {
       error: error.message,
-      adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+      adminEmail: admin?.email?.replace(/(.{2}).*(@.*)/, '$1***$2') || 'unknown',
       stack: error.stack
     }, error, 'api')
     const response = NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
@@ -87,6 +91,4 @@ export async function PATCH(request: NextRequest) {
 }
 
 // Handler para requisições OPTIONS (CORS)
-export async function OPTIONS() {
-  return createOptionsHandler()
-}
+export const OPTIONS = createOptionsHandler()

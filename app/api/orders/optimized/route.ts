@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     const parsedLimit = limit ? Math.min(parseInt(limit), 100) : null // Máximo de 100 itens
     const parsedOffset = offset ? Math.max(parseInt(offset), 0) : null // Mínimo 0
 
-    frontendLogger.info('Buscando pedidos otimizados', { status, limit: parsedLimit, offset: parsedOffset })
+    frontendLogger.info('Buscando pedidos otimizados', 'api', { status, limit: parsedLimit, offset: parsedOffset })
 
     const { orders, statistics } = await listOrdersOptimized({
       status,
@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
       offset: parsedOffset,
     })
 
-    frontendLogger.info('Pedidos encontrados', { count: orders.length })
+    frontendLogger.info('Pedidos encontrados', 'api', { count: orders.length })
 
     return NextResponse.json({ 
       orders, 
@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
     })
 
   } catch (error: any) {
-    frontendLogger.error('Erro ao buscar pedidos otimizados', { error: error.message, stack: error.stack })
+    frontendLogger.logError('Erro ao buscar pedidos otimizados', {}, error, 'api')
     return NextResponse.json(
       { 
         error: "Erro interno do servidor",

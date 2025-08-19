@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"
 import { useToast } from "@/hooks/use-toast"
-import { Product } from "@/types/manual-order"
+import { Product } from "@/components/admin/pdv/types"
 
 export function useProducts() {
   const [products, setProducts] = useState<Product[]>([])

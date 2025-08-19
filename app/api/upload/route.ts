@@ -35,10 +35,13 @@ export async function POST(request: Request) {
     try {
       if (!existsSync(uploadDir)) {
         await mkdir(uploadDir, { recursive: true })
-        frontendLogger.info("Diretório de uploads criado", { uploadDir })
+        frontendLogger.info("Diretório de uploads criado", 'api', { uploadDir })
       }
-    } catch (error) {
-      frontendLogger.error("Erro ao criar diretório:", error)
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      frontendLogger.logError("Erro ao criar diretório", {
+        errorMessage
+      }, error instanceof Error ? error : undefined, 'api')
     }
 
     try {
@@ -47,19 +50,21 @@ export async function POST(request: Request) {
       const filePath = join(uploadDir, fileName)
       
       await writeFile(filePath, buffer)
-      frontendLogger.info("Arquivo salvo com sucesso", { 
+      frontendLogger.info("Arquivo salvo com sucesso", 'api', { 
         fileName, 
         size: file.size, 
         type: file.type 
       })
-    } catch (error: any) {
-      frontendLogger.error('Erro ao salvar arquivo', 'api', {
-        error: error.message,
-        stack: error.stack,
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      const errorStack = error instanceof Error ? error.stack : undefined
+      frontendLogger.logError('Erro ao salvar arquivo', {
+        errorMessage,
+        stack: errorStack,
         fileName,
         fileSize: file.size,
         fileType: file.type
-      })
+      }, error instanceof Error ? error : undefined, 'api')
       return addCorsHeaders(NextResponse.json({ 
         error: "Erro ao salvar arquivo", 
         details: error instanceof Error ? error.message : 'Unknown error' 
@@ -68,7 +73,7 @@ export async function POST(request: Request) {
 
     // Retornar URL da imagem
     const imageUrl = `/uploads/${fileName}`
-    frontendLogger.info("Upload concluído com sucesso", { imageUrl, fileName })
+    frontendLogger.info("Upload concluído com sucesso", 'api', { imageUrl, fileName })
     
     return addCorsHeaders(NextResponse.json({ 
       url: imageUrl,
@@ -76,11 +81,13 @@ export async function POST(request: Request) {
       size: file.size,
       type: file.type
     }))
-  } catch (error: any) {
-    frontendLogger.error('Erro no upload', 'api', {
-      error: error.message,
-      stack: error.stack
-    })
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorStack = error instanceof Error ? error.stack : undefined
+    frontendLogger.logError('Erro no upload', {
+      errorMessage,
+      stack: errorStack
+    }, error instanceof Error ? error : undefined, 'api')
     return addCorsHeaders(NextResponse.json({ 
       error: "Erro interno do servidor",
       details: error instanceof Error ? error.message : 'Unknown error'

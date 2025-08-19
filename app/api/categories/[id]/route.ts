@@ -62,10 +62,11 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     const response = NextResponse.json({ category: normalizedCategory })
     return addCorsHeaders(response)
   } catch (error: any) {
-    frontendLogger.error('Erro ao buscar categoria', 'api', {
-      error: error.message,
-      categoryId: params.id
-    });
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    frontendLogger.logError('Erro ao buscar categoria', {
+      categoryId: params.id,
+      message: errorMessage
+    }, error instanceof Error ? error : undefined, 'api');
     const response = NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
     return addCorsHeaders(response)
   }
@@ -75,14 +76,17 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   // Validar autenticação de admin
   const authResult = await validateAdminAuth(request)
   if (!authResult.success) {
-    return createAuthErrorResponse(authResult.error, authResult.status)
+    return createAuthErrorResponse(authResult.error || 'Erro de autenticação', 401)
   }
   
   const admin = authResult.user
+  if (!admin) {
+    return createAuthErrorResponse('Usuário não encontrado', 401)
+  }
 
   try {
     frontendLogger.info('Requisição PUT para categoria iniciada', 'api', {
-      adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+      adminEmail: admin?.email?.replace(/(.{2}).*(@.*)/, '$1***$2') || 'unknown',
       categoryId: params.id
     });
   
@@ -91,10 +95,11 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     try {
       body = await request.json()
     } catch (parseError) {
+      const errorMessage = parseError instanceof Error ? parseError.message : String(parseError)
       frontendLogger.warn('JSON inválido na requisição PUT categoria', 'api', {
-        adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+        adminEmail: admin?.email?.replace(/(.{2}).*(@.*)/, '$1***$2') || 'unknown',
         categoryId: params.id,
-        error: parseError.message
+        error: errorMessage
       });
       const response = NextResponse.json(
         { error: "Dados JSON inválidos" },
@@ -107,7 +112,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     const validationResult = categoryUpdateSchema.safeParse(body);
     if (!validationResult.success) {
       frontendLogger.warn('Dados inválidos na requisição PUT categoria', 'api', {
-        adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+        adminEmail: admin?.email?.replace(/(.{2}).*(@.*)/, '$1***$2') || 'unknown',
         categoryId: params.id,
         errors: validationResult.error.errors
       });
@@ -134,7 +139,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
     if (!existing) {
       frontendLogger.warn('Categoria não encontrada para atualização', 'api', {
-        adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+        adminEmail: admin?.email?.replace(/(.{2}).*(@.*)/, '$1***$2') || 'unknown',
         categoryId: params.id
       });
       const response = NextResponse.json(
@@ -171,7 +176,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     }
 
     frontendLogger.info('Categoria atualizada com sucesso', 'api', {
-      adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+      adminEmail: admin?.email?.replace(/(.{2}).*(@.*)/, '$1***$2') || 'unknown',
       categoryId: params.id,
       categoryName: normalizedCategory.name
     });
@@ -179,11 +184,12 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     return addCorsHeaders(response)
 
   } catch (error: any) {
-    frontendLogger.error('Erro ao atualizar categoria', 'api', {
-      error: error.message,
-      adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
-      categoryId: params.id
-    });
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    frontendLogger.logError('Erro ao atualizar categoria', {
+      adminEmail: admin?.email?.replace(/(.{2}).*(@.*)/, '$1***$2') || 'unknown',
+      categoryId: params.id,
+      message: errorMessage
+    }, error instanceof Error ? error : undefined, 'api');
     
     const response = NextResponse.json({ 
       error: "Erro interno do servidor",
@@ -197,21 +203,24 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
   // Validar autenticação de admin
   const authResult = await validateAdminAuth(request)
   if (!authResult.success) {
-    return createAuthErrorResponse(authResult.error, authResult.status)
+    return createAuthErrorResponse(authResult.error || 'Erro de autenticação', 401)
   }
   
   const admin = authResult.user
+  if (!admin) {
+    return createAuthErrorResponse('Usuário não encontrado', 401)
+  }
 
   try {
     frontendLogger.info('Iniciando exclusão de categoria', 'api', {
-      adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+      adminEmail: admin?.email?.replace(/(.{2}).*(@.*)/, '$1***$2') || 'unknown',
       categoryId: params.id
     });
   
     // Validar se o ID foi fornecido
     if (!params.id || params.id.trim() === '') {
       frontendLogger.warn('ID da categoria não fornecido para exclusão', 'api', {
-        adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2')
+        adminEmail: admin?.email?.replace(/(.{2}).*(@.*)/, '$1***$2') || 'unknown'
       });
       const response = NextResponse.json(
         { error: "ID da categoria é obrigatório" },
@@ -230,7 +239,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
 
     if (!existing) {
       frontendLogger.warn('Categoria não encontrada para exclusão', 'api', {
-        adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+        adminEmail: admin?.email?.replace(/(.{2}).*(@.*)/, '$1***$2') || 'unknown',
         categoryId: params.id
       });
       const response = NextResponse.json(
@@ -252,7 +261,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
 
     if (productsCount > 0) {
       frontendLogger.warn('Tentativa de exclusão de categoria com produtos associados', 'api', {
-        adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+        adminEmail: admin?.email?.replace(/(.{2}).*(@.*)/, '$1***$2') || 'unknown',
         categoryId: params.id,
         categoryName: existingCategory.name,
         productsCount
@@ -275,7 +284,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     if (delErr) throw delErr
 
     frontendLogger.info('Categoria deletada com sucesso', 'api', {
-      adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+      adminEmail: admin?.email?.replace(/(.{2}).*(@.*)/, '$1***$2') || 'unknown',
       categoryId: params.id,
       categoryName: existingCategory.name
     });
@@ -286,11 +295,12 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     return addCorsHeaders(response)
 
   } catch (error: any) {
-    frontendLogger.error('Erro ao deletar categoria', 'api', {
-      error: error.message,
-      adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
-      categoryId: params.id
-    });
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    frontendLogger.logError('Erro ao deletar categoria', {
+      adminEmail: admin?.email?.replace(/(.{2}).*(@.*)/, '$1***$2') || 'unknown',
+      categoryId: params.id,
+      message: errorMessage
+    }, error instanceof Error ? error : undefined, 'api');
 
     const response = NextResponse.json({ 
       error: "Erro interno do servidor",
@@ -301,6 +311,4 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
 }
 
 // Handler para requisições OPTIONS (CORS)
-export async function OPTIONS() {
-  return createOptionsHandler()
-}
+export const OPTIONS = createOptionsHandler()

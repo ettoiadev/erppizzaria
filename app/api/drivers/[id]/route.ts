@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getSupabaseServerClient } from '@/lib/supabase'
-import { frontendLogger } from '@/lib/logger'
+import { frontendLogger } from '@/lib/frontend-logger'
 import { validateAdminAuth, createAuthErrorResponse, addCorsHeaders } from '@/lib/auth-utils'
 import { z } from 'zod'
 
@@ -77,9 +77,13 @@ export async function GET(
     return addCorsHeaders(response)
 
   } catch (error: any) {
-    frontendLogger.error('Erro ao buscar entregador', 'api', {
-      driverId: params.id,
-      error: error.message
+    frontendLogger.logError('Erro ao buscar entregador', 'api', {
+      message: error?.message || 'Erro desconhecido',
+      stack: error?.stack,
+      name: error?.name || 'Error'
+    });
+    frontendLogger.info('Driver ID relacionado ao erro', 'api', {
+      driverId: params.id
     });
     
     const response = NextResponse.json({
@@ -97,10 +101,14 @@ export async function PATCH(
   // Validar autenticação de admin
   const authResult = await validateAdminAuth(request)
   if (!authResult.success) {
-    return createAuthErrorResponse(authResult.error, authResult.status)
+    return createAuthErrorResponse(authResult.error || 'Acesso negado', 401)
   }
   
   const admin = authResult.user
+
+  if (!admin) {
+    return createAuthErrorResponse('Usuário não encontrado', 401)
+  }
 
   try {
     frontendLogger.info('Iniciando atualização de entregador', 'api', {
@@ -252,11 +260,10 @@ export async function PATCH(
     return addCorsHeaders(response)
 
   } catch (error: any) {
-    frontendLogger.error('Erro ao atualizar entregador', 'api', {
+    frontendLogger.logError('Erro ao atualizar entregador', {
       adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
-      driverId: params.id,
-      error: error.message
-    });
+      driverId: params.id
+    }, error, 'api');
     
     const response = NextResponse.json({
       error: "Erro interno do servidor",
@@ -274,10 +281,14 @@ export async function DELETE(
   // Validar autenticação de admin
   const authResult = await validateAdminAuth(request)
   if (!authResult.success) {
-    return createAuthErrorResponse(authResult.error, authResult.status)
+    return createAuthErrorResponse(authResult.error || 'Acesso negado', 401)
   }
   
   const admin = authResult.user
+
+  if (!admin) {
+    return createAuthErrorResponse('Usuário não encontrado', 401)
+  }
 
   try {
     frontendLogger.info('Iniciando remoção de entregador', 'api', {
@@ -345,11 +356,10 @@ export async function DELETE(
     return addCorsHeaders(response)
 
   } catch (error: any) {
-    frontendLogger.error('Erro ao remover entregador', 'api', {
+    frontendLogger.logError('Erro ao remover entregador', {
       adminEmail: admin.email.replace(/(.{2}).*(@.*)/, '$1***$2'),
-      driverId: params.id,
-      error: error.message
-    });
+      driverId: params.id
+    }, error, 'api');
     
     const response = NextResponse.json({
       error: "Erro interno do servidor",

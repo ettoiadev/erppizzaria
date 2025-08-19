@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServerClient } from '@/lib/supabase'
-import { withValidation } from '@/lib/validation-middleware'
+import { withValidation } from '@/lib/validation-utils'
 import { withDatabaseErrorHandling } from '@/lib/database-error-handler'
 import { withPresetRateLimit } from '@/lib/rate-limit-middleware'
 import { withPresetSanitization } from '@/lib/sanitization-middleware'

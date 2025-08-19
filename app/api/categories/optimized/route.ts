@@ -32,15 +32,16 @@ export async function GET(request: NextRequest) {
       }
     })
 
-  } catch (error: any) {
-    frontendLogger.error('Erro na busca otimizada de categorias', 'api', {
-      error: error.message,
-      stack: error.stack,
-      includeInactive
-    })
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorStack = error instanceof Error ? error.stack : undefined
+    frontendLogger.logError('Erro na busca otimizada de categorias', {
+      errorMessage,
+      stack: errorStack
+    }, error instanceof Error ? error : undefined, 'api')
     return NextResponse.json({
       error: "Erro interno do servidor",
-      message: error.message || "Não foi possível carregar as categorias",
+      message: errorMessage || "Não foi possível carregar as categorias",
       categories: [],
       total: 0,
       timestamp: new Date().toISOString()
