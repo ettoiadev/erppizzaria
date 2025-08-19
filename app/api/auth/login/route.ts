@@ -6,7 +6,7 @@ import { getSupabaseServerClient } from '@/lib/supabase'
 import { appLogger } from '@/lib/logging'
 import { userLoginSchema } from '@/lib/validation-schemas'
 import { addCorsHeaders, createOptionsHandler } from '@/lib/auth-utils'
-import { validateAndSanitizeData, createValidationErrorResponse } from '@/lib/validation-utils'
+import { validateAndSanitizeDataDirect, createValidationErrorResponse } from '@/lib/validation-utils'
 import { applyRateLimit, createRateLimitErrorResponse } from '@/lib/rate-limit-utils'
 
 export const dynamic = 'force-dynamic'
@@ -27,7 +27,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // 2. Validação e Sanitização
     const body = await request.json()
-    const validationResult = await validateAndSanitizeData(body, userLoginSchema)
+    const validationResult = await validateAndSanitizeDataDirect(body, userLoginSchema)
     if (!validationResult.success) {
       return createValidationErrorResponse(validationResult.error || 'Dados inválidos')
     }

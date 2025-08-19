@@ -175,6 +175,38 @@ export async function validateAndSanitizeData<T>(
 }
 
 /**
+ * Valida e sanitiza dados diretamente (sem ler request)
+ */
+export async function validateAndSanitizeDataDirect<T>(
+  data: any,
+  schema: ZodSchema<T>
+): Promise<ValidationResult<T>> {
+  try {
+    // Primeiro sanitiza os dados
+    const sanitizedData = sanitizeObject(data)
+    
+    // Depois valida com o schema
+    const validatedData = schema.parse(sanitizedData)
+    
+    // Verifica padrões maliciosos
+    const jsonString = JSON.stringify(validatedData)
+    if (detectMaliciousPattern(jsonString)) {
+      return { success: false, error: 'Dados contêm conteúdo suspeito' }
+    }
+    
+    return { success: true, data: validatedData }
+  } catch (error) {
+    if (error instanceof ZodError) {
+      const errorMessage = error.errors.map(err => 
+        `${err.path.join('.')}: ${err.message}`
+      ).join(', ')
+      return { success: false, error: errorMessage }
+    }
+    return { success: false, error: 'Dados inválidos' }
+  }
+}
+
+/**
  * Cria resposta de erro de validação
  */
 export function createValidationErrorResponse(error: string): NextResponse {
