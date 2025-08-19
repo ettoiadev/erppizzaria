@@ -59,8 +59,7 @@ export function validateQueryParams<T>(
  */
 const MALICIOUS_PATTERNS = {
   sql: [
-    /('|(\-\-)|(;)|(\||\|)|(\*|\*))/i,
-    /(union|select|insert|delete|update|drop|create|alter|exec|execute)/i,
+    /(union\s+select|insert\s+into|delete\s+from|update\s+set|drop\s+table|create\s+table|alter\s+table|exec\s+|execute\s+)/i,
     /(script|javascript|vbscript|onload|onerror|onclick)/i
   ],
   xss: [
@@ -75,8 +74,8 @@ const MALICIOUS_PATTERNS = {
     /\.\.%2f|\.\.%5c/gi
   ],
   commandInjection: [
-    /[;&|`$(){}\[\]]/,
-    /(cat|ls|pwd|whoami|id|uname|ps|netstat|ifconfig)/i
+    /[;&|`]\s*[;&|`]/,
+    /(cat|ls|pwd|whoami|id|uname|ps|netstat|ifconfig)\s+/i
   ]
 }
 

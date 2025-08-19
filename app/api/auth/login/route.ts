@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import bcrypt from "bcryptjs"
 import { sign } from 'jsonwebtoken'
 import { frontendLogger } from '@/lib/frontend-logger'
-import { getSupabaseServerClient } from '@/lib/supabase'
+import { supabaseAdmin } from '@/lib/supabase'
 import { appLogger } from '@/lib/logging'
 import { userLoginSchema } from '@/lib/validation-schemas'
 import { addCorsHeaders, createOptionsHandler } from '@/lib/auth-utils'
@@ -80,8 +80,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // Buscar usuário
     appLogger.debug('auth', 'Buscando usuário no banco (Supabase)')
-    const supabase = getSupabaseServerClient()
-    const { data: user, error } = await supabase
+    const { data: user, error } = await supabaseAdmin
       .from('profiles')
       .select('id, email, password_hash, full_name, role')
       .eq('email', email)
