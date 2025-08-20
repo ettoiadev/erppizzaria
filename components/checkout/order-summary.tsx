@@ -542,7 +542,7 @@ function EditProductModal({
           {/* Renderizar imagem apenas se showImage for true */}
           {product?.showImage && product?.image && (
             <div className="h-[150px] overflow-hidden rounded-lg">
-              <img src={product.image || "/placeholder.svg"} alt={product.name || 'Produto'} className="w-full h-full object-cover" />
+              <img src={product.image || "/default-image.svg"} alt={product.name || 'Produto'} className="w-full h-full object-cover" />
             </div>
           )}
 

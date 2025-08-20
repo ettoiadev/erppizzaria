@@ -32,12 +32,12 @@ export async function GET() {
         hero: {
           title: "Sobre a Pizza Delivery",
           subtitle: "Tradição em sabor desde 2020",
-          image: "/placeholder.jpg"
+          image: "/default-image.svg"
         },
         story: {
           title: "Nossa História",
           content: "A Pizza Delivery nasceu do sonho de levar a melhor pizza artesanal até você...",
-          image: "/placeholder.jpg"
+          image: "/default-image.svg"
         },
         values: [
           {
@@ -60,12 +60,12 @@ export async function GET() {
           {
             name: "João Silva",
             role: "Chef de Cozinha",
-            image: "/placeholder-user.jpg"
+            image: "/default-image.svg"
           },
           {
             name: "Maria Oliveira",
             role: "Gerente",
-            image: "/placeholder-user.jpg"
+            image: "/default-image.svg"
           }
         ]
       }

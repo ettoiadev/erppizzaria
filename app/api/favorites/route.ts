@@ -35,7 +35,7 @@ async function getFavoritesHandler(request: NextRequest): Promise<NextResponse> 
         name: f.product?.name || '',
         description: f.product?.description || '',
         price: Number(f.product?.price) || 0,
-        image: f.product?.image_url || '/placeholder.svg?height=200&width=300',
+        image: f.product?.image_url || '/default-image.svg',
         rating: 4.8,
         category: f.product?.category?.name || 'Sem categoria'
       }))

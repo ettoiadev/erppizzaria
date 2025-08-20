@@ -17,7 +17,7 @@ export function AboutHero({ content }: AboutHeroProps) {
     subtitle: "Tradição e Sabor desde 2010",
     description:
       "Somos uma pizzaria familiar que nasceu do sonho de compartilhar o verdadeiro sabor da pizza italiana com nossa comunidade.",
-    image: "/placeholder.svg?height=600&width=800",
+    image: "/default-image.svg",
   }
 
   const heroContent = content || defaultContent
@@ -47,7 +47,7 @@ export function AboutHero({ content }: AboutHeroProps) {
           >
             <div className="relative z-10">
               <img
-                src={heroContent.image || "/placeholder.svg"}
+                src={heroContent.image || "/default-image.svg"}
                 alt="Nossa pizzaria"
                 className="w-full h-auto rounded-2xl shadow-2xl"
               />

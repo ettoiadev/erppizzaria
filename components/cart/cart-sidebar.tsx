@@ -40,7 +40,7 @@ export function CartSidebar({ isOpen, onClose }: CartSidebarProps) {
                 {items.map((item) => (
                   <div key={item.id} className="flex gap-3 p-3 border rounded-lg">
                     <img
-                      src={item.image || "/placeholder.svg"}
+                      src={item.image || "/default-image.svg"}
                       alt={item.name}
                       className="w-16 h-16 object-cover rounded"
                     />

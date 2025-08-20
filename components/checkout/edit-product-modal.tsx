@@ -224,7 +224,7 @@ export function EditProductModal({
           {/* Renderizar imagem apenas se showImage for true */}
           {product.showImage && (
             <div className="h-[150px] overflow-hidden rounded-lg">
-              <img src={product.image || "/placeholder.svg"} alt={product.name} className="w-full h-full object-cover" />
+              <img src={product.image || "/default-image.svg"} alt={product.name} className="w-full h-full object-cover" />
             </div>
           )}
 
@@ -516,4 +516,4 @@ export function EditProductModal({
       </DialogContent>
     </Dialog>
   )
-} 
+}

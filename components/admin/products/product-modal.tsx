@@ -418,7 +418,7 @@ export function ProductModal({ open, onOpenChange, product, categories, onSave }
                 {imagePreview ? (
                   <div className="relative inline-block">
                     <img
-                      src={imagePreview || "/placeholder.svg"}
+                      src={imagePreview || "/default-image.svg"}
                       alt="Preview"
                       className="w-24 h-24 object-cover rounded border"
                     />

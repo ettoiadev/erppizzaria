@@ -18,7 +18,7 @@ export function AboutStory({ content }: AboutStoryProps) {
       "Nossa receita secreta não está apenas na massa artesanal ou nos ingredientes frescos selecionados diariamente. Está no carinho e dedicação que colocamos em cada pizza, tratando cada cliente como parte da nossa família.",
       "Ao longo dos anos, crescemos e evoluímos, mas nunca perdemos nossa essência: fazer a melhor pizza da cidade com ingredientes de qualidade e muito amor. Hoje, atendemos toda a região com nosso serviço de delivery, levando o sabor autêntico da Pizza Express até você.",
     ],
-    image: "/placeholder.svg?height=500&width=600",
+    image: "/default-image.svg",
   }
 
   const storyContent = content || defaultContent
@@ -35,7 +35,7 @@ export function AboutStory({ content }: AboutStoryProps) {
             className="relative"
           >
             <img
-              src={storyContent.image || "/placeholder.svg"}
+              src={storyContent.image || "/default-image.svg"}
               alt="Nossa história"
               className="w-full h-auto rounded-2xl shadow-lg"
             />

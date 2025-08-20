@@ -161,7 +161,7 @@ export function CategoryModal({ open, onOpenChange, category, onSave }: Category
               {imagePreview ? (
                 <div className="relative inline-block">
                   <img
-                    src={imagePreview || "/placeholder.svg"}
+                    src={imagePreview || "/default-image.svg"}
                     alt="Preview"
                     className="w-12 h-12 object-cover rounded border"
                   />

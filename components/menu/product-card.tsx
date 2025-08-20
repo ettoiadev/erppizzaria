@@ -46,7 +46,7 @@ export function ProductCard({ product, onClick }: ProductCardProps) {
         <div className="h-[150px] overflow-hidden bg-gray-100 flex items-center justify-center" onClick={onClick}>
           {shouldShowImage && (
             <img
-              src={product.image || "/placeholder.svg"}
+              src={product.image || "/default-image.svg"}
               alt={product.name}
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
               onError={handleImageError}

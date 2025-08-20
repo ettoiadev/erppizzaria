@@ -30,7 +30,7 @@ export function Hero() {
     <section className="relative min-h-screen flex items-center justify-center bg-gradient-to-br from-red-600 via-red-700 to-red-800 overflow-hidden">
       {/* Background pattern */}
       <div className="absolute inset-0 opacity-10">
-        <div className="absolute inset-0 bg-[url('/placeholder.svg')] bg-center bg-cover" />
+        <div className="absolute inset-0 bg-[url('/default-image.svg')] bg-center bg-cover" />
       </div>
 
       {/* Content */}

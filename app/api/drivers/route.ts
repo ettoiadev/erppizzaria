@@ -30,24 +30,7 @@ async function getDriversHandler(request: NextRequest): Promise<NextResponse> {
     const { data: drivers, error } = await driversQuery
     if (error) throw error
 
-    // Se não há entregadores, criar alguns de exemplo
-    if (!drivers || drivers.length === 0) {
-      const sampleDrivers = [
-        { name: 'João Silva', email: 'joao.silva@entregador.com', phone: '11999999001', vehicle_type: 'motorcycle', vehicle_plate: 'ABC-1234', status: 'available', total_deliveries: 45, average_rating: 4.8, average_delivery_time: 25 },
-        { name: 'Maria Santos', email: 'maria.santos@entregador.com', phone: '11999999002', vehicle_type: 'bicycle', vehicle_plate: 'BIC-001', status: 'busy', total_deliveries: 32, average_rating: 4.9, average_delivery_time: 18 },
-        { name: 'Pedro Oliveira', email: 'pedro.oliveira@entregador.com', phone: '11999999003', vehicle_type: 'motorcycle', vehicle_plate: 'DEF-5678', status: 'offline', total_deliveries: 67, average_rating: 4.7, average_delivery_time: 30 },
-        { name: 'Ana Costa', email: 'ana.costa@entregador.com', phone: '11999999004', vehicle_type: 'scooter', vehicle_plate: 'GHI-9012', status: 'available', total_deliveries: 28, average_rating: 4.6, average_delivery_time: 22 }
-      ]
-
-      const { data: newDrivers, error: insertError } = await supabase
-        .from('drivers')
-        .upsert(sampleDrivers, { onConflict: 'email', ignoreDuplicates: true })
-        .select()
-
-      if (!insertError && newDrivers) {
-        drivers.push(...newDrivers)
-      }
-    }
+    // Retornar lista de entregadores (vazia se não houver dados reais)
 
     // Buscar pedidos ativos do entregador
     const driversWithOrders = await Promise.all(

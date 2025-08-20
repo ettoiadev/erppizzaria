@@ -72,7 +72,7 @@ export default function FavoritesPage() {
       name: product.name,
       price: product.price,
       quantity: 1,
-      image: product.image_url || "/placeholder.svg",
+      image: product.image_url || "/default-image.svg",
     })
     
     toast({
@@ -172,7 +172,7 @@ export default function FavoritesPage() {
               <Card key={product.id} className="overflow-hidden hover:shadow-lg transition-shadow">
                 <div className="relative">
                   <img
-                    src={product.image_url || "/placeholder.svg"}
+                    src={product.image_url || "/default-image.svg"}
                     alt={product.name}
                     className="w-full h-48 object-cover"
                   />

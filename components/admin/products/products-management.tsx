@@ -244,7 +244,7 @@ export function ProductsManagement() {
             {categories.map((category) => (
               <div key={category.id} className="flex items-center justify-between p-4 border rounded-lg">
                 <div className="flex items-center gap-3">
-                  <img src={category.image || "/placeholder.svg"} alt={category.name} className="w-12 h-12 rounded-lg object-cover" />
+                  <img src={category.image || "/default-image.svg"} alt={category.name} className="w-12 h-12 rounded-lg object-cover" />
                   <div>
                     <h3 className="font-medium">{category.name}</h3>
                     <p className="text-sm text-gray-600">{category.description}</p>
@@ -280,7 +280,7 @@ export function ProductsManagement() {
           <Card key={product.id}>
             {product.show_image && (
               <CardHeader className="p-0">
-                <img src={product.image || "/placeholder.svg"} alt={product.name} className="w-full h-[150px] object-cover rounded-t-lg" onError={(e) => { (e.target as HTMLImageElement).src = "/placeholder.svg" }} />
+                <img src={product.image || "/default-image.svg"} alt={product.name} className="w-full h-[150px] object-cover rounded-t-lg" onError={(e) => { (e.target as HTMLImageElement).src = "/default-image.svg" }} />
               </CardHeader>
             )}
             <CardContent className="p-4 space-y-3">

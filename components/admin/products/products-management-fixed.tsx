@@ -420,7 +420,7 @@ export function ProductsManagement() {
               <div key={category.id} className="flex items-center justify-between p-4 border rounded-lg">
                 <div className="flex items-center gap-3">
                   <img
-                    src={category.image || "/placeholder.svg"}
+                    src={category.image || "/default-image.svg"}
                     alt={category.name}
                     className="w-12 h-12 rounded-lg object-cover"
                   />
@@ -485,12 +485,12 @@ export function ProductsManagement() {
               <CardHeader className="p-0">
                 <div className="h-[150px] overflow-hidden rounded-t-lg bg-gray-100">
                   <img
-                    src={product.image || "/placeholder.svg"}
+                    src={product.image || "/default-image.svg"}
                     alt={product.name}
                     className="w-full h-full object-cover"
                     onError={(e) => {
                       const target = e.target as HTMLImageElement;
-                      target.src = "/placeholder.svg";
+                      target.src = "/default-image.svg";
                     }}
                   />
                 </div>
@@ -575,4 +575,4 @@ export function ProductsManagement() {
       />
     </div>
   )
-} 
+}

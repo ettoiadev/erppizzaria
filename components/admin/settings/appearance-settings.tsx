@@ -138,7 +138,7 @@ export function AppearanceSettings({ settings: initialSettings, onSave, onMarkUn
         description:
           "Com mais de 15 anos de experiência, Marco é o responsável por manter a tradição e qualidade de nossas pizzas.",
         image: null,
-        imageUrl: "/placeholder.svg?height=300&width=300",
+        imageUrl: "/default-image.svg",
       },
       {
         id: "2",
@@ -146,7 +146,7 @@ export function AppearanceSettings({ settings: initialSettings, onSave, onMarkUn
         role: "Gerente Geral",
         description: "Ana cuida de toda a operação, garantindo que cada cliente tenha a melhor experiência possível.",
         image: null,
-        imageUrl: "/placeholder.svg?height=300&width=300",
+        imageUrl: "/default-image.svg",
       },
       {
         id: "3",
@@ -155,7 +155,7 @@ export function AppearanceSettings({ settings: initialSettings, onSave, onMarkUn
         description:
           "Carlos lidera nossa equipe de entrega, assegurando que sua pizza chegue quentinha e no tempo certo.",
         image: null,
-        imageUrl: "/placeholder.svg?height=300&width=300",
+        imageUrl: "/default-image.svg",
       },
     ]
   )
@@ -206,7 +206,7 @@ export function AppearanceSettings({ settings: initialSettings, onSave, onMarkUn
           ? {
               ...member,
               image: null,
-              imageUrl: "/placeholder.svg?height=300&width=300",
+              imageUrl: "/default-image.svg",
             }
           : member,
       ),
@@ -224,7 +224,7 @@ export function AppearanceSettings({ settings: initialSettings, onSave, onMarkUn
         role: "",
         description: "",
         image: null,
-        imageUrl: "/placeholder.svg?height=300&width=300",
+        imageUrl: "/default-image.svg",
       },
     ])
   }
@@ -509,7 +509,7 @@ export function AppearanceSettings({ settings: initialSettings, onSave, onMarkUn
                 {settings.aboutHeroImage && (
                   <div className="relative w-full h-48 bg-gray-100 rounded-lg overflow-hidden">
                     <img
-                      src={URL.createObjectURL(settings.aboutHeroImage) || "/placeholder.svg"}
+                      src={URL.createObjectURL(settings.aboutHeroImage) || "/default-image.svg"}
                       alt="Preview da imagem principal"
                       className="w-full h-full object-cover"
                     />
@@ -582,7 +582,7 @@ export function AppearanceSettings({ settings: initialSettings, onSave, onMarkUn
                 {settings.aboutStoryImage && (
                   <div className="relative w-full h-48 bg-gray-100 rounded-lg overflow-hidden">
                     <img
-                      src={URL.createObjectURL(settings.aboutStoryImage) || "/placeholder.svg"}
+                      src={URL.createObjectURL(settings.aboutStoryImage) || "/default-image.svg"}
                       alt="Preview da imagem da história"
                       className="w-full h-full object-cover"
                     />
@@ -747,7 +747,7 @@ export function AppearanceSettings({ settings: initialSettings, onSave, onMarkUn
                       <div className="space-y-3">
                         <div className="relative w-32 h-32 bg-gray-100 rounded-full overflow-hidden mx-auto">
                           <img
-                            src={member.imageUrl || "/placeholder.svg"}
+                            src={member.imageUrl || "/default-image.svg"}
                             alt={`Foto de ${member.name}`}
                             className="w-full h-full object-cover"
                           />

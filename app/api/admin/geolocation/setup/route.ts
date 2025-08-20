@@ -56,12 +56,12 @@ export async function POST(request: NextRequest) {
 
       // 6. Inserir configurações de geolocalização
       const geoSettings = [
-        ['pizzaria_latitude', '-23.5505', 'geolocation', 'Latitude da pizzaria'],
-        ['pizzaria_longitude', '-46.6333', 'geolocation', 'Longitude da pizzaria'],
-        ['pizzaria_address', 'Rua das Pizzas, 123 - Centro, São Paulo - SP', 'geolocation', 'Endereço completo da pizzaria'],
+        ['pizzaria_latitude', '', 'geolocation', 'Latitude da pizzaria'],
+        ['pizzaria_longitude', '', 'geolocation', 'Longitude da pizzaria'],
+        ['pizzaria_address', '', 'geolocation', 'Endereço completo da pizzaria'],
         ['max_delivery_radius_km', '15', 'geolocation', 'Raio máximo de entrega em km'],
         ['google_maps_api_key', '', 'geolocation', 'Chave da API do Google Maps'],
-        ['enable_geolocation_delivery', 'true', 'geolocation', 'Habilitar cálculo por geolocalização'],
+        ['enable_geolocation_delivery', 'false', 'geolocation', 'Habilitar cálculo por geolocalização'],
         ['fallback_delivery_fee', '8.00', 'geolocation', 'Taxa padrão quando não conseguir calcular'],
         ['geocoding_cache_hours', '168', 'geolocation', 'Horas para manter cache (168 = 1 semana)']
       ]

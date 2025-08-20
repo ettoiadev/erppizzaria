@@ -106,7 +106,7 @@ export function AboutContact({ content }: AboutContactProps) {
           >
             <div className="aspect-video bg-gray-200 rounded-2xl overflow-hidden shadow-lg">
               <img
-                src="/placeholder.svg?height=400&width=600"
+                src="/default-image.svg"
                 alt="Localização da pizzaria"
                 className="w-full h-full object-cover"
               />

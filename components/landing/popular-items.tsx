@@ -44,7 +44,7 @@ export function PopularItems() {
         name: product.name,
         description: product.description || '',
         price: Number(product.price) || 0,
-        image: product.image || "/placeholder.svg?height=300&width=300",
+        image: product.image || "/default-image.svg",
         rating: 4.8 // Valor padrão até implementarmos sistema de avaliações
       }))
       
@@ -123,7 +123,7 @@ export function PopularItems() {
             >
               <div className="aspect-square overflow-hidden">
                 <img
-                  src={item.image || "/placeholder.svg"}
+                  src={item.image || "/default-image.svg"}
                   alt={item.name}
                   className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
                 />

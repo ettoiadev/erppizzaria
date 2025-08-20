@@ -29,20 +29,20 @@ export function AboutTeam({ content }: AboutTeamProps) {
         role: "Chef Pizzaiolo",
         description:
           "Com mais de 15 anos de experiência, Marco é o responsável por manter a tradição e qualidade de nossas pizzas.",
-        image: "/placeholder.svg?height=300&width=300",
+        image: "/default-image.svg",
       },
       {
         name: "Ana Silva",
         role: "Gerente Geral",
         description: "Ana cuida de toda a operação, garantindo que cada cliente tenha a melhor experiência possível.",
-        image: "/placeholder.svg?height=300&width=300",
+        image: "/default-image.svg",
       },
       {
         name: "Carlos Santos",
         role: "Coordenador de Delivery",
         description:
           "Carlos lidera nossa equipe de entrega, assegurando que sua pizza chegue quentinha e no tempo certo.",
-        image: "/placeholder.svg?height=300&width=300",
+        image: "/default-image.svg",
       },
     ],
   }
@@ -80,7 +80,7 @@ export function AboutTeam({ content }: AboutTeamProps) {
             >
               <div className="relative mb-6">
                 <img
-                  src={member.image || "/placeholder.svg"}
+                  src={member.image || "/default-image.svg"}
                   alt={member.name}
                   className="w-48 h-48 rounded-full mx-auto object-cover shadow-lg group-hover:shadow-xl transition-shadow"
                 />
