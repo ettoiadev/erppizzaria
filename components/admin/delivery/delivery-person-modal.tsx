@@ -2,7 +2,7 @@
 
 
 import { useState } from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -84,9 +84,12 @@ export function DeliveryPersonModal({ deliveryPerson, isOpen, onClose, onSave }:
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" aria-describedby="delivery-person-modal-description">
         <DialogHeader>
           <DialogTitle>{isEditing ? `Editar ${deliveryPerson.name}` : "Novo Entregador"}</DialogTitle>
+          <DialogDescription id="delivery-person-modal-description">
+            {isEditing ? "Edite as informações do entregador selecionado." : "Preencha as informações para cadastrar um novo entregador."}
+          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6">

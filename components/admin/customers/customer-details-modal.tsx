@@ -1,6 +1,6 @@
 "use client"
 
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Mail, Phone, MapPin, Calendar, ShoppingBag, DollarSign, Star } from "lucide-react"
@@ -77,12 +77,15 @@ export function CustomerDetailsModal({ customer, isOpen, onClose }: CustomerDeta
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" aria-describedby="customer-details-description">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3">
             {customer.name}
             <Badge className={getStatusColor(customer.status)}>{getStatusLabel(customer.status)}</Badge>
           </DialogTitle>
+          <DialogDescription id="customer-details-description">
+            Visualize as informações detalhadas e histórico do cliente.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6">

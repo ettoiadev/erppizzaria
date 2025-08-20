@@ -20,8 +20,14 @@ interface AuthResult {
  */
 export async function validateAuthToken(request: NextRequest): Promise<AuthResult> {
   try {
+    // Tentar obter token do header Authorization primeiro
     const authHeader = request.headers.get('authorization')
-    const token = authHeader?.replace('Bearer ', '')
+    let token = authHeader?.replace('Bearer ', '')
+    
+    // Se não encontrou no header, tentar obter do cookie
+    if (!token) {
+      token = request.cookies.get('auth-token')?.value
+    }
 
     if (!token) {
       return { success: false, error: 'Token não fornecido' }
@@ -35,7 +41,7 @@ export async function validateAuthToken(request: NextRequest): Promise<AuthResul
     // Verificar token JWT
     const decoded = verify(token, jwtSecret) as any
     
-    if (!decoded.userId) {
+    if (!decoded.id) {
       return { success: false, error: 'Token inválido' }
     }
 
@@ -44,7 +50,7 @@ export async function validateAuthToken(request: NextRequest): Promise<AuthResul
     const { data: user, error } = await supabase
       .from('profiles')
       .select('id, email, role, full_name')
-      .eq('id', decoded.userId)
+      .eq('id', decoded.id)
       .single()
 
     if (error || !user) {
@@ -181,14 +187,14 @@ export function createAuthResponse(data: any, tokens?: { accessToken: string, re
   
   if (tokens) {
     // Definir cookies seguros para os tokens
-    response.cookies.set('accessToken', tokens.accessToken, {
+    response.cookies.set('auth-token', tokens.accessToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
       maxAge: 60 * 60 * 24 * 7 // 7 dias
     })
     
-    response.cookies.set('refreshToken', tokens.refreshToken, {
+    response.cookies.set('refresh-token', tokens.refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
@@ -206,14 +212,14 @@ export function clearAuthResponse(data: any): NextResponse {
   const response = NextResponse.json(data)
   
   // Limpar cookies de autenticação
-  response.cookies.set('accessToken', '', {
+  response.cookies.set('auth-token', '', {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'strict',
     maxAge: 0
   })
   
-  response.cookies.set('refreshToken', '', {
+  response.cookies.set('refresh-token', '', {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'strict',

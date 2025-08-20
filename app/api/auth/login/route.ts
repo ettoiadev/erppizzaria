@@ -5,7 +5,7 @@ import { frontendLogger } from '@/lib/frontend-logger'
 import { supabaseAdmin } from '@/lib/supabase'
 import { appLogger } from '@/lib/logging'
 import { userLoginSchema } from '@/lib/validation-schemas'
-import { addCorsHeaders, createOptionsHandler } from '@/lib/auth-utils'
+import { addCorsHeaders, createOptionsHandler, createAuthResponse } from '@/lib/auth-utils'
 import { validateAndSanitizeDataDirect, createValidationErrorResponse } from '@/lib/validation-utils'
 import { applyRateLimit, createRateLimitErrorResponse } from '@/lib/rate-limit-utils'
 
@@ -163,8 +163,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       message: 'Login funcionando (modo simplificado)'
     })
 
-    // Retornar resposta simples sem refresh token
-    const response = NextResponse.json({
+    // Retornar resposta com cookies de autenticação
+    return createAuthResponse({
       success: true,
       user: {
         id: user.id,
@@ -175,9 +175,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       accessToken,
       expiresIn: 24 * 60 * 60, // 24 horas em segundos
       message: 'Login realizado com sucesso (modo simplificado - sem refresh tokens)'
+    }, {
+      accessToken,
+      refreshToken: accessToken // Usando o mesmo token como refresh por simplicidade
     })
-
-    return addCorsHeaders(response)
 
   } catch (error: any) {
     // Log detalhado do erro

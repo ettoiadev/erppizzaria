@@ -3,7 +3,7 @@
 
 
 import { useState, useEffect } from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -129,9 +129,12 @@ export function CategoryModal({ open, onOpenChange, category, onSave }: Category
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md" aria-describedby="category-modal-description">
         <DialogHeader>
           <DialogTitle>{category ? "Editar Categoria" : "Nova Categoria"}</DialogTitle>
+          <DialogDescription id="category-modal-description">
+            {category ? "Edite as informações da categoria selecionada." : "Preencha as informações para criar uma nova categoria."}
+          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
