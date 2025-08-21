@@ -56,7 +56,7 @@ export function AdminRegisterModal({ isOpen, onClose, onSuccess }: AdminRegister
 
   const checkRegistrationStatus = async () => {
     try {
-      const response = await fetch("/api/admin/settings")
+      const response = await fetch("/api/settings")
       if (response.ok) {
         const data = await response.json()
         const allowRegistration = data.settings?.allow_admin_registration

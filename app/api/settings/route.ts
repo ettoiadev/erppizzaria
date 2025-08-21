@@ -27,7 +27,8 @@ export async function GET() {
       'freeDeliveryEnabled',
       'freeDeliveryTitle',
       'freeDeliverySubtext',
-      'freeDeliveryMinimum'
+      'freeDeliveryMinimum',
+      'allow_admin_registration'
     ]
 
     // Buscar configurações usando PostgreSQL
@@ -62,7 +63,8 @@ export async function GET() {
       freeDeliveryEnabled: 'true',
       freeDeliveryTitle: 'Frete Grátis',
       freeDeliverySubtext: 'Entrega gratuita para pedidos acima de R$ 50,00',
-      freeDeliveryMinimum: '50.00'
+      freeDeliveryMinimum: '50.00',
+      allow_admin_registration: 'true'
     }
 
     // Mesclar configurações padrão com as do banco
