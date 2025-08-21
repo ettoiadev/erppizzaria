@@ -34,18 +34,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Verificar autenticação ao carregar
   useEffect(() => {
-    // Não verificar autenticação em páginas de login
-    const isLoginPage = window.location.pathname.includes('/login')
-    if (!isLoginPage) {
+    // Não verificar autenticação em páginas de login ou cadastro
+    const isAuthPage = window.location.pathname.includes('/login') || 
+                      window.location.pathname.includes('/cadastro')
+    if (!isAuthPage) {
       checkAuth()
     } else {
-      setLoading(false) // Não mostrar loading em páginas de login
+      setLoading(false) // Não mostrar loading em páginas de autenticação
     }
   }, [])
 
   const checkAuth = async () => {
     try {
       setLoading(true)
+      
+      // Verificar se existe cookie de autenticação
+      const cookies = document.cookie.split(';')
+      const authToken = cookies.find(c => c.trim().startsWith('auth-token='))
+      
+      if (!authToken) {
+        setUser(null)
+        frontendLogger.info('Nenhum token de autenticação encontrado', 'auth')
+        return
+      }
       
       frontendLogger.info('Verificando autenticação do usuário', 'auth')
       
@@ -86,6 +97,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshToken = async (): Promise<boolean> => {
     try {
+      // Verificar se existe cookie de refresh token
+      const cookies = document.cookie.split(';')
+      const refreshToken = cookies.find(c => c.trim().startsWith('refresh-token='))
+      
+      if (!refreshToken) {
+        frontendLogger.info('Nenhum refresh token encontrado', 'auth')
+        return false
+      }
+      
       frontendLogger.info('Tentando renovar token', 'auth')
       
       const response = await fetch('/api/auth/refresh', {
