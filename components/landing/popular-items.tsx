@@ -1,11 +1,11 @@
 "use client"
 
-import { motion } from "framer-motion"
+import { useState, useEffect } from "react"
+import { AnimatedDiv, AnimatedSection, fadeInUp } from "@/components/ui/motion-wrapper"
 import { Button } from "@/components/ui/button"
 import { Star } from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
 import Link from "next/link"
-import { useState, useEffect } from "react"
 
 interface Product {
   id: string
@@ -98,7 +98,7 @@ export function PopularItems() {
   return (
     <section className="py-20 bg-gray-50">
       <div className="container mx-auto px-4">
-        <motion.div
+        <AnimatedDiv
           initial={{ opacity: 0, y: 50 }}
           whileInView={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8 }}
@@ -109,11 +109,11 @@ export function PopularItems() {
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
             Descubra os sabores que conquistaram o coração dos nossos clientes
           </p>
-        </motion.div>
+        </AnimatedDiv>
 
         <div className="grid md:grid-cols-3 gap-8 mb-12">
           {popularItems.map((item, index) => (
-            <motion.div
+            <AnimatedDiv
               key={item.id}
               initial={{ opacity: 0, y: 50 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -142,11 +142,11 @@ export function PopularItems() {
                   <Button size="sm">Pedir Agora</Button>
                 </div>
               </div>
-            </motion.div>
+            </AnimatedDiv>
           ))}
         </div>
 
-        <motion.div
+        <AnimatedDiv
           initial={{ opacity: 0, y: 50 }}
           whileInView={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8 }}
@@ -156,7 +156,7 @@ export function PopularItems() {
           <Button asChild size="lg" className="text-lg px-8">
             <Link href="/cardapio">Ver Cardápio Completo</Link>
           </Button>
-        </motion.div>
+        </AnimatedDiv>
       </div>
     </section>
   )

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { motion } from "framer-motion"
+import { AnimatedDiv, fadeInUp } from "@/components/ui/motion-wrapper"
 import { Shield, Heart, Star, Zap } from "lucide-react"
 
 interface AppSettings {
@@ -59,7 +59,7 @@ export function Features() {
   return (
     <section className="py-20 bg-white">
       <div className="container mx-auto px-4">
-        <motion.div
+        <AnimatedDiv
           initial={{ opacity: 0, y: 50 }}
           whileInView={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8 }}
@@ -72,11 +72,11 @@ export function Features() {
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
             Somos apaixonados por pizza e queremos compartilhar essa paixão com você
           </p>
-        </motion.div>
+        </AnimatedDiv>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
           {features.map((feature, index) => (
-            <motion.div
+            <AnimatedDiv
               key={feature.title}
               initial={{ opacity: 0, y: 50 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -89,7 +89,7 @@ export function Features() {
               </div>
               <h3 className="text-xl font-semibold text-gray-900 mb-3">{feature.title}</h3>
               <p className="text-gray-600 leading-relaxed">{feature.description}</p>
-            </motion.div>
+            </AnimatedDiv>
           ))}
         </div>
       </div>

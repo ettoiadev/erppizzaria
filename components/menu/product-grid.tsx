@@ -1,8 +1,15 @@
 "use client"
 
-import { motion } from "framer-motion"
+import { lazy, Suspense } from "react"
 import { ProductCard } from "./product-card"
 import type { Product } from "@/types"
+
+// Lazy load framer-motion para reduzir bundle inicial
+const MotionDiv = lazy(() => 
+  import("framer-motion").then(module => ({ 
+    default: module.motion.div 
+  }))
+)
 
 interface ProductGridProps {
   products: Product[]
@@ -30,14 +37,15 @@ export function ProductGrid({ products = [], onProductClick }: ProductGridProps)
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
       {products.map((product, index) => (
-        <motion.div
-          key={product.id}
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: index * 0.1 }}
-        >
-          <ProductCard product={product} onClick={() => onProductClick(product)} />
-        </motion.div>
+        <Suspense key={product.id} fallback={<div className="animate-pulse bg-gray-200 rounded-lg h-64" />}>
+          <MotionDiv
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: index * 0.1 }}
+          >
+            <ProductCard product={product} onClick={() => onProductClick(product)} />
+          </MotionDiv>
+        </Suspense>
       ))}
     </div>
   )

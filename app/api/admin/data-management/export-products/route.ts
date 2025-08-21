@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServerClient } from '@/lib/supabase'
-import * as XLSX from 'xlsx'
 import { frontendLogger } from '@/lib/frontend-logger'
+
+// Lazy load XLSX para reduzir bundle inicial
+const loadXLSX = async () => {
+  const XLSX = await import('xlsx')
+  return XLSX
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -30,6 +35,9 @@ export async function GET(request: NextRequest) {
       count: products.length
     })
 
+    // Carregar XLSX dinamicamente
+    const XLSX = await loadXLSX()
+    
     // Criar workbook e worksheet
     const wb = XLSX.utils.book_new()
     const ws = XLSX.utils.json_to_sheet(products)
