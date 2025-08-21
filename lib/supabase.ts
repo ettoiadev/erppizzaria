@@ -1,4 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { Database } from '@/types/supabase'
 import { appLogger } from './logging'
 import { supabaseLogger, instrumentSupabaseClient } from './supabase-logger'
 import { validateAndLogEnvironment } from './environment-validator'
@@ -58,14 +60,14 @@ if (!supabaseKey) {
 }
 
 // Cliente único para o servidor. Em rotas API (Node), este é o cliente a ser usado.
-const supabaseClient: SupabaseClient = createClient(supabaseUrl, supabaseKey, {
-  auth: { autoRefreshToken: false, persistSession: false },
+const supabaseClient: SupabaseClient<Database> = createClient(supabaseUrl, supabaseKey, {
+  auth: { autoRefreshToken: true, persistSession: true, detectSessionInUrl: true },
 })
 
 // Cliente administrativo para operações que precisam contornar RLS
 // Usar service_role key se disponível, senão usar anon key
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || supabaseKey
-const supabaseAdminClient: SupabaseClient = createClient(
+const supabaseAdminClient: SupabaseClient<Database> = createClient(
   supabaseUrl, 
   serviceRoleKey,
   {

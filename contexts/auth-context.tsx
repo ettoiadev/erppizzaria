@@ -2,28 +2,19 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { frontendLogger } from '@/lib/frontend-logger'
+import { createClient } from '@supabase/supabase-js'
+import { User } from '@supabase/supabase-js'
 
-interface User {
-  id: string
-  email: string
-  role: string
-  full_name?: string
-  name?: string
-  phone?: string
+interface AuthUser extends User {
+  role?: string
 }
 
 interface AuthContextType {
-  user: User | null
+  user: AuthUser | null
   loading: boolean
-  is_loading?: boolean // Compatibilidade
-  login: (email: string, password: string, isAdminLogin?: boolean) => Promise<{ success: boolean; error?: string }>
-  logout: (revokeAll?: boolean) => Promise<void>
-  log_out?: (revokeAll?: boolean) => Promise<void> // Compatibilidade
-  checkAuth: () => Promise<void>
-  check_auth?: () => Promise<void> // Compatibilidade
-  refreshToken: () => Promise<boolean>
-  refresh_token?: () => Promise<boolean> // Compatibilidade
-  register: (userData: any) => Promise<void>
+  isAdmin: boolean
+  login: (email: string, password: string, isAdminLogin?: boolean) => Promise<void>
+  logout: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)

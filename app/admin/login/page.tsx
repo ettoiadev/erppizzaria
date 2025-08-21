@@ -1,41 +1,39 @@
 "use client"
 
-import type React from "react"
+"use client"
+
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AdminRegisterModal } from "@/components/admin/auth/admin-register-modal"
+import { RegisterAdminModal } from "@/components/admin/register-admin-modal"
 
 export default function AdminLoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
+  const [loading, setLoading] = useState(false)
   const [showRegisterModal, setShowRegisterModal] = useState(false)
   const { login } = useAuth()
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsLoading(true)
     setError("")
+setLoading(true)
 
-    try {
-      const result = await login(email, password, true) // Indicando que é um login administrativo
-      if (!result.success) {
-        throw new Error(result.error)
-      }
-      router.push("/admin")
+try {
+  await login(email, password, true) // true indica login administrativo
+  router.push("/admin")
     } catch (error: any) {
       setError(error.message || "Email ou senha inválidos")
     } finally {
-      setIsLoading(false)
-    }
+  setLoading(false)
+}
   }
 
   const handleRegisterSuccess = () => {
@@ -92,10 +90,9 @@ export default function AdminLoginPage() {
         </CardContent>
       </Card>
 
-      <AdminRegisterModal
-        isOpen={showRegisterModal}
+      <RegisterAdminModal
+        open={showRegisterModal}
         onClose={() => setShowRegisterModal(false)}
-        onSuccess={handleRegisterSuccess}
       />
     </div>
   )
