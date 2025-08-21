@@ -10,6 +10,23 @@ import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Eye, EyeOff, UserPlus } from "lucide-react"
 
+// Validação de senha forte
+const validatePassword = (password: string) => {
+  const minLength = 8;
+  const hasUpperCase = /[A-Z]/.test(password);
+  const hasLowerCase = /[a-z]/.test(password);
+  const hasNumbers = /\d/.test(password);
+  const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+  
+  return (
+    password.length >= minLength &&
+    hasUpperCase &&
+    hasLowerCase &&
+    hasNumbers &&
+    hasSpecialChar
+  );
+}
+
 interface AdminRegisterModalProps {
   isOpen: boolean
   onClose: () => void
@@ -41,8 +58,9 @@ export function AdminRegisterModal({ isOpen, onClose, onSuccess }: AdminRegister
     try {
       const response = await fetch("/api/admin/settings")
       if (response.ok) {
-        const settings = await response.json()
-        setRegistrationAllowed(settings.allowAdminRegistration === true || settings.allowAdminRegistration === "true")
+        const data = await response.json()
+        const allowRegistration = data.settings?.allow_admin_registration
+        setRegistrationAllowed(allowRegistration === true || allowRegistration === "true")
       } else {
         // If settings can't be loaded, assume registration is allowed (default behavior)
         setRegistrationAllowed(true)
@@ -83,8 +101,8 @@ export function AdminRegisterModal({ isOpen, onClose, onSuccess }: AdminRegister
       return false
     }
 
-    if (formData.password.length < 6) {
-      setError("Senha deve ter pelo menos 6 caracteres")
+    if (!validatePassword(formData.password)) {
+      setError("A senha deve ter pelo menos 8 caracteres, incluindo maiúsculas, minúsculas, números e caracteres especiais")
       return false
     }
 
@@ -315,22 +333,4 @@ export function AdminRegisterModal({ isOpen, onClose, onSuccess }: AdminRegister
       </DialogContent>
     </Dialog>
   )
-}
-
-
-// Adicionar validação de senha forte
-const validatePassword = (password: string) => {
-  const minLength = 8;
-  const hasUpperCase = /[A-Z]/.test(password);
-  const hasLowerCase = /[a-z]/.test(password);
-  const hasNumbers = /\d/.test(password);
-  const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password);
-  
-  return (
-    password.length >= minLength &&
-    hasUpperCase &&
-    hasLowerCase &&
-    hasNumbers &&
-    hasSpecialChar
-  );
 }

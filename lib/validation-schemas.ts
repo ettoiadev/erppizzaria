@@ -10,14 +10,25 @@ export const userRegistrationSchema = z.object({
     .transform(val => val.toLowerCase().trim()),
   
   password: z.string()
-    .min(6, 'Senha deve ter pelo menos 6 caracteres')
+    .min(8, 'Senha deve ter pelo menos 8 caracteres')
     .max(128, 'Senha muito longa')
     .refine(
       (password) => {
-        // Pelo menos uma letra maiúscula e minúscula, OU um número
-        return /(?=.*[a-z])(?=.*[A-Z])/.test(password) || /(?=.*\d)/.test(password)
+        const minLength = 8;
+        const hasUpperCase = /[A-Z]/.test(password);
+        const hasLowerCase = /[a-z]/.test(password);
+        const hasNumbers = /\d/.test(password);
+        const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+        
+        return (
+          password.length >= minLength &&
+          hasUpperCase &&
+          hasLowerCase &&
+          hasNumbers &&
+          hasSpecialChar
+        );
       },
-      'Senha deve conter pelo menos uma letra maiúscula e minúscula, ou um número'
+      'A senha deve ter pelo menos 8 caracteres, incluindo maiúsculas, minúsculas, números e caracteres especiais'
     ),
   
   full_name: z.string()

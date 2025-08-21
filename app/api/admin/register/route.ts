@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
       const { data: setting, error } = await supabase
         .from('admin_settings')
         .select('setting_value')
-        .eq('setting_key', 'allowAdminRegistration')
+        .eq('setting_key', 'allow_admin_registration')
         .single()
       
       if (!error && setting) {
