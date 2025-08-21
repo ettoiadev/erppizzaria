@@ -97,6 +97,20 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       )
       return addCorsHeaders(response)
     }
+
+    // Verificar se é um login administrativo
+    const isAdminLogin = request.url.includes('/admin/login') || request.headers.get('x-admin-login') === 'true'
+    if (isAdminLogin && user.role !== 'admin') {
+      appLogger.warn('auth', 'Tentativa de login administrativo com usuário não autorizado', { 
+        email: email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+        role: user.role
+      })
+      const response = NextResponse.json(
+        { error: "Acesso não autorizado" },
+        { status: 403 }
+      )
+      return addCorsHeaders(response)
+    }
     
     appLogger.debug('auth', 'Usuário encontrado', { 
       id: user.id, 

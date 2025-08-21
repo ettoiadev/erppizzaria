@@ -16,7 +16,7 @@ interface AuthContextType {
   user: User | null
   loading: boolean
   is_loading?: boolean // Compatibilidade
-  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>
+  login: (email: string, password: string, isAdminLogin?: boolean) => Promise<{ success: boolean; error?: string }>
   logout: (revokeAll?: boolean) => Promise<void>
   log_out?: (revokeAll?: boolean) => Promise<void> // Compatibilidade
   checkAuth: () => Promise<void>
@@ -149,7 +149,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string, isAdminLogin: boolean = false) => {
     try {
       setLoading(true)
       
@@ -164,13 +164,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       frontendLogger.info('Tentativa de login', 'auth', {
-        email: email.replace(/(.{2}).*(@.*)/, '$1***$2')
+        email: email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+        isAdminLogin
       })
 
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          ...(isAdminLogin && { 'x-admin-login': 'true' })
         },
         body: JSON.stringify({ email, password }),
         credentials: 'include'
@@ -179,24 +181,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = await response.json()
 
       if (response.ok && data.success) {
+        // Verificar se é um login administrativo e se o usuário tem a role correta
+        if (isAdminLogin && data.user.role !== 'admin') {
+          frontendLogger.warn('Tentativa de login administrativo com usuário não autorizado', 'auth', {
+            email: email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+            role: data.user.role
+          })
+          return { success: false, error: 'Acesso não autorizado' }
+        }
+
         setUser(data.user)
         frontendLogger.info('Login realizado com sucesso', 'auth', {
           email: email.replace(/(.{2}).*(@.*)/, '$1***$2'),
           role: data.user.role,
-          tokenExpiry: data.expiresIn ? `${data.expiresIn}s` : 'unknown'
+          tokenExpiry: data.expiresIn ? `${data.expiresIn}s` : 'unknown',
+          isAdminLogin
         })
         return { success: true }
       } else {
         frontendLogger.warn('Falha no login', 'auth', {
           email: email.replace(/(.{2}).*(@.*)/, '$1***$2'),
-          error: data.error
+          error: data.error,
+          isAdminLogin
         })
         return { success: false, error: data.error || 'Erro no login' }
       }
     } catch (error: any) {
       frontendLogger.logError('Erro durante o login', {
          email: email.replace(/(.{2}).*(@.*)/, '$1***$2'),
-         error: error.message
+         error: error.message,
+         isAdminLogin
        }, error, 'auth')
       return { success: false, error: 'Erro de conexão' }
     } finally {
