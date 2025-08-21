@@ -153,6 +153,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setLoading(true)
       
+      // Verificar se já existe cookie de autenticação
+      const cookies = document.cookie.split(';')
+      const authToken = cookies.find(c => c.trim().startsWith('auth-token='))
+      
+      if (authToken) {
+        frontendLogger.warn('Tentativa de login com sessão ativa', 'auth', {
+          email: email.replace(/(.{2}).*(@.*)/, '$1***$2')
+        })
+      }
+
       frontendLogger.info('Tentativa de login', 'auth', {
         email: email.replace(/(.{2}).*(@.*)/, '$1***$2')
       })
@@ -196,6 +206,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async (revokeAll: boolean = false) => {
     try {
+      // Verificar se existe cookie de autenticação antes de tentar logout
+      const cookies = document.cookie.split(';')
+      const authToken = cookies.find(c => c.trim().startsWith('auth-token='))
+      
+      if (!authToken) {
+        frontendLogger.warn('Tentativa de logout sem sessão ativa', 'auth')
+        setUser(null)
+        return
+      }
+
       frontendLogger.info('Realizando logout', 'auth', {
         revokeAll
       })
@@ -224,6 +244,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setLoading(true)
       
+      // Verificar se já existe cookie de autenticação
+      const cookies = document.cookie.split(';')
+      const authToken = cookies.find(c => c.trim().startsWith('auth-token='))
+      
+      if (authToken) {
+        frontendLogger.warn('Tentativa de registro com sessão ativa', 'auth', {
+          email: userData.email?.replace(/(.{2}).*(@.*)/, '$1***$2')
+        })
+      }
+
       frontendLogger.info('Tentativa de registro', 'auth', {
         email: userData.email?.replace(/(.{2}).*(@.*)/, '$1***$2')
       })
