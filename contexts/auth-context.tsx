@@ -34,9 +34,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Verificar autenticação ao carregar
   useEffect(() => {
-    // Não verificar autenticação em páginas de login ou cadastro
+    // Não verificar autenticação em páginas de login, cadastro ou recuperação de senha
     const isAuthPage = window.location.pathname.includes('/login') || 
-                      window.location.pathname.includes('/cadastro')
+                      window.location.pathname.includes('/cadastro') ||
+                      window.location.pathname.includes('/esqueci-senha')
     if (!isAuthPage) {
       checkAuth()
     } else {
@@ -54,7 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       if (!authToken) {
         setUser(null)
-        frontendLogger.info('Nenhum token de autenticação encontrado', 'auth')
+        // Não logar se não houver token - é um estado normal em páginas públicas
         return
       }
       
@@ -75,11 +76,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           })
         }
       } else if (response.status === 401) {
-        // Token expirado, tentar refresh
-        const refreshed = await refreshToken()
-        if (!refreshed) {
+        // Token expirado, tentar refresh apenas se houver refresh token
+        const refreshTokenCookie = cookies.find(c => c.trim().startsWith('refresh-token='))
+        if (refreshTokenCookie) {
+          const refreshed = await refreshToken()
+          if (!refreshed) {
+            setUser(null)
+            frontendLogger.info('Usuário não autenticado - sessão expirada', 'auth')
+          }
+        } else {
           setUser(null)
-          frontendLogger.info('Usuário não autenticado - sessão expirada', 'auth')
+          frontendLogger.info('Usuário não autenticado - sem refresh token', 'auth')
         }
       } else {
         setUser(null)
@@ -102,7 +109,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const refreshToken = cookies.find(c => c.trim().startsWith('refresh-token='))
       
       if (!refreshToken) {
-        frontendLogger.info('Nenhum refresh token encontrado', 'auth')
+        // Não logar se não houver refresh token - é um estado normal
         return false
       }
       
@@ -256,22 +263,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const value: AuthContextType = {
-    user,
-    loading,
-    is_loading: loading, // Compatibilidade
-    login,
-    logout,
-    log_out: logout, // Compatibilidade
-    checkAuth,
-    check_auth: checkAuth, // Compatibilidade
-    refreshToken,
-    refresh_token: refreshToken, // Compatibilidade
-    register
-  }
-
   return (
-    <AuthContext.Provider value={value}>
+    <AuthContext.Provider value={{
+      user,
+      loading,
+      is_loading: loading, // Compatibilidade
+      login,
+      logout,
+      log_out: logout, // Compatibilidade
+      checkAuth,
+      check_auth: checkAuth, // Compatibilidade
+      refreshToken,
+      refresh_token: refreshToken, // Compatibilidade
+      register
+    }}>
       {children}
     </AuthContext.Provider>
   )

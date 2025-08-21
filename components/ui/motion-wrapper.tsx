@@ -37,7 +37,7 @@ const MotionP = lazy(() =>
 )
 
 // Fallback component para loading
-const MotionFallback = ({ children, className, whileInView, ...props }: any) => (
+const MotionFallback = ({ children, className, whileInView: _whileInView, ...props }: any) => (
   <div className={className} {...props}>
     {children}
   </div>
