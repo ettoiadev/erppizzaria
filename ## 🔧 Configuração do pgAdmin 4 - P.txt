@@ -1,0 +1,49 @@
+## 🔧 Configuração do pgAdmin 4 - Passo a Passo
+Baseado no guia criado, siga estes passos para configurar corretamente:
+
+### 1️⃣ Abrir pgAdmin 4
+- Menu Iniciar → "pgAdmin 4"
+- Definir senha mestra na primeira execução
+### 2️⃣ Criar Conexão com Servidor
+1. 1.
+   Botão direito em "Servers" → "Register" → "Server..."
+2. 2.
+   Aba General:
+   - Name: PostgreSQL Local - ERP Pizzaria
+3. 3.
+   Aba Connection:
+   - Host: localhost
+   - Port: 5432
+   - Username: postgres
+   - Password: 134679
+   - ✅ Save password
+4. 4.
+   Clique "Save"
+### 3️⃣ Criar Banco de Dados
+1. 1.
+   Botão direito em "Databases" → "Create" → "Database..."
+2. 2.
+   Database: erp_pizzaria
+3. 3.
+   Owner: postgres
+4. 4.
+   Encoding: UTF8
+### 4️⃣ Executar Scripts
+1. 1.
+   Conectar ao banco erp_pizzaria
+2. 2.
+   Abrir "Query Tool"
+3. 3.
+   Executar init.sql (estrutura das tabelas)
+4. 4.
+   Executar seed.sql (dados iniciais)
+### 5️⃣ Verificar Criação
+### ✅ Resultado Esperado
+- 8 tabelas criadas
+- 4 categorias de produtos
+- 5 produtos cadastrados
+- 1 usuário admin configurado
+Credenciais finais:
+
+- Banco: erp_pizzaria
+- Admin App: admin@erppizzaria.com / admin123

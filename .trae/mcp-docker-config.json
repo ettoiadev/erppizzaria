@@ -1,0 +1,28 @@
+{
+  "mcp_servers": [
+    {
+      "server_name": "mcp.config.usrlocalmcp.postgresql",
+      "description": "PostgreSQL MCP Server para integração com banco de dados",
+      "docker": {
+        "image": "postgres:15-alpine",
+        "container_name": "postgresql-mcp-server",
+        "ports": ["5432:5432"],
+        "environment": [
+          "POSTGRES_URL=${POSTGRES_URL}",
+          "POSTGRES_DB=${POSTGRES_DB}",
+          "POSTGRES_USER=${POSTGRES_USER}",
+          "POSTGRES_PASSWORD=${POSTGRES_PASSWORD}"
+        ],
+        "volumes": [
+          "${PWD}/postgres-data:/var/lib/postgresql/data"
+        ]
+      }
+    }
+  ],
+  "mcp_gateway": {
+    "enabled": true,
+    "host": "localhost",
+    "port": 8080,
+    "log_level": "info"
+  }
+}

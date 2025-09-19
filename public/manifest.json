@@ -1,0 +1,25 @@
+{
+  "name": "William Disk Pizza - Delivery de Pizza",
+  "short_name": "William Disk Pizza",
+  "description": "O melhor delivery de pizza da cidade",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ef4444",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "16x16 32x32 48x48",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "/favicon.ico",
+      "sizes": "any",
+      "type": "image/x-icon",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["food", "delivery"],
+  "lang": "pt-BR"
+}
