@@ -111,11 +111,11 @@ export const authRateLimiter = createRateLimiter({
 })
 
 /**
- * Rate Limiter para pedidos (permissivo)
+ * Rate Limiter para pedidos (muito permissivo para dashboard admin)
  */
 export const ordersRateLimiter = createRateLimiter({
-  windowMs: 5 * 60 * 1000, // 5 minutos
-  maxRequests: 100, // 100 requests por 5 min (muito mais permissivo)
+  windowMs: 1 * 60 * 1000, // 1 minuto
+  maxRequests: 300, // 300 requests por minuto (extremamente permissivo para dashboard)
   message: 'Muitos pedidos. Aguarde um momento antes de fazer outro pedido.',
   headers: true
 })
@@ -195,4 +195,4 @@ export function getRateLimitInfo(ip: string) {
   }
   
   return entries
-} 
+}

@@ -17,7 +17,7 @@
     "migrate:force": "node scripts/apply-migrations.js --force",
     "db:setup": "node setup-database.js",
     "db:seed": "node scripts/run-seeds.js"
-   },
+  },
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",
     "@radix-ui/react-alert-dialog": "^1.0.5",

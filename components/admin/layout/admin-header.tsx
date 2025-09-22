@@ -6,15 +6,16 @@ import { useAuth } from "@/contexts/auth-context"
 import { useAppSettings } from "@/hooks/use-app-settings"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { NotificationBell } from "@/components/ui/notification-bell"
+import { ThemeToggle } from "@/components/ui/theme-toggle"
 
 export function AdminHeader() {
   const { user, logout } = useAuth()
   const { settings } = useAppSettings()
 
   return (
-    <header className="bg-white shadow-sm border-b h-16 flex items-center justify-between px-6 sticky top-0 z-50">
+    <header className="bg-background shadow-sm border-b h-auto min-h-16 py-2 flex flex-col sm:flex-row sm:h-16 items-center justify-between px-6 sticky top-0 z-50">
       {/* Logo */}
-      <div className="flex items-center space-x-2">
+      <div className="flex items-center space-x-2 mb-2 sm:mb-0">
         {settings.logo_url ? (
           <img 
             src={settings.logo_url} 
@@ -29,13 +30,16 @@ export function AdminHeader() {
             </span>
           </div>
         )}
-        <span className="font-bold text-xl text-gray-900">
+        <span className="font-bold text-xl text-foreground truncate max-w-[200px] sm:max-w-none">
           {settings.restaurant_name ? `${settings.restaurant_name} - Admin` : "Administração"}
         </span>
       </div>
 
       {/* Actions */}
       <div className="flex items-center space-x-4">
+        {/* Alternância de tema */}
+        <ThemeToggle />
+        
         {/* Notificações */}
         <NotificationBell userId={user?.id} />
         

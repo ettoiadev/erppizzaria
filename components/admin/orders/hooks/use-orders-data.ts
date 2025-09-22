@@ -1,7 +1,20 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { useToast } from "@/hooks/use-toast"
 import type { Order, OrderStatistics } from "../types"
 import { statusLabels } from "../constants"
+
+// Função auxiliar de debounce
+function debounce<T extends (...args: any[]) => any>(
+  func: T,
+  wait: number
+): (...args: Parameters<T>) => void {
+  let timeout: NodeJS.Timeout | null = null;
+  
+  return function(...args: Parameters<T>) {
+    if (timeout) clearTimeout(timeout);
+    timeout = setTimeout(() => func(...args), wait);
+  };
+}
 
 export function useOrdersData(selectedStatus: string) {
   const [orders, setOrders] = useState<Order[]>([])
@@ -17,8 +30,9 @@ export function useOrdersData(selectedStatus: string) {
   const [loading, setLoading] = useState(true)
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null)
   const { toast } = useToast()
-
-  const fetchOrders = async () => {
+  
+  // Função para buscar pedidos
+  const fetchOrdersImpl = useCallback(async () => {
     try {
       setLoading(true)
       const params = new URLSearchParams()
@@ -49,7 +63,22 @@ export function useOrdersData(selectedStatus: string) {
     } finally {
       setLoading(false)
     }
+  }, [selectedStatus, toast])
+  
+  // Criar versão com debounce da função fetchOrdersImpl
+  const debouncedFetchRef = useRef<() => void>();
+  
+  // Inicializar a referência apenas uma vez
+  if (!debouncedFetchRef.current) {
+    debouncedFetchRef.current = debounce(fetchOrdersImpl, 500);
   }
+  
+  // Função fetchOrders que será exposta pelo hook
+  const fetchOrders = useCallback(() => {
+    if (debouncedFetchRef.current) {
+      debouncedFetchRef.current();
+    }
+  }, []);
 
   const updateOrderStatus = async (orderId: string, newStatus: string, notes?: string) => {
     try {
@@ -183,9 +212,10 @@ export function useOrdersData(selectedStatus: string) {
     }
   }
 
+  // Efeito para carregar pedidos quando o status selecionado mudar
   useEffect(() => {
-    fetchOrders()
-  }, [selectedStatus])
+    fetchOrdersImpl() // Chamada direta para garantir carregamento imediato na mudança de status
+  }, [selectedStatus, fetchOrdersImpl])
 
   // Atualização manual via botão de refresh
 

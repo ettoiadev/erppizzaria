@@ -5,6 +5,26 @@ import { frontendLogger } from '@/lib/frontend-logger'
 import { orderSchema } from '@/lib/validation-schemas'
 import { checkRateLimit, addRateLimitHeaders } from '@/lib/simple-rate-limit'
 import { createSecureResponse, createSecureErrorResponse, sanitizeInput, validateTrustedOrigin } from '@/lib/security-utils'
+import { MemoryCache } from '@/lib/cache-manager'
+
+// Criar instância de cache para pedidos com TTL de 30 segundos
+const ordersCache = new MemoryCache({
+  defaultTTL: 30 * 1000, // 30 segundos
+  maxSize: 100, // máximo 100 itens no cache
+  cleanupInterval: 60 * 1000 // limpeza a cada 1 minuto
+})
+
+// Função para invalidar todo o cache de pedidos
+function invalidateOrdersCache() {
+  // Limpar todos os itens do cache que começam com 'orders_'
+  const cacheEntries = Array.from(ordersCache['cache'].entries())
+  for (const [key] of cacheEntries) {
+    if (key.startsWith('orders_')) {
+      ordersCache['cache'].delete(key)
+    }
+  }
+  frontendLogger.info('Cache de pedidos invalidado')
+}
 
 // Force dynamic rendering for this route
 export const dynamic = 'force-dynamic'
@@ -18,6 +38,16 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const userId = searchParams.get('userId')
     const limit = parseInt(searchParams.get('limit') || '50')
     const offset = parseInt(searchParams.get('offset') || '0')
+    
+    // Gerar chave de cache baseada nos parâmetros da requisição
+    const cacheKey = `orders_${status || 'all'}_${userId || 'all'}_${limit}_${offset}`
+    
+    // Verificar se os dados estão em cache
+    const cachedData = ordersCache.get(cacheKey)
+    if (cachedData) {
+      frontendLogger.info(`Usando dados em cache para pedidos: ${cacheKey}`)
+      return createSecureResponse(cachedData, 200, request)
+    }
 
     let whereClause = 'WHERE 1=1'
     const params: any[] = []
@@ -49,7 +79,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       total: ordersResult.rows.length
     }
     
-    frontendLogger.info(`Encontrados ${orders.orders.length} pedidos`)
+    // Armazenar resultado no cache
+    ordersCache.set(cacheKey, orders)
+    
+    frontendLogger.info(`Encontrados ${orders.orders.length} pedidos (armazenados em cache)`)
     return createSecureResponse(orders, 200, request)
   } catch (error: any) {
     frontendLogger.logError('Erro ao buscar pedidos', {}, error, 'api')
@@ -144,6 +177,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     ])
     
     const order = orderResult.rows[0]
+    
+    // Invalidar cache de pedidos após criar um novo pedido
+    invalidateOrdersCache()
     
     // Inserir itens do pedido
     for (const item of itemsPayload) {

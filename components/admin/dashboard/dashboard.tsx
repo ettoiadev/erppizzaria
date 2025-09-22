@@ -54,62 +54,28 @@ export function Dashboard() {
       setLoading(true)
       setError(null)
 
-      // Buscar dados reais em paralelo (sem limite para garantir dados completos)
-      const [ordersRes, productsRes, categoriesRes, customersRes] = await Promise.all([
-        fetch('/api/orders'),
-        fetch('/api/products'),
-        fetch('/api/categories'),
-        fetch('/api/customers')
-      ])
-
-      const [ordersData, productsData, categoriesData, customersData] = await Promise.all([
-        ordersRes.json(),
-        productsRes.json(),
-        categoriesRes.json(),
-        customersRes.json()
-      ])
-
-      // Processar dados dos pedidos com fuso horário brasileiro
-      const orders = ordersData.orders || []
+      // Usar a nova API otimizada para o dashboard
+      const dashboardRes = await fetch('/api/dashboard')
+      const dashboardData = await dashboardRes.json()
       
-      // Criar datas no fuso horário brasileiro (UTC-3)
-      const now = new Date()
-      const brasiliaOffset = -3 * 60 // UTC-3 em minutos
-      const todayBrasilia = new Date(now.getTime() + (brasiliaOffset + now.getTimezoneOffset()) * 60000)
-      const yesterdayBrasilia = new Date(todayBrasilia.getTime() - 24 * 60 * 60 * 1000)
-      
-      const todayString = todayBrasilia.toISOString().split('T')[0]
-      const yesterdayString = yesterdayBrasilia.toISOString().split('T')[0]
-      
-      // Log apenas em desenvolvimento
       if (process.env.NODE_ENV === 'development') {
-        console.log('🔍 Dashboard - Calculando crescimento:', {
-          hoje: todayString,
-          ontem: yesterdayString,
-          totalPedidos: orders.length
-        })
+        console.log('🔍 Dashboard - Dados recebidos:', dashboardData)
       }
+
+      // Usar os dados da API otimizada para o dashboard
+      const {
+        today_orders: todayOrders,
+        yesterday_orders: yesterdayOrders,
+        orders,
+        customers: customersData,
+        products: productsData,
+        categories: categoriesData
+      } = dashboardData
       
-      const todayOrders = orders.filter((order: any) => {
-        const orderDate = new Date(order.created_at).toISOString().split('T')[0]
-        return orderDate === todayString
-      })
+      const dailySales = dashboardData.stats.daily_sales || 0
+      const yesterdaySales = dashboardData.stats.yesterday_sales || 0
+      const revenueGrowth = dashboardData.stats.revenue_growth || 0
       
-      const yesterdayOrders = orders.filter((order: any) => {
-        const orderDate = new Date(order.created_at).toISOString().split('T')[0]
-        return orderDate === yesterdayString
-      })
-
-      const dailySales = todayOrders.reduce((sum: number, order: any) => {
-        const total = parseFloat(order.total || '0')
-        return sum + (isNaN(total) ? 0 : total)
-      }, 0)
-
-      const yesterdaySales = yesterdayOrders.reduce((sum: number, order: any) => {
-        const total = parseFloat(order.total || '0')
-        return sum + (isNaN(total) ? 0 : total)
-      }, 0)
-
       // Log apenas em desenvolvimento
       if (process.env.NODE_ENV === 'development') {
         console.log('💰 Dashboard - Vendas calculadas:', {
@@ -118,20 +84,6 @@ export function Dashboard() {
           pedidosHoje: todayOrders.length,
           pedidosOntem: yesterdayOrders.length
         })
-      }
-
-      // Calcular crescimento da receita com lógica aprimorada
-      let revenueGrowth = 0
-      
-      if (yesterdaySales > 0) {
-        // Caso normal: há vendas ontem para comparar
-        revenueGrowth = ((dailySales - yesterdaySales) / yesterdaySales) * 100
-      } else if (dailySales > 0) {
-        // Caso especial: não houve vendas ontem, mas há hoje (crescimento de 100%)
-        revenueGrowth = 100
-      } else {
-        // Caso sem vendas hoje nem ontem
-        revenueGrowth = 0
       }
       
       // Log apenas em desenvolvimento
@@ -197,7 +149,7 @@ export function Dashboard() {
           created_at: order.created_at
         }))
 
-      // Atualizar estados
+      // Atualizar estados com os dados da API otimizada
       setStats({
         dailySales,
         totalOrders: orders.length,
